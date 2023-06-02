@@ -50,7 +50,7 @@ ROADRACE_TYPES = {
     'handicap': 'Handicap',
     'cross': 'Cyclocross',
     'irtt': 'Road Time Trial',
-    #'trtt': 'Team Road Time Trial',
+    'trtt': 'Team Road Time Trial',
 }
 _DEFAULT_HANDLER = 'null'
 _HANDLERS = {
@@ -328,7 +328,7 @@ class roadmeet:
         rep.start_gtkprint(context.get_cairo_context())
         operation.set_use_full_page(True)
         operation.set_n_pages(rep.get_pages())
-        operation.set_unit('points')
+        operation.set_unit(Gtk.Unit.POINTS)
 
     def draw_print_page(self, operation, context, page_nr, rep):
         """Draw to the nominated page."""
@@ -1324,8 +1324,8 @@ class roadmeet:
             ntag = self.rdb[rider]['refid'].lower()
             if rider in self._maptag:
                 otag = self._maptag[rider]
-                del (self._maptag[rider])
             if otag != ntag:
+                del (self._maptag[rider])
                 if otag in self._tagmap:
                     del (self._tagmap[otag])
                 if ntag:

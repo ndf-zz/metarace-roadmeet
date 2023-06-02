@@ -710,8 +710,8 @@ class rms:
                             -strops.riderno_key(bib), -cnt, [
                                 None, r[COL_BIB], r[COL_NAMESTR],
                                 strops.truncpad(str(self.pointscb[tally][bib]),
-                                                10,
-                                                ellipsis=False), None,
+                                                16,
+                                                ellipsis=True), None,
                                 str(self.points[tally][bib])
                             ]))
                 cnt += 1
@@ -809,12 +809,11 @@ class rms:
                 if True:
                     sec = report.signon_list('signon')
                     sec.heading = c
-                    dbr = self.meet.rdb.getrider(c, 'cat')
+                    dbr = self.meet.rdb.get_rider(c, 'cat')
                     if dbr is not None:
-                        sec.heading = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_FIRST)
-                        sec.subheading = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_LAST)
+                        sec.heading = dbr['title']
+                        sec.subheading = dbr['subtitle']
+                        sec.footer = dbr['footer']
                     elif c == '':
                         sec.heading = 'Uncategorised Riders'
                     for r in self.riders:
@@ -886,14 +885,12 @@ class rms:
             ls = None
             # fetch data on all but the uncat cat
             if c:
-                dbr = self.meet.rdb.getrider(c, 'cat')
+                dbr = self.meet.rdb.get_rider(c, 'cat')
                 if dbr is not None:
-                    ct = tod.mktod(
-                        self.meet.rdb.getvalue(dbr, riderdb.COL_UCICODE))
+                    ct = tod.mktod(dbr['start offset'])
                     if ct is not None:
                         cs = ct
-                    lt = strops.confopt_posint(
-                        self.meet.rdb.getvalue(dbr, riderdb.COL_CAT))
+                    lt = strops.confopt_posint(dbr['target laps'])
                     if lt:
                         ls = lt
                         onetarget = True
@@ -923,9 +920,9 @@ class rms:
         if cat is not None:
             dbr = self.meet.rdb.get_rider(cat, 'cat')
             if dbr is not None:
-                catname = dbr['name']
-                subhead = dbr['subheading']
-                footer = dbr['note']
+                catname = dbr['title']
+                subhead = dbr['subtitle']
+                footer = dbr['footer']
             if cat == '':
                 catname = 'Uncategorised Riders'
                 uncat = True
@@ -937,10 +934,11 @@ class rms:
             for c in self.meet.rdb.listcats(self.series):
                 if c != '':
                     catnm = c
-                    dbr = self.meet.rdb.getrider(c, 'cat')
+                    dbr = self.meet.rdb.get_rider(c, 'cat')
                     if dbr is not None:
-                        catnm = self.meet.rdb.getvalue(dbr, riderdb.COL_FIRST)
+                        catnm = dbr['title']
                     catcache[c] = catnm
+
         ret = []
         sec = None
         sec = report.twocol_startlist('startlist')
@@ -962,10 +960,9 @@ class rms:
                 ucicode = None
                 name = r[COL_NAMESTR]
                 if self.showuciids:
-                    dbr = self.meet.rdb.getrider(r[COL_BIB], self.series)
+                    dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
                     if dbr is not None:
-                        ucicode = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_UCICODE)
+                        ucicode = dbr['uci id']
                 if self.showcats and not ucicode and cat == '':
                     # Rider may have a typo in cat, show the catlist
                     ucicode = cs
@@ -981,19 +978,14 @@ class rms:
                 # Look up pilots
                 if cat in ['MB', 'WB']:
                     # lookup pilot
-                    dbr = self.meet.rdb.getrider(r[COL_BIB], 'pilot')
+                    dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
                     if dbr is not None:
                         sec.even = True  # force even first column
                         puci = None
                         if self.showuciids:
-                            puci = self.meet.rdb.getvalue(
-                                dbr, riderdb.COL_UCICODE)
-                        pnam = strops.listname(
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_FIRST),
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_LAST),
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_ORG))
+                            puci = dbr['uci id']
+                        pnam = dbr.listname()
                         sec.lines.append(['', '', pnam, puci])
-
                 rcnt += 1
         fvc = []
         if footer:
@@ -1064,7 +1056,6 @@ class rms:
                 rcat = r[COL_CAT]
                 ecat = self.ridercat(riderdb.primary_cat(rcat))
                 catstart = None
-                #catstart = tod.ZERO
                 if ecat in self.catstarts and self.event['type'] != 'cross':
                     catstart = self.catstarts[ecat]
                 laplist = []
@@ -1233,12 +1224,12 @@ class rms:
         flap = None
         fno = None
         fcnt = None
-        dbr = self.meet.rdb.getrider(cat, 'cat')
+        dbr = self.meet.rdb.get_rider(cat, 'cat')
         if dbr is not None:
-            catname = self.meet.rdb.getvalue(dbr, riderdb.COL_FIRST)
-            subhead = self.meet.rdb.getvalue(dbr, riderdb.COL_LAST)
-            footer = self.meet.rdb.getvalue(dbr, riderdb.COL_NOTE)
-            dist = self.meet.rdb.getvalue(dbr, riderdb.COL_REFID)
+            catname = dbr['title']
+            subhead = dbr['subtitle']
+            footer = dbr['footer']
+            dist = dbr['distance']
             if dist:
                 try:
                     distance = float(dist)
@@ -1298,9 +1289,9 @@ class rms:
                 cstr = ''
                 rpass = None
                 if self.showuciids:
-                    dbr = self.meet.rdb.getrider(bstr, self.series)
+                    dbr = self.meet.rdb.get_rider(bstr, self.series)
                     if dbr is not None:
-                        cstr = self.meet.rdb.getvalue(dbr, riderdb.COL_UCICODE)
+                        cstr = dbr['uci id']
                 placed = False  # placed at finish
                 timed = False  # timed at finish
                 virtual = False  # oncourse
@@ -1439,16 +1430,12 @@ class rms:
                     if cat in ['MB', 'WB']:
                         sec.even = True  # twocol result
                         # lookup pilot
-                        dbr = self.meet.rdb.getrider(bstr, 'pilot')
+                        dbr = self.meet.rdb.get_rider(bstr, 'pilot')
                         if dbr is not None:
                             puci = ''
                             if self.showuciids:
-                                puci = self.meet.rdb.getvalue(
-                                    dbr, riderdb.COL_UCICODE)
-                            pnam = strops.listname(
-                                self.meet.rdb.getvalue(dbr, riderdb.COL_FIRST),
-                                self.meet.rdb.getvalue(dbr, riderdb.COL_LAST),
-                                self.meet.rdb.getvalue(dbr, riderdb.COL_ORG))
+                                puci = dbr['uci id']
+                            pnam = dbr.listname()
                             sec.lines.append(['', 'pilot', pnam, puci, '', ''])
                 if doflap and comment != 'dns':
                     if len(r[COL_RFSEEN]) > 0:
@@ -1587,7 +1574,7 @@ class rms:
                 catnm = c
                 dbr = self.meet.rdb.get_rider(c, 'cat')
                 if dbr is not None:
-                    catnm = dbr['name']
+                    catnm = dbr['title']
                 catcache[c] = catnm
         lt = None
         if self.places or self.timerstat != 'idle':
@@ -1613,9 +1600,9 @@ class rms:
                 if cstr.upper() in catcache:
                     cstr = catcache[cstr.upper()]
                 if self.showuciids:
-                    dbr = self.meet.rdb.getrider(bstr, self.series)
+                    dbr = self.meet.rdb.get_rider(bstr, self.series)
                     if dbr is not None:
-                        cstr = self.meet.rdb.getvalue(dbr, riderdb.COL_UCICODE)
+                        cstr = dbr['uci id']
                 elif not self.showcats:
                     cstr = ''
                 pstr = ''  # 'place'
@@ -1914,13 +1901,11 @@ class rms:
                 firstxtra = ''
                 lastxtra = ''
                 clubxtra = ''
-                dbr = self.meet.rdb.getrider(bib, self.series)
+                dbr = self.meet.rdb.get_rider(bib, self.series)
                 if dbr is not None:
-                    firstxtra = self.meet.rdb.getvalue(
-                        dbr, riderdb.COL_FIRST).capitalize()
-                    lastxtra = self.meet.rdb.getvalue(
-                        dbr, riderdb.COL_LAST).upper()
-                    clubxtra = self.meet.rdb.getvalue(dbr, riderdb.COL_ORG)
+                    firstxtra = dbr['first'].capitalize()
+                    lastxtra = dbr['last'].upper()
+                    clubxtra = dbr['org']
                 yield [
                     start, bib, series, name, cat, firstxtra, lastxtra,
                     clubxtra
@@ -1949,15 +1934,12 @@ class rms:
                     first = ''
                     team = ''
                     ucicode = ''
-                    dbr = self.meet.rdb.getrider(bib, self.series)
+                    dbr = self.meet.rdb.get_rider(bib, self.series)
                     if dbr is not None:
-                        first = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_FIRST).capitalize()
-                        last = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_LAST).upper()
-                        team = self.meet.rdb.getvalue(dbr, riderdb.COL_ORG)
-                        ucicode = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_UCICODE)
+                        first = dbr['first'].capitalize()
+                        last = dbr['last'].upper()
+                        team = dbr['org']
+                        ucicode = dbr['uci id']
                     rftime = '0'
                     if r[COL_RFTIME] is not None:
                         rftime = (r[COL_RFTIME] - st).rawtime(2, hoursep=':')
@@ -2297,7 +2279,7 @@ class rms:
             i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Confirmed next place: %r/%r', selbib, selpath)
+            _log.info('Confirmed next place: %r/%s', selbib, selpath)
             nplaces = []
             # remove selected rider from places
             for placegroup in self.places.split():
@@ -2316,7 +2298,8 @@ class rms:
             j = self.riders.iter_next(i)
             if j is not None:
                 # note: set by selection doesn't adjust focus
-                self.view.set_cursor_on_cell(self.riders.get_path(j))
+                self.view.set_cursor_on_cell(self.riders.get_path(j), None,
+                                             None, False)
 
     def fill_places_to_selected(self):
         """Update places to match ordering up to selected rider."""
@@ -2330,7 +2313,7 @@ class rms:
             i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Confirm places to: %r/%r', selbib, selpath)
+            _log.info('Confirm places to: %r/%s', selbib, selpath)
             oplaces = self.places.split()
             nplaces = []
             for r in self.riders:
@@ -2348,7 +2331,8 @@ class rms:
             j = self.riders.iter_next(i)
             if j is not None:
                 # note: set by selection doesn't adjust focus
-                self.view.set_cursor_on_cell(self.riders.get_path(j))
+                self.view.set_cursor_on_cell(self.riders.get_path(j), None,
+                                             None, False)
 
     def clear_places_from_selection(self):
         """Clear all places from riders following the current selection."""
@@ -2357,7 +2341,7 @@ class rms:
             i = sel[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Clear places from: %r/%r', selbib, selpath)
+            _log.info('Clear places from: %r/%s', selbib, selpath)
             nplaces = []
             found = False
             for placegroup in self.places.split():
@@ -2393,7 +2377,7 @@ class rms:
             i = sel[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Clear rider from places: %r/%r', selbib, selpath)
+            _log.info('Clear rider from places: %r/%s', selbib, selpath)
             self.clear_place(selbib)
             self.recalculate()
 
@@ -2529,10 +2513,9 @@ class rms:
                         target = self.catlaps[cat]
                     if target is not None and count is not None and count < target:
                         prompt = cat.upper()
-                        dbr = self.meet.rdb.getrider(cat, 'cat')
+                        dbr = self.meet.rdb.get_rider(cat, 'cat')
                         if dbr is not None:
-                            prompt = self.meet.rdb.getvalue(
-                                dbr, riderdb.COL_ORG)
+                            prompt = dbr['lap prefix']
                         self.meet.cmd_announce(
                             'catlap', '\x1f'.join([
                                 cat, prompt,
@@ -3224,6 +3207,15 @@ class rms:
         else:
             _log.error('Invalid lap count')
 
+    def editcat_cb(self, cell, path, new_text, col):
+        """Edit the cat field if valid."""
+        new_text = ' '.join(new_text.strip().upper().split())
+        r = self.meet.rdb.get_rider(self.riders[path][COL_BIB], self.series)
+        if r is not None:
+            # note: this will generate a rider change callback
+            r['cat'] = new_text
+        self.riders[path][col] = new_text
+
     def editseed_cb(self, cell, path, new_text, col):
         """Edit the lap field if valid."""
         new_text = new_text.strip()
@@ -3251,6 +3243,7 @@ class rms:
         return ret
 
     def getstart(self, r):
+        """Return a start offset"""
         ret = None
         if r[COL_STOFT] is not None:
             ret = r[COL_STOFT]
@@ -3426,6 +3419,7 @@ class rms:
                 self._recalc()
         except Exception as e:
             _log.error('%s recalculating result: %s', e.__class__.__name__, e)
+            raise
 
     def rider_in_cat(self, bib, cat):
         """Return True if rider is in nominated category."""
@@ -3483,6 +3477,7 @@ class rms:
         if src not in RESERVED_SOURCES and src not in self.intermeds:
             _log.info('Invalid inter source %r in contest %r', src, contest)
             return
+        # todo: remove this countback flag - does not work as expected
         countbackwinner = False  # for stage finish only track winner in cb
         category = self.contestmap[contest]['category']
         tally = self.contestmap[contest]['tally']
@@ -3510,6 +3505,8 @@ class rms:
             countbackwinner = True
         else:
             placestr = self.intermap[src]['places']
+        _log.debug('for contest %r countbackwinner is %r', contest,
+                   countbackwinner)
         placeset = set()
         idx = 0
         for placegroup in placestr.split():
@@ -3557,6 +3554,8 @@ class rms:
                             if countbackwinner:  # stage finish
                                 if curplace == 1:  # winner only at finish
                                     self.pointscb[tally][bib][0] += 1
+                                else:
+                                    self.pointscb[tally][bib][curplace] += 1
                             else:  # intermediate/other
                                 if tally == 'climb':  # climbs countback on category winners only
                                     if curplace == 1:
@@ -3626,9 +3625,11 @@ class rms:
         for r in self.riders:
             rbib = r[COL_BIB]
             rplace = r[COL_PLACE]
-            rftime = r[COL_RFTIME]
+            rftime = tod.MAX
+            if r[COL_RFTIME] is not None:
+                rftime = r[COL_RFTIME]
             rlaps = r[COL_LAPS]
-            lastpass = tod.ZERO
+            lastpass = tod.MAX
             if len(r[COL_RFSEEN]) > 0:
                 lastpass = r[COL_RFSEEN][-1]
                 # in cross scoring, rftime is same as last passing
@@ -3853,11 +3854,6 @@ class rms:
             self.meet.timercb = self.timertrig
             dlg.destroy()
 
-    def time_context_menu(self, widget, event, data=None):
-        """Popup menu for result list."""
-        self.context_menu.popup(None, None, None, event.button, event.time,
-                                selpath)
-
     def treerow_selected(self, treeview, path, view_column, data=None):
         """Select row, confirm only selected place"""
         # filter on running/armfinish
@@ -3875,9 +3871,8 @@ class rms:
             if pathinfo is not None:
                 path, col, cellx, celly = pathinfo
                 treeview.grab_focus()
-                treeview.set_cursor(path, col, 0)
-                self.context_menu.popup(None, None, None, event.button,
-                                        event.time)
+                treeview.set_cursor(path, col, False)
+                self.context_menu.popup_at_pointer(None)
                 return True
         return False
 
@@ -4019,7 +4014,6 @@ class rms:
     def rms_context_chg_activate_cb(self, menuitem, data=None):
         """Update selected rider from event."""
         change = menuitem.get_label().lower()
-        _log.debug('menuitem: %r: %r', menuitem, change)
         sel = self.view.get_selection().get_selected()
         bib = None
         if sel is not None:
@@ -4174,7 +4168,7 @@ class rms:
                                 COL_NAMESTR,
                                 expand=True,
                                 maxwidth=500)
-            uiutil.mkviewcoltxt(t, 'Cat', COL_CAT)
+            uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, cb=self.editcat_cb)
             uiutil.mkviewcoltxt(t, 'Com', COL_COMMENT, cb=self.editcol_cb)
             uiutil.mkviewcolbool(t, 'In', COL_INRACE, width=50)
             uiutil.mkviewcoltxt(t,

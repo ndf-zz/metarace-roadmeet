@@ -26,9 +26,9 @@ _log.setLevel(logging.DEBUG)
 RESOURCE_PKG = 'roadmeet.ui'
 
 # Font-overrides
-#DIGITFONT = FontDescription('Noto Mono Medium 22')
-#MONOFONT = FontDescription('Noto Mono')
-#LOGVIEWFONT = FontDescription('Noto Mono 11')
+DIGITFONT = Pango.FontDescription('Noto Mono Medium 22')
+MONOFONT = Pango.FontDescription('Noto Mono')
+LOGVIEWFONT = Pango.FontDescription('Noto Mono 11')
 
 # Cell renderer styles
 STYLE_OBLIQUE = Pango.Style.OBLIQUE
@@ -443,7 +443,7 @@ class timerpane:
         self.ck = Gtk.Label.new(FIELDWIDTH)
         self.ck.set_alignment(0.5, 0.5)
         # todo: alternate text modification via css
-        #self.ck.modify_font(DIGITFONT)
+        self.ck.modify_font(DIGITFONT)
         self.ck.show()
         v.pack_start(self.ck, True, True, 0)
         _log.debug('pack ck into v')
@@ -720,8 +720,7 @@ def edit_times_dlg(window,
                    penalty=False,
                    finish=True):
     """Display times edit dialog and return updated time strings."""
-    b = gtk.Builder()
-    b.add_from_file(os.path.join(metarace.UI_PATH, 'edit_times.ui'))
+    b = builder('edit_times.ui')
     dlg = b.get_object('timing')
     dlg.set_transient_for(window)
 
@@ -759,9 +758,9 @@ def edit_times_dlg(window,
         b.get_object('timing_penalty_label').show()
 
     ret = dlg.run()
-    stxt = se.get_text().decode('utf-8').strip()
-    ftxt = fe.get_text().decode('utf-8').strip()
-    btxt = be.get_text().decode('utf-8').strip()
-    ptxt = pe.get_text().decode('utf-8').strip()
+    stxt = se.get_text().strip()
+    ftxt = fe.get_text().strip()
+    btxt = be.get_text().strip()
+    ptxt = pe.get_text().strip()
     dlg.destroy()
     return (ret, stxt, ftxt, btxt, ptxt)
