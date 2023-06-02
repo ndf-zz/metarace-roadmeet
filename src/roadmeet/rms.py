@@ -18,7 +18,6 @@ from gi.repository import Gdk
 
 import metarace
 from metarace import tod
-from metarace import eventdb
 from metarace import riderdb
 from metarace import strops
 from metarace import countback
@@ -153,6 +152,140 @@ class rms:
         _log.debug('Set showdowntimes to: %r', show)
         self.showdowntimes = show
 
+    def loadstageinters(self, cr, section):
+        """Load stage bonuses, points and awards from the config"""
+
+        # load intermediates
+        for i in cr.get(section, 'intermeds'):
+            if i in RESERVED_SOURCES:
+                _log.info('Ignoring reserved inter: %r', i)
+            else:
+                crkey = 'intermed_' + i
+                descr = ''
+                places = ''
+                km = None
+                doshow = False
+                abbr = ''
+                if cr.has_option(crkey, 'descr'):
+                    descr = cr.get(crkey, 'descr')
+                if cr.has_option(crkey, 'dist'):
+                    km = cr.get_float(crkey, 'dist', None)
+                if cr.has_option(crkey, 'abbr'):
+                    abbr = cr.get(crkey, 'abbr')
+                if cr.has_option(crkey, 'show'):
+                    doshow = cr.get_bool(crkey, 'show')
+                if cr.has_option(crkey, 'places'):
+                    places = strops.reformat_placelist(cr.get(crkey, 'places'))
+                if i not in self.intermeds:
+                    _log.debug('Adding inter %r: %r %r', i, descr, places)
+                    self.intermeds.append(i)
+                    self.intermap[i] = {
+                        'descr': descr,
+                        'places': places,
+                        'abbr': abbr,
+                        'dist': km,
+                        'show': doshow
+                    }
+                else:
+                    _log.info('Ignoring duplicate inter: %r', i)
+
+        # load contest meta data
+        tallyset = set()
+        for i in cr.get(section, 'contests'):
+            if i not in self.contests:
+                self.contests.append(i)
+                self.contestmap[i] = {}
+                crkey = 'contest_' + i
+                tally = ''
+                if cr.has_option(crkey, 'tally'):
+                    tally = cr.get(crkey, 'tally')
+                    if tally:
+                        tallyset.add(tally)
+                self.contestmap[i]['tally'] = tally
+                descr = i
+                if cr.has_option(crkey, 'descr'):
+                    descr = cr.get(crkey, 'descr')
+                    if descr == '':
+                        descr = i
+                self.contestmap[i]['descr'] = descr
+                labels = []
+                if cr.has_option(crkey, 'labels'):
+                    labels = cr.get(crkey, 'labels').split()
+                self.contestmap[i]['labels'] = labels
+                source = i
+                if cr.has_option(crkey, 'source'):
+                    source = cr.get(crkey, 'source')
+                    if source == '':
+                        source = i
+                self.contestmap[i]['source'] = source
+                bonuses = []
+                if cr.has_option(crkey, 'bonuses'):
+                    for bstr in cr.get(crkey, 'bonuses').split():
+                        bt = tod.mktod(bstr)
+                        if bt is None:
+                            _log.info('Invalid bonus %r in contest %r', bstr,
+                                      i)
+                            bt = tod.ZERO
+                        bonuses.append(bt)
+                self.contestmap[i]['bonuses'] = bonuses
+                points = []
+                if cr.has_option(crkey, 'points'):
+                    pliststr = cr.get(crkey, 'points').strip()
+                    if pliststr and tally == '':
+                        _log.error('No tally for points in contest %r', i)
+                        tallyset.add('')  # add empty placeholder
+                    for pstr in pliststr.split():
+                        pt = 0
+                        try:
+                            pt = int(pstr)
+                        except Exception:
+                            _log.info('Invalid points %r in contest %r', pstr,
+                                      i)
+                        points.append(pt)
+                self.contestmap[i]['points'] = points
+                allsrc = False  # all riders in source get same pts
+                if cr.has_option(crkey, 'all_source'):
+                    allsrc = cr.get_bool(crkey, 'all_source')
+                self.contestmap[i]['all_source'] = allsrc
+                self.contestmap[i]['category'] = 0
+                if cr.has_option(crkey, 'category'):  # for climbs
+                    self.contestmap[i]['category'] = cr.get_posint(
+                        crkey, 'category')
+            else:
+                _log.info('Ignoring duplicate contest %r', i)
+
+            # check for invalid allsrc
+            if self.contestmap[i]['all_source']:
+                if (len(self.contestmap[i]['points']) > 1
+                        or len(self.contestmap[i]['bonuses']) > 1):
+                    _log.info('Ignoring extra points/bonus for allsrc %r', i)
+
+        # load points tally meta data
+        tallylist = cr.get(section, 'tallys')
+        # append any 'missing' tallys from points data errors
+        for i in tallyset:
+            if i not in tallylist:
+                _log.debug('Adding missing tally to config %r', i)
+                tallylist.append(i)
+        # then scan for meta data
+        for i in tallylist:
+            if i not in self.tallys:
+                self.tallys.append(i)
+                self.tallymap[i] = {}
+                self.points[i] = {}
+                self.pointscb[i] = {}
+                crkey = 'tally_' + i
+                descr = ''
+                if cr.has_option(crkey, 'descr'):
+                    descr = cr.get(crkey, 'descr')
+                self.tallymap[i]['descr'] = descr
+                keepdnf = False
+                if cr.has_option(crkey, 'keepdnf'):
+                    keepdnf = cr.get_bool(crkey, 'keepdnf')
+                self.tallymap[i]['keepdnf'] = keepdnf
+            else:
+                _log.info('Ignoring duplicate points tally %r', i)
+
     def loadconfig(self):
         """Load event config from disk."""
         self.riders.clear()
@@ -230,137 +363,10 @@ class rms:
                 _log.warning('Set time gap threshold %s',
                              self.gapthresh.rawtime(2))
 
-        # restore intermediates
-        for i in cr.get('rms', 'intermeds'):
-            if i in RESERVED_SOURCES:
-                _log.info('Ignoring reserved inter: %r', i)
-            else:
-                crkey = 'intermed_' + i
-                descr = ''
-                places = ''
-                km = None
-                doshow = False
-                abbr = ''
-                if cr.has_option(crkey, 'descr'):
-                    descr = cr.get(crkey, 'descr')
-                if cr.has_option(crkey, 'dist'):
-                    km = cr.get_float(crkey, 'dist', None)
-                if cr.has_option(crkey, 'abbr'):
-                    abbr = cr.get(crkey, 'abbr')
-                if cr.has_option(crkey, 'show'):
-                    doshow = cr.get_bool(crkey, 'show')
-                if cr.has_option(crkey, 'places'):
-                    places = strops.reformat_placelist(cr.get(crkey, 'places'))
-                if i not in self.intermeds:
-                    _log.debug('Adding inter %r: %r %r', i, descr, places)
-                    self.intermeds.append(i)
-                    self.intermap[i] = {
-                        'descr': descr,
-                        'places': places,
-                        'abbr': abbr,
-                        'dist': km,
-                        'show': doshow
-                    }
-                else:
-                    _log.info('Ignoring duplicate inter: %r', i)
+        # restore stage inters, points and bonuses
+        self.loadstageinters(cr, 'rms')
 
-        # load contest meta data
-        tallyset = set()
-        for i in cr.get('rms', 'contests'):
-            if i not in self.contests:
-                self.contests.append(i)
-                self.contestmap[i] = {}
-                crkey = 'contest_' + i
-                tally = ''
-                if cr.has_option(crkey, 'tally'):
-                    tally = cr.get(crkey, 'tally')
-                    if tally:
-                        tallyset.add(tally)
-                self.contestmap[i]['tally'] = tally
-                descr = i
-                if cr.has_option(crkey, 'descr'):
-                    descr = cr.get(crkey, 'descr')
-                    if descr == '':
-                        descr = i
-                self.contestmap[i]['descr'] = descr
-                labels = []
-                if cr.has_option(crkey, 'labels'):
-                    labels = cr.get(crkey, 'labels').split()
-                self.contestmap[i]['labels'] = labels
-                source = i
-                if cr.has_option(crkey, 'source'):
-                    source = cr.get(crkey, 'source')
-                    if source == '':
-                        source = i
-                self.contestmap[i]['source'] = source
-                bonuses = []
-                if cr.has_option(crkey, 'bonuses'):
-                    for bstr in cr.get(crkey, 'bonuses').split():
-                        bt = tod.mktod(bstr)
-                        if bt is None:
-                            _log.info('Invalid bonus %r in contest %r', bstr,
-                                      i)
-                            bt = tod.ZERO
-                        bonuses.append(bt)
-                self.contestmap[i]['bonuses'] = bonuses
-                points = []
-                if cr.has_option(crkey, 'points'):
-                    pliststr = cr.get(crkey, 'points').strip()
-                    if pliststr and tally == '':
-                        _log.error('No tally for points in contest %r', i)
-                        tallyset.add('')  # add empty placeholder
-                    for pstr in pliststr.split():
-                        pt = 0
-                        try:
-                            pt = int(pstr)
-                        except Exception:
-                            _log.info('Invalid points %r in contest %r', pstr,
-                                      i)
-                        points.append(pt)
-                self.contestmap[i]['points'] = points
-                allsrc = False  # all riders in source get same pts
-                if cr.has_option(crkey, 'all_source'):
-                    allsrc = cr.get_bool(crkey, 'all_source')
-                self.contestmap[i]['all_source'] = allsrc
-                self.contestmap[i]['category'] = 0
-                if cr.has_option(crkey, 'category'):  # for climbs
-                    self.contestmap[i]['category'] = cr.get_posint(
-                        crkey, 'category')
-            else:
-                _log.info('Ignoring duplicate contest %r', i)
-
-            # check for invalid allsrc
-            if self.contestmap[i]['all_source']:
-                if (len(self.contestmap[i]['points']) > 1
-                        or len(self.contestmap[i]['bonuses']) > 1):
-                    _log.info('Ignoring extra points/bonus for allsrc %r', i)
-
-        # load points tally meta data
-        tallylist = cr.get('rms', 'tallys')
-        # append any 'missing' tallys from points data errors
-        for i in tallyset:
-            if i not in tallylist:
-                _log.debug('Adding missing tally to config %r', i)
-                tallylist.append(i)
-        # then scan for meta data
-        for i in tallylist:
-            if i not in self.tallys:
-                self.tallys.append(i)
-                self.tallymap[i] = {}
-                self.points[i] = {}
-                self.pointscb[i] = {}
-                crkey = 'tally_' + i
-                descr = ''
-                if cr.has_option(crkey, 'descr'):
-                    descr = cr.get(crkey, 'descr')
-                self.tallymap[i]['descr'] = descr
-                keepdnf = False
-                if cr.has_option(crkey, 'keepdnf'):
-                    keepdnf = cr.get_bool(crkey, 'keepdnf')
-                self.tallymap[i]['keepdnf'] = keepdnf
-            else:
-                _log.info('Ignoring duplicate points tally %r', i)
-
+        # load competitors
         starters = cr.get('rms', 'startlist').split()
         if len(starters) == 1 and starters[0] == 'all':
             starters = strops.riderlist_split('all', self.meet.rdb)
@@ -537,6 +543,50 @@ class rms:
             ret = checka
         return ret
 
+    def savestageinters(self, cw, section):
+        """Save stage bonuses, intermediates and awards to config"""
+
+        # save intermediate data
+        opinters = []
+        for i in self.intermeds:
+            crkey = 'intermed_' + i
+            cw.add_section(crkey)
+            cw.set(crkey, 'descr', self.intermap[i]['descr'])
+            cw.set(crkey, 'places', self.intermap[i]['places'])
+            cw.set(crkey, 'show', self.intermap[i]['show'])
+            if 'dist' in self.intermap[i]:
+                cw.set(crkey, 'dist', self.intermap[i]['dist'])
+            if 'abbr' in self.intermap[i]:
+                cw.set(crkey, 'abbr', self.intermap[i]['abbr'])
+            opinters.append(i)
+        cw.set(section, 'intermeds', opinters)
+
+        # save contest data
+        cw.set(section, 'contests', self.contests)
+        for i in self.contests:
+            crkey = 'contest_' + i
+            cw.add_section(crkey)
+            cw.set(crkey, 'tally', self.contestmap[i]['tally'])
+            cw.set(crkey, 'source', self.contestmap[i]['source'])
+            cw.set(crkey, 'all_source', self.contestmap[i]['all_source'])
+            if 'category' in self.contestmap[i]:
+                cw.set(crkey, 'category', self.contestmap[i]['category'])
+            blist = []
+            for b in self.contestmap[i]['bonuses']:
+                blist.append(b.rawtime(0))
+            cw.set(crkey, 'bonuses', ' '.join(blist))
+            plist = []
+            for p in self.contestmap[i]['points']:
+                plist.append(str(p))
+            cw.set(crkey, 'points', ' '.join(plist))
+        # save tally data
+        cw.set(section, 'tallys', self.tallys)
+        for i in self.tallys:
+            crkey = 'tally_' + i
+            cw.add_section(crkey)
+            cw.set(crkey, 'descr', self.tallymap[i]['descr'])
+            cw.set(crkey, 'keepdnf', self.tallymap[i]['keepdnf'])
+
     def saveconfig(self):
         """Save event config to disk."""
         if self.readonly:
@@ -577,46 +627,8 @@ class rms:
             ltout.append(lt.rawtime())
         cw.set('rms', 'laptimes', ltout)
 
-        # save intermediate data
-        opinters = []
-        for i in self.intermeds:
-            crkey = 'intermed_' + i
-            cw.add_section(crkey)
-            cw.set(crkey, 'descr', self.intermap[i]['descr'])
-            cw.set(crkey, 'places', self.intermap[i]['places'])
-            cw.set(crkey, 'show', self.intermap[i]['show'])
-            if 'dist' in self.intermap[i]:
-                cw.set(crkey, 'dist', self.intermap[i]['dist'])
-            if 'abbr' in self.intermap[i]:
-                cw.set(crkey, 'abbr', self.intermap[i]['abbr'])
-            opinters.append(i)
-        cw.set('rms', 'intermeds', opinters)
-
-        # save contest meta data
-        cw.set('rms', 'contests', self.contests)
-        for i in self.contests:
-            crkey = 'contest_' + i
-            cw.add_section(crkey)
-            cw.set(crkey, 'tally', self.contestmap[i]['tally'])
-            cw.set(crkey, 'source', self.contestmap[i]['source'])
-            cw.set(crkey, 'all_source', self.contestmap[i]['all_source'])
-            if 'category' in self.contestmap[i]:
-                cw.set(crkey, 'category', self.contestmap[i]['category'])
-            blist = []
-            for b in self.contestmap[i]['bonuses']:
-                blist.append(b.rawtime(0))
-            cw.set(crkey, 'bonuses', ' '.join(blist))
-            plist = []
-            for p in self.contestmap[i]['points']:
-                plist.append(str(p))
-            cw.set(crkey, 'points', ' '.join(plist))
-        # save tally meta data
-        cw.set('rms', 'tallys', self.tallys)
-        for i in self.tallys:
-            crkey = 'tally_' + i
-            cw.add_section(crkey)
-            cw.set(crkey, 'descr', self.tallymap[i]['descr'])
-            cw.set(crkey, 'keepdnf', self.tallymap[i]['keepdnf'])
+        # save stage inters, points and bonuses
+        self.savestageinters(cw, 'rms')
 
         # save riders
         evtriders = self.get_startlist()
@@ -1775,6 +1787,20 @@ class rms:
             if entry is not None:
                 entry.set_text('')
 
+    def race_ctrl_add(self, rlist):
+        """Add the supplied riders to event model with lookup"""
+        rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
+        for bib in rlist:
+            self.addrider(bib)
+        return True
+
+    def race_ctrl_del(self, rlist):
+        """Delete nominated riders from event model"""
+        rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
+        for bib in rlist:
+            self.delrider(bib)
+        return True
+
     def race_ctrl(self, acode='', rlist=''):
         """Apply the selected action to the provided bib list."""
         if acode in self.intermeds:
@@ -1824,15 +1850,9 @@ class rms:
             self.manpassing(strops.reformat_bibserlist(rlist))
             return True
         elif acode == 'del':
-            rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
-            for bib in rlist:
-                self.delrider(bib)
-            return True
+            return self.race_ctrl_del(rlist)
         elif acode == 'add':
-            rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
-            for bib in rlist:
-                self.addrider(bib)
-            return True
+            return self.race_ctrl_add(rlist)
         elif acode == 'que':
             rlist = strops.reformat_biblist(rlist)
             if rlist != '':
@@ -2636,6 +2656,11 @@ class rms:
         # insert this passing in order
         lr[COL_RFSEEN].insert(ipos, e)
 
+        # update event model
+        return self.riderlap(bib, lr, rcat, e)
+
+    def riderlap(self, bib, lr, rcat, e):
+        """Process an accepted rider lap passing"""
         # check if lap mode is target-based
         lapfinish = False
         doarm = False
@@ -3505,8 +3530,6 @@ class rms:
             countbackwinner = True
         else:
             placestr = self.intermap[src]['places']
-        _log.debug('for contest %r countbackwinner is %r', contest,
-                   countbackwinner)
         placeset = set()
         idx = 0
         for placegroup in placestr.split():
@@ -4096,6 +4119,7 @@ class rms:
         self.catonlap = {}  # onlap per category
         self.laplength = None
         self.clubmode = False
+        self.allowspares = False
         self.gapthresh = GAPTHRESH  # time gap to set new time
         # NOTE: .12 usually added to account
         # for front wheel measurements
