@@ -1960,14 +1960,14 @@ class irtt:
                           e.source)
             return False
 
-        r = self.meet.rdb.getrefid(e.refid)
+        r = self.meet.getrefid(e.refid)
         if r is None:
             _log.info('Unknown rider: %s:%s@%s/%s', e.refid, e.chan,
                       e.rawtime(2), e.source)
             return False
 
-        bib = self.meet.rdb.getvalue(r, riderdb.COL_BIB)
-        series = self.meet.rdb.getvalue(r, riderdb.COL_SERIES)
+        bib = r['no']
+        series = r['series']
         lr = self.getrider(bib, series)
         if lr is not None:
             # distinguish a shared finish / start loop

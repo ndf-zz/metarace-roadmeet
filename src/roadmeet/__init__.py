@@ -34,7 +34,7 @@ from metarace import report
 from . import uiutil
 from roadmeet.rms import rms
 from roadmeet.irtt import irtt
-from roadmeet.trtt import trtt
+#from roadmeet.trtt import trtt
 
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
@@ -50,7 +50,7 @@ ROADRACE_TYPES = {
     'handicap': 'Handicap',
     'cross': 'Cyclocross',
     'irtt': 'Road Time Trial',
-    'trtt': 'Team Road Time Trial',
+    #'trtt': 'Team Road Time Trial',
 }
 _DEFAULT_HANDLER = 'null'
 _HANDLERS = {
@@ -397,8 +397,8 @@ class roadmeet:
                 _log.warning('Unknown event type %r', self.etype)
             if self.etype == 'irtt':
                 self.curevent = irtt(self, eventhdl, True)
-            elif self.etype == 'trtt':
-                self.curevent = trtt(self, eventhdl, True)
+            #elif self.etype == 'trtt':
+            #self.curevent = trtt(self, eventhdl, True)
             else:
                 self.curevent = rms(self, eventhdl, True)
 
