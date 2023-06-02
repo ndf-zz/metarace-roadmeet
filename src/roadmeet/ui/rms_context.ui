@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<interface>
+  <requires lib="gtk+" version="2.16"/>
+  <!-- interface-naming-policy project-wide -->
+  <object class="GtkMenu" id="rms_context">
+    <property name="visible">True</property>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_pass">
+        <property name="label" translatable="yes">Passing</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Add a manual passing for this rider</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rms_context_sep1">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dns">
+        <property name="label" translatable="yes">DNS</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Rider did not start event</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_wd">
+        <property name="label" translatable="yes">WD</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Withdraw rider</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_otl">
+        <property name="label" translatable="yes">OTL</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Rider finished outside time limit</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dnf">
+        <property name="label" translatable="yes">DNF</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Rider did not finish event</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dsq">
+        <property name="label" translatable="yes">DSQ</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Disqualify rider</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_ret">
+        <property name="label" translatable="yes">Return</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Return rider to event</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rms_context_sep0">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_edit">
+        <property name="label">Edit</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Manually adjust rider's start and finish times</property>
+        <signal name="activate" handler="rms_context_edit_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_clear">
+        <property name="label">Clear</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Clear rider's finish time</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_refinish">
+        <property name="label" translatable="yes">Refinish</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Reset rider's finish from last passing</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_swap">
+        <property name="label" translatable="yes">Swap</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Swap selected rider finish passing times</property>
+        <signal name="activate" handler="rms_context_swap_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rms_context_sep">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkImageMenuItem" id="rms_context_del">
+        <property name="label">Delete</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Delete rider from event model</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+  </object>
+</interface>
