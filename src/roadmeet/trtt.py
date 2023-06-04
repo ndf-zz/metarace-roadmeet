@@ -607,8 +607,10 @@ class trtt(rms):
                                     if not sec.lines[-1][7]:  # not placed
                                         sec.lines[-1][8] = True
                             rstart = r[COL_STOFT] + repStart
+                            es = r[COL_RFTIME].rawtime(1)
                             et = r[COL_RFTIME] - rstart
-                            es = et.rawtime(1)
+                            # elapsed string
+                            #es = et.rawtime(1)
                             lrf = r[COL_RFTIME]
                         else:
                             lrf = None
@@ -989,13 +991,27 @@ class trtt(rms):
             ]
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is not None:
-                nr[COL_NAMESTR] = dbr.listname()
-                nr[COL_SHORTNAME] = dbr.fitname(24)
-                nr[COL_CAT] = dbr['cat']
-                nr[COL_TEAM] = dbr['org'].upper()
+                self.updaterider(nr, dbr)
             return self.riders.append(nr)
         else:
             return None
+
+    def updaterider(self, lr, r):
+        """Update the local record lr with data from riderdb handle r"""
+        lr[COL_NAMESTR] = r.listname()
+        lr[COL_SHORTNAME] = r.fitname(24)
+        lr[COL_CAT] = r['cat']
+        if lr[COL_SEED] == 0:
+            # Import seed from notes column if int
+            seed = strops.confopt_posint(r['notes'])
+            if seed is not None:
+                lr[COL_SEED] = seed
+        lr[COL_TEAM] = r['org'].upper()
+
+    def updateteam(self, team=None):
+        """Handle a change in team data"""
+        # assume the worst and recalc all riders
+        self.team_start_times()
 
     def resettimer(self):
         """Reset race timer."""

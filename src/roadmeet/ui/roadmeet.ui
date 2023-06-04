@@ -284,14 +284,23 @@
                       <object class="GtkMenu" id="menu2">
                         <property name="visible">True</property>
                         <child>
-                          <object class="GtkImageMenuItem" id="menu_data_uscb">
-                            <property name="label" translatable="yes">Re_load Riders</property>
+                          <object class="GtkImageMenuItem" id="menu_data_replace">
+                            <property name="label" translatable="yes">Re_place Riders</property>
                             <property name="visible">True</property>
-                            <property name="tooltip_text" translatable="yes">Re-load rider data</property>
+                            <property name="tooltip_text" translatable="yes">Replace existing riders from csv file</property>
                             <property name="use_underline">True</property>
                             <property name="image">image24</property>
                             <property name="use_stock">False</property>
-                            <signal name="activate" handler="menu_data_uscb_activate_cb"/>
+                            <signal name="activate" handler="menu_data_replace_activate_cb"/>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkMenuItem" id="menu_data_add">
+                            <property name="label" translatable="yes">Clear Riders</property>
+                            <property name="visible">True</property>
+                            <property name="tooltip_text" translatable="yes">Clear all rider data</property>
+                            <property name="use_underline">True</property>
+                            <signal name="activate" handler="menu_data_clear_activate_cb"/>
                           </object>
                         </child>
                         <child>

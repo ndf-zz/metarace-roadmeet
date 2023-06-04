@@ -428,7 +428,6 @@ class roadmeet:
             if self.curevent.frame in self.race_box.get_children():
                 self.race_box.remove(self.curevent.frame)
             self.curevent.destroy()
-            _log.debug('now cleaning yup meet')
             self.menu_race_close.set_sensitive(False)
             self.menu_race_abort.set_sensitive(False)
             self.curevent = None
@@ -492,12 +491,27 @@ class roadmeet:
                 self.print_report(sections,
                                   self.curevent.timerstat != 'finished')
 
-    def menu_data_uscb_activate_cb(self, menuitem, data=None):
-        """Reload rider db from disk."""
+    def menu_data_replace_activate_cb(self, menuitem, data=None):
+        """Replace rider db from disk."""
+        sfile = uiutil.chooseCsvFile(title='Select rider file to load from',
+                                     parent=self.window,
+                                     path='.')
+        if sfile is not None:
+            try:
+                self.rdb.clear(notify=False)
+                count = self.rdb.load(sfile)
+                _log.info('Loaded %d entries from %r', count, sfile)
+                #self.menu_race_run_activate_cb()
+            except Exception as e:
+                _log.error('%s loading riders: %s', e.__class__.__name__, e)
+        else:
+            _log.debug('Import riders cancelled')
+
+    def menu_data_clear_activate_cb(self, menuitem, data=None):
+        """Clear rider db."""
         self.rdb.clear()
-        self.rdb.load('riders.csv')
-        _log.info('Reloaded riders from disk')
-        self.menu_race_run_activate_cb()
+        _log.info('Cleared rider db')
+        #self.menu_race_run_activate_cb()
 
     def menu_import_riders_activate_cb(self, menuitem, data=None):
         """Add riders to database."""
@@ -505,8 +519,12 @@ class roadmeet:
                                      parent=self.window,
                                      path='.')
         if sfile is not None:
-            self.rdb.load(sfile, overwrite=True)
-            _log.info('Import riders from %r', sfile)
+            try:
+                count = self.rdb.load(sfile, overwrite=True)
+                _log.info('Imported %d rider entries from %r', count, sfile)
+                #self.menu_race_run_activate_cb()
+            except Exception as e:
+                _log.error('%s importing riders: %s', e.__class__.__name__, e)
         else:
             _log.debug('Import riders cancelled')
 
@@ -516,8 +534,12 @@ class roadmeet:
                                      parent=self.window,
                                      path='.')
         if sfile is not None:
-            self.rdb.load_chipfile(sfile)
-            _log.info('Import chipfile %r', sfile)
+            try:
+                count = self.rdb.load_chipfile(sfile)
+                _log.info('Imported %d refids from chipfile %r', count, sfile)
+            except Exception as e:
+                _log.error('%s importing chipfile: %s', e.__class__.__name__,
+                           e)
         else:
             _log.debug('Import chipfile cancelled')
 
@@ -558,8 +580,11 @@ class roadmeet:
                                      hintfile='riders_export.csv',
                                      path='.')
         if sfile is not None:
-            self.rdb.save(sfile)
-            _log.info('Export rider data to %r', sfile)
+            try:
+                self.rdb.save(sfile)
+                _log.info('Export rider data to %r', sfile)
+            except Exception as e:
+                _log.error('%s exporting riders: %s', e.__class__.__name__, e)
         else:
             _log.debug('Export rider data cancelled')
 
@@ -571,8 +596,12 @@ class roadmeet:
                                      hintfile='chipfile.csv',
                                      path='.')
         if sfile is not None:
-            self.rdb.save_chipfile(sfile)
-            _log.info('Export chipfile to %r', sfile)
+            try:
+                count = self.rdb.save_chipfile(sfile)
+                _log.info('Exported %d refids to chipfile %r', count, sfile)
+            except Exception as e:
+                _log.error('%s exporting chipfile: %s', e.__class__.__name__,
+                           e)
         else:
             _log.debug('Export chipfile cancelled')
 
@@ -611,7 +640,7 @@ class roadmeet:
 
         rfilename = uiutil.chooseCsvFile(
             title='Select file to save startlist to.',
-            smode=Gtk.FileChooserAction.SAVE,
+            mode=Gtk.FileChooserAction.SAVE,
             parent=self.window,
             hintfile='startlist.csv',
             path='.')
@@ -630,6 +659,8 @@ class roadmeet:
                             cw.writerow(r)
 
             _log.info('Export startlist to %r', rfilename)
+        else:
+            _log.info('Export startlist cancelled')
 
     def export_result_maker(self):
         if self.mirrorfile:
@@ -1180,9 +1211,10 @@ class roadmeet:
         self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
 
         # Re-Initialise rider and event databases
-        self.rdb.clear()
-        self.edb.clear()
+        self.rdb.clear(notify=False)
+        _log.debug('meet load riders from riders.csv')
         self.rdb.load('riders.csv')
+        self.edb.clear()
         self.edb.load('events.csv')
         event = self.edb.getfirst()
         if event is None:  # add a new event of the right type
@@ -1320,27 +1352,49 @@ class roadmeet:
     def ridercb(self, rider):
         """Handle a change in the rider model"""
         if rider is not None:
+            r = self.rdb[rider]
             otag = None
-            ntag = self.rdb[rider]['refid'].lower()
+            ntag = r['refid'].lower()
             if rider in self._maptag:
                 otag = self._maptag[rider]
             if otag != ntag:
-                del (self._maptag[rider])
+                if rider in self._maptag:
+                    del (self._maptag[rider])
                 if otag in self._tagmap:
                     del (self._tagmap[otag])
                 if ntag:
                     self._maptag[rider] = ntag
                     self._tagmap[ntag] = rider
+                _log.debug('Updated tag map %r = %r', ntag, rider)
+            for lr in self._rlm:
+                if lr[0] == rider[0] and lr[1] == rider[1]:
+                    lr[2] = r.fitname(64)
+                    lr[3] = r['org']
+                    lr[4] = r['cat']
+                    lr[5] = r['refid']
+                    lr[6] = r.summary()
+                    break
         else:
             # assume entire map has to be rebuilt
             self._tagmap = {}
             self._maptag = {}
+            self._rlm.clear()
             for r in self.rdb:
                 if r[1] != 'cat':
-                    refid = self.rdb[r]['refid'].lower()
+                    dbr = self.rdb[r]
+                    refid = dbr['refid'].lower()
                     if refid:
                         self._tagmap[refid] = r
                         self._maptag[r] = refid
+                    rlr = [
+                        dbr['bib'], dbr['ser'],
+                        dbr.fitname(64), dbr['org'], dbr['cat'], dbr['refid'],
+                        dbr.summary()
+                    ]
+                    self._rlm.append(rlr)
+            _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
+        if self.curevent is not None:
+            self.curevent.ridercb(rider)
 
     def _timercb(self, evt, data=None):
         if self.timercb is not None:
@@ -1357,6 +1411,21 @@ class roadmeet:
 
     def _rcb(self, rider):
         GLib.idle_add(self.ridercb, rider)
+
+    def _editcol_cb(self, cell, path, new_text, col):
+        """Callback for editing a transponder ID"""
+        new_text = new_text.strip()
+        bib = self._rlm[path][0]
+        series = self._rlm[path][1]
+        r = self.rdb.get_rider(bib, series)
+        if r is not None:
+            if col == 3:
+                r['org'] = new_text
+            elif col == 4:
+                r['cat'] = new_text.upper()
+            elif col == 5:
+                r['refid'] = new_text.lower()
+            self._rlm[path][col] = new_text
 
     def __init__(self, etype=None):
         """Meet constructor."""
@@ -1478,14 +1547,36 @@ class roadmeet:
         self.lh.setLevel(logging.INFO)  # show info+ in text view
         rootlogger.addHandler(self.lh)
 
-        # get rider db and pack into a dialog
+        # Build a rider list store and view
+        self._rlm = Gtk.ListStore(
+            str,  # no 0
+            str,  # series 1
+            str,  # name 2 
+            str,  # org 3
+            str,  # categories 4
+            str,  # Refid 5
+            str,  # tooltip 6
+        )
+        t = Gtk.TreeView(self._rlm)
+        t.set_reorderable(True)
+        t.set_rules_hint(True)
+        t.set_tooltip_column(6)
+        uiutil.mkviewcoltxt(t, 'No.', 0, calign=1.0)
+        uiutil.mkviewcoltxt(t, 'Ser', 1, calign=0.0)
+        uiutil.mkviewcoltxt(t, 'Rider', 2, expand=True)
+        uiutil.mkviewcoltxt(t, 'Org', 3, cb=self._editcol_cb)
+        uiutil.mkviewcoltxt(t, 'Cats', 4, width=80, cb=self._editcol_cb)
+        uiutil.mkviewcoltxt(t, 'Refid', 5, width=80, cb=self._editcol_cb)
+        t.show()
+        b.get_object('riders_box').add(t)
+
+        # get rider db
         _log.debug('Add riderdb and eventdb')
         self.rdb = riderdb.riderdb()
         self.rdb.set_notify(self._rcb)
         self._tagmap = {}
         self._maptag = {}
 
-        b.get_object('riders_box').add(uiutil.riderview(self.rdb))
         ## get event db -> loadconfig adds empty event if one not present
         self.edb = eventdb.eventdb([])
 

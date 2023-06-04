@@ -356,7 +356,7 @@
                     <property name="can_focus">True</property>
                     <property name="invisible_char">&#x25CF;</property>
                     <property name="activates_default">True</property>
-                    <property name="width_chars">4</property>
+                    <property name="width_chars">5</property>
                     <property name="truncate_multiline">True</property>
                   </object>
                   <packing>

@@ -387,16 +387,9 @@ class rms:
                 if lr > 2:
                     nr[COL_LAPS] = strops.confopt_posint(ril[2])
                 if lr > 3:
-                    nr[COL_SEED] = strops.confopt_posint(ril[3], 0)
-                    if nr[COL_SEED] == 0:
-                        # HACK: try to pull in seed from UCI code
-                        if r in self.ucicache:
-                            seedno = strops.confopt_posint(self.ucicache[r], 0)
-                            if seedno > 0 and seedno < 9999:
-                                nr[COL_SEED] = seedno
-                                _log.info(
-                                    'Set rider %r seed from UCICODE = %r', r,
-                                    seedno)
+                    evtseed = strops.confopt_posint(ril[3], 0)
+                    if evtseed > 0:
+                        nr[COL_SEED] = evtseed
                     if nr[COL_SEED] != 0:
                         oneseed = True
                 if lr > 4:
@@ -2101,13 +2094,21 @@ class rms:
             ]
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is not None:
-                nr[COL_NAMESTR] = dbr.listname()
-                nr[COL_SHORTNAME] = dbr.fitname(24)
-                nr[COL_CAT] = dbr['cat']
-                self.ucicache[bib] = dbr['uci id']
+                self.updaterider(nr, dbr)
             return self.riders.append(nr)
         else:
             return None
+
+    def updaterider(self, lr, r):
+        """Update the local record lr with data from riderdb handle r"""
+        lr[COL_NAMESTR] = r.listname()
+        lr[COL_SHORTNAME] = r.fitname(24)
+        lr[COL_CAT] = r['cat']
+        if lr[COL_SEED] == 0:
+            # Import seed from notes column if int
+            seed = strops.confopt_posint(r['notes'])
+            if seed is not None:
+                lr[COL_SEED] = seed
 
     def resettimer(self):
         """Reset event timer."""
@@ -2430,6 +2431,54 @@ class rms:
             t.refid = 'riderno:' + bibstr
             self.meet._timercb(t)
             _log.debug('Manual passing: %r', bibstr)
+
+    def updateteam(self, team=None):
+        """Handle a change in teams data"""
+        pass
+
+    def ridercb(self, rider):
+        """Handle a change in the rider model"""
+        if rider is not None:
+            if rider[1] == self.series:
+                bib = rider[0]
+                lr = self.getrider(bib)
+                if lr is not None:
+                    r = self.meet.rdb[rider]
+                    self.updaterider(lr, r)
+                    _log.debug('Updated single rider %r', rider)
+                else:
+                    _log.debug('Ignored update on non-starter %r', rider)
+                # a change in team may alter team data mapping
+                self.updateteam(rider)
+            elif rider[1] == 'cat':
+                # if cat is a result category in this event
+                if self.ridercat(rider(0)):
+                    self.load_cat_data()
+                ## TODO: verify if recalc required
+                #self._dorecalc = True
+            elif rider[1] == 'team':
+                # team changes may require recalc
+                self.updateteam(rider)
+            else:
+                _log.debug('Ignore out of series rider %r', rider)
+        else:
+            _log.debug('Update all cats')
+            self.load_cat_data()
+            _log.debug('Update all riders')
+            count = 0
+            for lr in self.riders:
+                bib = lr[COL_BIB]
+                r = self.meet.rdb.get_rider(bib, self.series)
+                if r is not None:
+                    self.updaterider(lr, r)
+                    count += 1
+                else:
+                    _log.debug('Ignored rider not in riderdb %r', bib)
+            _log.debug('Updated %d riders', count)
+            _log.debug('Update teams')
+            self.updateteam()
+            ## TODO: verify if recalc required
+            #self._dorecalc = True
 
     def retriders(self, biblist=''):
         """Return all listed riders to the event."""
@@ -4111,7 +4160,6 @@ class rms:
         self.bonuses = {}
         self.points = {}
         self.pointscb = {}
-        self.ucicache = {}
         self.dofastestlap = False
         self.autoexport = False
         self.timelimit = None
