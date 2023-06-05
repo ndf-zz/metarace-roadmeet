@@ -401,43 +401,35 @@ class timerpane:
         v = Gtk.Box.new(Gtk.Orientation.VERTICAL, 5)
         v.set_homogeneous(False)
         v.set_border_width(5)
-        _log.debug('v')
 
         # Bib and name label
         #h = Gtk.HBox(False, 5)
         h = Gtk.Box.new(Gtk.Orientation.HORIZONTAL, 5)
         h.set_homogeneous(False)
-        _log.debug('h')
         l = Gtk.Label.new('Rider #:')
         l.show()
         h.pack_start(l, False, True, 0)
-        _log.debug('l')
         self.bibent = Gtk.Entry.new()
         self.bibent.set_width_chars(3)
         self.bibent.show()
         h.pack_start(self.bibent, False, True, 0)
-        _log.debug('bibent')
         self.serent = Gtk.Entry.new()
         self.serent.set_width_chars(2)
         if self.doser:
             self.serent.show()
         h.pack_start(self.serent, False, True, 0)
-        _log.debug('serent')
         self.biblbl = Gtk.Label.new('')
         self.biblbl.show()
         h.pack_start(self.biblbl, True, True, 0)
-        _log.debug('biblbl')
 
         # mantimer entry
         self.tment = Gtk.Entry.new()
         self.tment.set_width_chars(10)
         h.pack_start(self.tment, False, True, 0)
-        _log.debug('tment')
         #h.set_focus_chain([self.bibent, self.tment, self.bibent])
         h.show()
 
         v.pack_start(h, False, True, 0)
-        _log.debug('pack h into v')
 
         # Clock row 'HHhMM:SS.DCMZ'
         self.ck = Gtk.Label.new(FIELDWIDTH)
@@ -446,7 +438,6 @@ class timerpane:
         self.ck.modify_font(DIGITFONT)
         self.ck.show()
         v.pack_start(self.ck, True, True, 0)
-        _log.debug('pack ck into v')
 
         # Timer ctrl/status button
         #h = Gtk.HBox(False, 5)
@@ -460,7 +451,6 @@ class timerpane:
         b.add(self.b)
         self.b.update('idle', 'Idle')
         h.pack_start(b, True, True, 0)
-        _log.debug('pack b into h')
         self.ls = Gtk.Label.new('')
         h.pack_start(self.ls, False, True, 0)
         self.lb = Gtk.Button.new_with_label('+')
