@@ -1187,23 +1187,10 @@ class rms:
     def catresult_report(self):
         """Return a categorised race result report."""
         _log.debug('Categorised result report')
-        self.recalculate()
         ret = []
         for cat in self.cats:
             ret.extend(self.single_catresult(cat))
 
-        # show all intermediates here
-        for i in self.intermeds:
-            im = self.intermap[i]
-            if im['places'] and im['show']:
-                ret.extend(self.int_report(i))
-
-        if len(self.comment) > 0:
-            s = report.bullet_text('comms')
-            s.heading = 'Decisions of the commissaires panel'
-            for comment in self.comment:
-                s.lines.append([None, comment])
-            ret.append(s)
         return ret
 
     def single_catresult(self, cat):
@@ -1548,14 +1535,32 @@ class rms:
 
     def result_report(self):
         """Return a result report."""
+        ret = []
+        self.recalculate()
 
         # check if a categorised report is required
         if (self.event['type'] == 'cross'
                 or (self.event['type'] != 'handicap' and len(self.cats) > 1)):
-            return self.catresult_report()
+            ret.extend(self.catresult_report())
+        else:
+            ret.extend(self.handicap_report())
 
+        # show all intermediates here
+        for i in self.intermeds:
+            im = self.intermap[i]
+            if im['places'] and im['show']:
+                ret.extend(self.int_report(i))
+
+        if len(self.comment) > 0:
+            s = report.bullet_text('comms')
+            s.heading = 'Decisions of the commissaires panel'
+            for comment in self.comment:
+                s.lines.append([None, comment])
+            ret.append(s)
+        return ret
+
+    def handicap_report(self):
         _log.debug('Result report in uncat/handicap path')
-        self.recalculate()
         ret = []
         wt = None
         we = None
@@ -1745,21 +1750,6 @@ class rms:
                 _log.info('%r unaccounted for', residual)
             ret.append(sec)
 
-            # Intermediates
-            # show all intermediates here
-            for imed in self.intermeds:
-                im = self.intermap[imed]
-                _log.info('intermed : %r', imed)
-                if im['places'] and im['show']:
-                    ret.extend(self.int_report(imed))
-
-            # Decisions of commissaires panel
-            if len(self.comment) > 0:
-                sec = report.bullet_text('comms')
-                sec.heading = 'Decisions of the Commissaires Panel'
-                for cl in self.comment:
-                    sec.lines.append([None, cl.strip()])
-                ret.append(sec)
         else:
             _log.warning('No data available for result report')
         return ret
@@ -4178,7 +4168,7 @@ class rms:
         self.lapfin = None
         self.minlap = MINPASSTIME  # minimum lap/elap time if relevant
 
-        # intermediates
+        # stage ntermediates
         self.intermeds = []  # sorted list of intermediate keys
         self.intermap = {}  # map of intermediate keys to results
         self.contests = []  # sorted list of contests

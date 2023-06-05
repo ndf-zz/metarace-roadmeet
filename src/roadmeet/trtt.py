@@ -5,16 +5,12 @@
 import gi
 import logging
 import threading
-import bisect
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-
-gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk
 
 import metarace
 from metarace import tod
@@ -863,7 +859,25 @@ class trtt(rms):
 
     def result_report(self):
         """Return a race result report"""
-        return self.catresult_report()
+        ret = []
+        self.recalculate()
+
+        # always use cat result for trtt
+        ret = self.catresult_report()
+
+        # show all intermediates here
+        for i in self.intermeds:
+            im = self.intermap[i]
+            if im['places'] and im['show']:
+                ret.extend(self.int_report(i))
+
+        if len(self.comment) > 0:
+            s = report.bullet_text('comms')
+            s.heading = 'Decisions of the commissaires panel'
+            for comment in self.comment:
+                s.lines.append([None, comment])
+            ret.append(s)
+        return ret
 
     def race_ctrl_add(self, rlist):
         """Add the supplied riders to event model with lookup"""
