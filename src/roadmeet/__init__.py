@@ -7,6 +7,7 @@ import logging
 import metarace
 import csv
 import os
+from time import sleep
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
@@ -272,8 +273,8 @@ class roadmeet:
         rep = report.report()
         rep.provisional = provisional
         rep.strings['title'] = self.title_str
-        rep.strings['host'] = self.host_str
         rep.strings['subtitle'] = self.subtitle_str
+        rep.strings['host'] = self.host_str
         rep.strings['docstr'] = self.document_str
         rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
         rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
@@ -686,8 +687,8 @@ class roadmeet:
             filename = sfile
             rep = report.report()
             rep.strings['title'] = self.title_str
-            rep.strings['host'] = self.host_str
             rep.strings['subtitle'] = self.subtitle_str
+            rep.strings['host'] = self.host_str
             rep.strings['docstr'] = self.document_str
             rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
             rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
@@ -736,8 +737,8 @@ class roadmeet:
         # Then export a result
         rep = report.report()
         rep.strings['title'] = self.title_str
-        rep.strings['host'] = self.host_str
         rep.strings['subtitle'] = self.subtitle_str
+        rep.strings['host'] = self.host_str
         rep.strings['docstr'] = self.document_str
         rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
         rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
@@ -1427,12 +1428,13 @@ class roadmeet:
                 r['refid'] = new_text.lower()
             self._rlm[path][col] = new_text
 
-    def __init__(self, etype=None):
+    def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
         self.loghandler = None  # set in loadconfig to meet dir
         self.exportpath = EXPORTPATH
         if etype not in ROADRACE_TYPES:
             etype = 'road'
+        self.meetlock = lockfile
         self.etype = etype
         self.shortname = None
         self.title_str = ''
@@ -1616,16 +1618,16 @@ def runapp(configpath, etype=None):
     lf = metarace.lockpath(configpath)
     if lf is None:
         _log.error('Unable to lock meet config, already in use')
+        sleep(2)
         sys.exit(1)
     _log.debug('Entering meet folder %r', configpath)
     os.chdir(configpath)
-    app = roadmeet(etype)
-    # do the old mr library UI tweaks and set logo
+    app = roadmeet(etype, lf)
     app.loadconfig()
     # try to set the menubar accel and logo
     try:
-        with metarace.resource_file(metarace.LOGO) as f:
-            Gtk.Window.set_default_icon_from_file(str(f))
+        lfile = metarace.default_file(metarace.LOGO)
+        Gtk.Window.set_default_icon_from_file(lfile)
         mset = Gtk.Settings.get_default()
         mset.set_property('gtk-menu-bar-accel', 'F24')
     except Exception as e:
