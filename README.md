@@ -9,7 +9,7 @@ ad-hoc time trial events.
 
    - Python >= 3.9
    - Gtk >= 3.0
-   - metarace >= 2.0.3
+   - metarace >= 2.1.0
    - mosquitto (optional)
 
 

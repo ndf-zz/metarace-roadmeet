@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=roadmeet
+Icon=metarace_icon.svg
+Terminal=true
+StartupNotify=true
+Name=Roadmeet
+Comment=Timing and results for road cycling meets
+Categories=Utility;GTK;Sports;
+#Categories=Utility;GTK;Sports;X-Xfce-Toplevel;
