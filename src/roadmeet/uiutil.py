@@ -317,23 +317,27 @@ class timerpane:
         """Set timer to finished."""
         self.status = status
         self.b.update('idle', 'Finished')
+        self.b.set_sensitive(False)
 
     def toarmfin(self):
         """Arm timer for finish."""
         self.status = 'armfin'
         self.b.update('error', 'Finish Armed')
+        self.b.set_sensitive(True)
 
     def toarmint(self, label='Lap Armed'):
         """Arm timer for intermediate."""
         self.status = 'armint'
         self.b.update('activity', label)
+        self.b.set_sensitive(True)
 
     def torunning(self):
         """Update timer state to running."""
         self.bibent.set_sensitive(False)
         self.serent.set_sensitive(False)
         self.status = 'running'
-        self.b.update('idle', 'Running')
+        self.b.update('ok', 'Running')
+        self.b.set_sensitive(True)
 
     def start(self, starttod):
         """Trigger start on timer."""
@@ -353,13 +357,15 @@ class timerpane:
         if bib is not None:
             self.setrider(bib)
         self.b.update('idle', 'Ready')
+        self.b.set_sensitive(True)
 
     def toarmstart(self):
         """Set state to armstart."""
         self.status = 'armstart'
         self.set_split()
         self.set_time(ARMTEXT)
-        self.b.update('ok', 'Start Armed')
+        self.b.update('activity', 'Start Armed')
+        self.b.set_sensitive(True)
 
     def disable(self):
         """Disable rider bib entry field."""
@@ -387,6 +393,7 @@ class timerpane:
         self.set_split()
         self.set_time()
         self.b.update('idle', 'Idle')
+        self.b.set_sensitive(False)
 
     def __init__(self, label='Timer', doser=False):
         """Constructor."""

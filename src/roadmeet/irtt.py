@@ -76,12 +76,13 @@ COL_INTERE = 15
 COL_LASTSEEN = 16
 COL_ETA = 17
 COL_PASS = 18
-COL_BONUS = 19
-COL_PENALTY = 20
+COL_DIST = 19
+COL_BONUS = 20
+COL_PENALTY = 21
 
 # autotime tuning parameters
 _START_MATCH_THRESH = tod.tod('5.0')
-_FINISH_MATCH_THRESH = tod.tod('0.200')
+_FINISH_MATCH_THRESH = tod.tod('1.200')
 
 # extended function key mappings
 key_abort = 'F5'  # + ctrl for clear/abort
@@ -131,6 +132,7 @@ class irtt(rms):
         while i is not None:
             self.riders.set_value(i, COL_COMMENT, '')
             self.riders.set_value(i, COL_PASS, 0)
+            self.riders.set_value(i, COL_DIST, 0)
             self.riders.set_value(i, COL_LASTSEEN, None)
             self.settimes(i, doplaces=False)
             i = self.riders.iter_next(i)
@@ -287,7 +289,7 @@ class irtt(rms):
                             et = inter - st
                             spd = (1000.0 * dist) / float(et.timeval)
                             ret = tod.tod(str(totdist / spd))
-                            self.riders.set_value(iter, COL_PASS, int(dist))
+                            self.riders.set_value(iter, COL_DIST, int(dist))
                             break
         return ret
 
@@ -424,40 +426,6 @@ class irtt(rms):
         else:
             cr.set_property('text', '')
 
-    def loadcats(self, cats=[]):
-        self.cats = []  # clear old cat list
-        if 'AUTO' in cats:  # ignore any others and re-load from rdb
-            self.cats = self.meet.rdb.listcats()
-            self.autocats = True
-        else:
-            self.autocats = False
-            for cat in cats:
-                if cat != '':
-                    cat = cat.upper()
-                    if cat not in ['CAT', 'SPARE', 'TEAM']:
-                        self.cats.append(cat)
-                    else:
-                        _log.warning('Invalid result category: %r', cat)
-        self.cats.append('')  # always include one empty cat
-        self.catlaps = {}
-        for cat in self.cats:
-            self.results[cat] = tod.todlist(cat)
-            self.inters[COL_INTERA][cat] = tod.todlist(cat)
-            self.inters[COL_INTERB][cat] = tod.todlist(cat)
-            self.inters[COL_INTERC][cat] = tod.todlist(cat)
-            self.inters[COL_INTERD][cat] = tod.todlist(cat)
-            self.inters[COL_INTERE][cat] = tod.todlist(cat)
-            lt = self.finishpass
-            dbr = self.meet.rdb.get_rider(cat, 'cat')
-            if dbr is not None:
-                clt = strops.confopt_posint(dbr['target laps'])
-                if clt is not None:
-                    # override lap count from category
-                    lt = clt
-            self.catlaps[cat] = lt
-            _log.debug('Set category %r pass count to: %r', cat, lt)
-        _log.debug('Result category list updated: %r', self.cats)
-
     def loadconfig(self):
         """Load race config from disk."""
         self.riders.clear()
@@ -487,6 +455,7 @@ class irtt(rms):
                 'finishloop': None,
                 'finishpass': None,
                 'interloops': {},
+                'interlaps': {},
                 'tallys': [],
                 'onestartlist': True,
                 'hidetimers': False,
@@ -542,6 +511,14 @@ class irtt(rms):
         self.showuciids = cr.get_bool('irtt', 'showuciids')
         # count of finish passings to set finish time
         self.finishpass = cr.get_posint('irtt', 'finishpass', None)
+        if self.finishpass is not None:
+            if self.finishpass > 1:
+                _log.debug('Set default target laps: %d', self.finishpass)
+                self.targetlaps = True
+            else:
+                _log.debug('Invalid target lap count (%d) ignored',
+                           self.finishpass)
+                self.finishpass = None
         # source ID of start trigger decoder
         self.starttrig = cr.get('irtt', 'starttrig')  # by source
         # hide timer panes (for auto-timed setup)
@@ -590,9 +567,22 @@ class irtt(rms):
         self.ischem[COL_INTERD] = unjsob(cr.get('irtt', 'interd'))
         self.ischem[COL_INTERE] = unjsob(cr.get('irtt', 'intere'))
         self.interloops = cr.get('irtt', 'interloops')
+        self.interlaps = cr.get('irtt', 'interlaps')
 
         # load _result_ categories
         self.loadcats(cr.get('irtt', 'categories'))
+
+        # add the category result and inter holders
+        for cat in self.cats:
+            self.results[cat] = tod.todlist(cat)
+            self.inters[COL_INTERA][cat] = tod.todlist(cat)
+            self.inters[COL_INTERB][cat] = tod.todlist(cat)
+            self.inters[COL_INTERC][cat] = tod.todlist(cat)
+            self.inters[COL_INTERD][cat] = tod.todlist(cat)
+            self.inters[COL_INTERE][cat] = tod.todlist(cat)
+
+        # pre-load lap targets
+        self.load_cat_data()
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'irtt')
@@ -688,8 +678,10 @@ class irtt(rms):
             timingmode = 'Auto'
         elif self.finishloop is not None or self.startloop is not None:
             timingmode = 'Transponder'
-        _log.info('Start mode: %s; Timing mode: %s; Precision: %d; Inters: %r',
-                  startmode, timingmode, self.precision, self.interloops)
+        _log.info(
+            'Start mode: %s; Timing mode: %s; Precision: %d; Target Laps: %r; Default Target: %r; Inters: %r/%r',
+            startmode, timingmode, self.precision, self.targetlaps,
+            self.finishpass, self.interloops, self.interlaps)
 
         # recalculate rankings
         self.placexfer()
@@ -758,6 +750,10 @@ class irtt(rms):
         cw.set('irtt', 'precision', self.precision)
         cw.set('irtt', 'timelimit', self.timelimit)
         cw.set('irtt', 'hidetimers', self.hidetimers)
+        cw.set('irtt', 'interloops', self.interloops)
+        cw.set('irtt', 'interlaps', self.interlaps)
+        cw.set('irtt', 'showinter', self.showinter)
+        cw.set('irtt', 'intera', jsob(self.ischem[COL_INTERA]))
 
         # save stage inters, points and bonuses
         self.savestageinters(cw, 'irtt')
@@ -1018,9 +1014,9 @@ class irtt(rms):
                     noshow = True
                     speedstr = ''
             elif r[COL_ETA] is not None:
-                # append km mark if available
-                if r[COL_PASS] > 0:
-                    nstr += (' @ km' + str(r[COL_PASS]))
+                # append km mark if available - dist based inters only
+                if r[COL_DIST] > 0:
+                    nstr += (' @ km' + str(r[COL_DIST]))
                 # projected finish time
                 ets = '*' + r[COL_ETA].rawtime(self.precision)
                 reta = r[COL_ETA]
@@ -1058,7 +1054,7 @@ class irtt(rms):
         intlbl = None
         if self.showinter is not None:
             intlbl = 'Inter'
-        if len(self.interloops) > 0:
+        if self.interloops or self.interlaps:
             sec.heading = 'Riders On Course'
             sec.footer = '* denotes projected finish time.'
         else:
@@ -1416,9 +1412,50 @@ class irtt(rms):
             self.meet.stat_but.set_sensitive(True)
             _log.info('Timer sync @ %s', start.rawtime(2))
             self.sl.toidle()
-            _log.debug('sl idled')
             self.fl.toidle()
-            _log.debug('fl idled')
+
+    def lapinttrig(self, lr, e, bibstr, lap):
+        """Register intermediate passing by lap"""
+        _log.debug('Lap intermediate for %r on lap %r', bibstr, lap)
+        st = lr[COL_WALLSTART]
+        if lr[COL_TODSTART] is not None:
+            st = lr[COL_TODSTART]
+        self.doannounce = True
+        elap = e - st
+        # find first matching split point
+        split = None
+        for isplit in self.interlaps[lap]:
+            minelap = self.ischem[isplit]['minelap']
+            maxelap = self.ischem[isplit]['maxelap']
+            if lr[isplit] is None:
+                if elap > minelap and elap < maxelap:
+                    split = isplit
+                    break
+
+        if split is not None:
+            # save and announce arrival at intermediate
+            bib = lr[COL_BIB]
+            series = lr[COL_SERIES]
+            nri = self.getiter(bib, series)
+            rank = self.setinter(nri, e, split)
+            place = '(' + str(rank + 1) + '.)'
+            namestr = lr[COL_NAMESTR]
+            cs = lr[COL_CAT]
+            rcat = self.ridercat(riderdb.primary_cat(cs))
+            # use cat field for split label
+            label = self.ischem[split]['label']
+            rts = ''
+            rt = self.inters[split][rcat][rank][0]
+            if rt is not None:
+                rts = rt.rawtime(2)
+            ##self.meet.scb.add_rider([place,bib,namestr,label,rts],
+            ##'ttsplit')
+            _log.info('Intermediate %s: %s %s:%s@%s/%s', label, place, bibstr,
+                      e.chan, e.rawtime(2), e.source)
+            lr[COL_ETA] = self.geteta(nri)
+        else:
+            _log.info('No match for lap %r intermediate: %s:%s@%s/%s', lap,
+                      bibstr, e.chan, e.rawtime(2), e.source)
 
     def rfidinttrig(self, lr, e, bibstr, bib, series):
         """Register Intermediate RFID crossing."""
@@ -1492,16 +1529,22 @@ class irtt(rms):
             if lr[COL_WALLSTART] is not None:
                 wv = lr[COL_WALLSTART].timeval
                 ev = e.timeval
-                if abs(wv - ev) > 5:  # differ by more than 5 secs
-                    _log.info('Ignored start time: %s:%s@%s/%s != %s', bibstr,
-                              e.chan, e.rawtime(2), e.source,
-                              lr[COL_WALLSTART].rawtime(0))
+                diff = abs(wv - ev)
+                thresh = 5
+                if self.sloppyimpulse:
+                    thresh += _START_MATCH_THRESH.timeval
+                if diff > thresh:
+                    _log.info('Ignored start time: %s:%s@%s/%s != %s / %r>%r',
+                              bibstr, e.chan, e.rawtime(2), e.source,
+                              lr[COL_WALLSTART].rawtime(0), diff, thresh)
                     return False
 
         i = self.getiter(lr[COL_BIB], lr[COL_SERIES])
         if self.sloppyimpulse:
+            # match this rfid passing to a start impulse
             self.start_match(i, e, bibstr)
         else:
+            # assume this rfid is to be the start time
             _log.info('Set start time: %s:%s@%s/%s', bibstr, e.chan,
                       e.rawtime(2), e.source)
             self.settimes(i, tst=e)
@@ -1569,9 +1612,10 @@ class irtt(rms):
         cs = lr[COL_CAT]
         cat = self.ridercat(riderdb.primary_cat(cs))
         finishpass = self.finishpass
-        if cat in self.catlaps:
+        if cat in self.catlaps and self.catlaps[cat] is not None:
             finishpass = self.catlaps[cat]
-            _log.debug('%r laps=%s, cat=%r', bibstr, finishpass, cat)
+        _log.debug('%r laps=%r(%r), cat=%r', bibstr, finishpass,
+                   self.finishpass, cat)
 
         if finishpass is None:
             st = lr[COL_WALLSTART]
@@ -1608,6 +1652,10 @@ class irtt(rms):
                 else:
                     _log.info('Lap %s passing: %s:%s@%s/%s', nc, bibstr,
                               e.chan, e.rawtime(2), e.source)
+                    lapstr = str(nc)
+                    if lapstr in self.interlaps:
+                        # record this lap passing to a configured inter
+                        self.lapinttrig(lr, e, bibstr, lapstr)
             else:
                 _log.info('Ignored short lap: %s:%s@%s/%s', bibstr, e.chan,
                           e.rawtime(2), e.source)
@@ -1645,6 +1693,9 @@ class irtt(rms):
             st = lr[COL_WALLSTART]
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]
+            # is e beyond the start threshold?
+            ## TODO: guard e near a recorded start time, handle sloppy
+            ##       start offset properly
             if st is not None and e > st and e - st > self.minelap:
                 okfin = True
 
@@ -1652,6 +1703,7 @@ class irtt(rms):
 
             # switch on loop source mode
             if okfin and self.finishloop is not None and chan == self.finishloop:
+                # this path also handles lap counting rfid modes
                 return self.finish_by_rfid(lr, e, bibstr)
             elif self.startloop is not None and chan == self.startloop:
                 return self.start_by_rfid(lr, e, bibstr)
@@ -1878,7 +1930,7 @@ class irtt(rms):
             ## could be a rmap lookup here
             nr = [
                 bib, series, '', '', '', None, None, None, tod.ZERO, '', '',
-                None, None, None, None, None, None, None, 0, None, None
+                None, None, None, None, None, None, None, 0, 0, None, None
             ]
             dbr = self.meet.rdb.get_rider(bib, series)
             if dbr is not None:
@@ -2481,10 +2533,13 @@ class irtt(rms):
             self.inters[im] = {'': tod.todlist('UNCAT')}
             self.ischem[im] = None
         self.interloops = {}  # map of loop ids to inter splits
+        self.interlaps = {}  # map of lap counts to inter splits
         self.curfintod = None
         self.doannounce = False
         self.onestartlist = False
         self.curcat = ''
+        self.targetlaps = False
+        self.catstarts = {}
         self.catlaps = {}
         self.comment = []
         self.places = ''
@@ -2521,8 +2576,9 @@ class irtt(rms):
             object,  # gobject.TYPE_PYOBJECT,  # 16 last seen
             object,  # gobject.TYPE_PYOBJECT,  # 17 eta
             int,  # gobject.TYPE_INT,  # 18 pass count
-            object,  # gobject.TYPE_PYOBJECT,  # 19 stage bonus
-            object,  # gobject.TYPE_PYOBJECT  # 20 stage penalty (sep to time pen)
+            int,  # gobject.TYPE_INT,  # 19 int distance
+            object,  # gobject.TYPE_PYOBJECT,  # 20 stage bonus
+            object,  # gobject.TYPE_PYOBJECT  # 21 stage penalty (sep to time pen)
         )
 
         b = uiutil.builder('irtt.ui')
