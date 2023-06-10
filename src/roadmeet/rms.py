@@ -3703,6 +3703,12 @@ class rms:
                 rlaps = 0
                 rftime = tod.MAX
                 lastpass = tod.MAX
+            if self.event['type'] in ['road', 'criterium']:
+                # partition into seen and not seen
+                if rftime < tod.MAX or lastpass < tod.MAX:
+                    rlaps = 999
+                else:
+                    rlaps = 0
             auxtbl.append(
                 (not r[COL_INRACE], strops.dnfcode_key(rplace), -rlaps, rftime,
                  lastpass, strops.riderno_key(rbib), idx))
@@ -3776,7 +3782,7 @@ class rms:
             self.set_finish(racefinish)
 
         # re-sort on in,vbunch (not valid for cross scoring)
-        # at this point all riders will have valid bunch time
+        # at this point all finished riders will have valid bunch time
         if self.event['type'] != 'cross':
             auxtbl = []
             idx = 0
@@ -3786,11 +3792,16 @@ class rms:
                 rplace = r[COL_PLACE]
                 rlaps = r[COL_LAPS]
                 rbunch = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
+                if rbunch is None:
+                    rbunch = tod.MAX
                 if not rplace or not r[COL_INRACE]:
                     rplace = r[COL_COMMENT]
                 if not r[COL_INRACE]:
                     rlaps = 0
-                    rbunch = tod.MAX
+                elif self.event['type'] in ['road', 'criterium']:
+                    # group all finished riders
+                    if rbunch < tod.MAX or r[COL_RFTIME] is not None:
+                        rlaps = 999
                 auxtbl.append((not r[COL_INRACE], strops.dnfcode_key(rplace),
                                -rlaps, rbunch, idx))
                 idx += 1
@@ -4206,7 +4217,6 @@ class rms:
 
         b = uiutil.builder('rms.ui')
         self.frame = b.get_object('race_vbox')
-        self.frame.connect('destroy', self.shutdown)
 
         # meta info pane
         self.shortname = None
@@ -4224,6 +4234,7 @@ class rms:
 
         self.context_menu = None
         if ui:
+            self.frame.connect('destroy', self.shutdown)
             uiutil.mkviewcoltxt(t, 'No.', COL_BIB, calign=1.0)
             uiutil.mkviewcoltxt(t,
                                 'Rider',
