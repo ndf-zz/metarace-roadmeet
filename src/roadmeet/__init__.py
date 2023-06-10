@@ -5,6 +5,7 @@ import sys
 import gi
 import logging
 import metarace
+from metarace import htlib
 import csv
 import os
 from time import sleep
@@ -37,6 +38,7 @@ from roadmeet.rms import rms
 from roadmeet.irtt import irtt
 from roadmeet.trtt import trtt
 
+VERSION = '1.0.0'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -895,7 +897,7 @@ class roadmeet:
     ## Help menu callbacks
     def menu_help_about_cb(self, menuitem, data=None):
         """Display metarace about dialog."""
-        uiutil.about_dlg(self.window)
+        uiutil.about_dlg(self.window, VERSION)
 
     ## Race Control Elem callbacks
     def race_stat_but_clicked_cb(self, button, data=None):
@@ -926,45 +928,48 @@ class roadmeet:
     ## 'Slow' Timer callback - this is the main ui event routine
     def timeout(self):
         """Update status buttons and time of day clock button."""
-        if self.running:
-            # call into race timeout handler
-            if self.curevent is not None:
-                self.curevent.timeout()
-
+        try:
             # check for completion in the export thread
             if self.mirror is not None:
                 if not self.mirror.is_alive():
                     self.mirror = None
                     _log.debug('Removing completed export thread.')
 
-            # update the menu status button
-            nt = tod.now().meridiem()
-            if self.rfuact:
-                self.rfustat.update('activity', nt)
-            else:
+            if self.running:
+                # call into race timeout handler
+                if self.curevent is not None:
+                    self.curevent.timeout()
+
+                # update the menu status button
+                nt = tod.now().meridiem()
+                if self.rfuact:
+                    self.rfustat.update('activity', nt)
+                else:
+                    if self.timer_port:
+                        if self.timer.connected():
+                            self.rfustat.update('ok', nt)
+                        else:
+                            self.rfustat.update('error', nt)
+                    else:
+                        self.rfustat.update('idle', nt)
+                self.rfuact = False
+
+                # attempt to heal a broken link
                 if self.timer_port:
                     if self.timer.connected():
-                        self.rfustat.update('ok', nt)
-                    else:
-                        self.rfustat.update('error', nt)
-                else:
-                    self.rfustat.update('idle', nt)
-            self.rfuact = False
-
-            # attempt to heal a broken link
-            if self.timer_port:
-                if self.timer.connected():
-                    self.rfufail = 0
-                else:
-                    self.rfufail += 1
-                    if self.rfufail > 10:
                         self.rfufail = 0
-                        eport = self.timer_port.split(':', 1)[-1]
-                        self.timer.setport(eport)
+                    else:
+                        self.rfufail += 1
+                        if self.rfufail > 10:
+                            self.rfufail = 0
+                            eport = self.timer_port.split(':', 1)[-1]
+                            self.timer.setport(eport)
+                else:
+                    self.rfufail = 0
             else:
-                self.rfufail = 0
-        else:
-            return False
+                return False
+        except Exception as e:
+            _log.critical('%s in meet timeout: %s', e.__class__.__name__, e)
         return True
 
     ## Window methods
@@ -1373,7 +1378,7 @@ class roadmeet:
                     lr[3] = r['org']
                     lr[4] = r['cat']
                     lr[5] = r['refid']
-                    lr[6] = r.summary()
+                    lr[6] = htlib.escape(r.summary())
                     break
         else:
             # assume entire map has to be rebuilt
@@ -1390,7 +1395,7 @@ class roadmeet:
                     rlr = [
                         dbr['bib'], dbr['ser'],
                         dbr.fitname(64), dbr['org'], dbr['cat'], dbr['refid'],
-                        dbr.summary()
+                        htlib.escape(dbr.summary())
                     ]
                     self._rlm.append(rlr)
             _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
@@ -1587,6 +1592,133 @@ class roadmeet:
 
         # start timer
         GLib.timeout_add_seconds(1, self.timeout)
+
+
+class fakemeet(roadmeet):
+    """Non-interactive meet wrapper"""
+
+    def __init__(self, edb, rdb):
+        self.edb = edb
+        self.rdb = rdb
+        self.timer = decoder()
+        self.alttimer = timy()
+        self.stat_but = uiutil.statButton()
+        self.action_model = Gtk.ListStore(str, str)
+        self.action_model.append(['a', 'a'])
+        self.action_combo = Gtk.ComboBox()
+        self.action_combo.set_model(self.action_model)
+        self.action_combo.set_active(0)
+        self.announce = telegraph()
+        self.title_str = ''
+        self.host_str = ''
+        self.subtitle_str = ''
+        self.date_str = ''
+        self.organiser_str = ''
+        self.commissaire_str = ''
+        self.distance = None
+        self.docindex = 0
+        self.linkbase = '.'
+        self.provisionalstart = False
+        self.indexlink = None
+        self.nextlink = None
+        self.prevlink = None
+        self.bibs_in_results = True
+
+    def cmd_announce(self, command, msg):
+        return False
+
+    def rider_announce(self, rvec):
+        return False
+
+    def timer_announce(self, evt, timer=None, source=''):
+        return False
+
+    def report_strings(self, rep):
+        """Copy the meet strings into the supplied report."""
+        rep.strings['title'] = self.title_str
+        rep.strings['subtitle'] = self.subtitle_str
+        rep.strings['host'] = self.host_str
+        rep.strings['docstr'] = self.document_str
+        rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
+        rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
+                                                  self.commissaire_str)
+        rep.strings['orgstr'] = strops.promptstr('Organiser:',
+                                                 self.organiser_str)
+        if self.distance:
+            rep.strings['diststr'] = strops.promptstr(
+                'Distance:',
+                str(self.distance) + '\u2006km')
+        else:
+            rep.strings['diststr'] = self.diststr
+
+        if self.eventcode:
+            rep.eventid = self.eventcode
+        if self.prevlink:
+            rep.prevlink = self.prevlink
+        if self.nextlink:
+            rep.nextlink = self.nextlink
+        if self.indexlink:
+            rep.indexlink = self.indexlink
+        if self.shortname:
+            rep.shortname = self.shortname
+
+    def loadconfig(self):
+        """Load meet config from disk."""
+        cr = jsonconfig.config({
+            'roadmeet': {
+                'title': '',
+                'shortname': '',
+                'subtitle': '',
+                'host': '',
+                'document': '',
+                'date': '',
+                'organiser': '',
+                'commissaire': '',
+                'distance': None,
+                'diststr': '',
+                'docindex': '0',
+                'linkbase': '.',
+                'indexlink': None,
+                'nextlink': None,
+                'prevlink': None,
+                'resultnos': 'Yes',
+                'provisionalstart': False,
+                'competitioncode': '',
+                'eventcode': '',
+                'racetype': '',
+                'competitortype': '',
+                'documentversion': '',
+                'id': ''
+            }
+        })
+        cr.add_section('roadmeet')
+        cr.merge(metarace.sysconf, 'roadmeet')
+        cr.load('config.json')
+
+        # set meet meta, and then copy into text entries
+        self.shortname = cr.get('roadmeet', 'shortname')
+        self.title_str = cr.get('roadmeet', 'title')
+        self.host_str = cr.get('roadmeet', 'host')
+        self.subtitle_str = cr.get('roadmeet', 'subtitle')
+        self.document_str = cr.get('roadmeet', 'document')
+        self.date_str = cr.get('roadmeet', 'date')
+        self.organiser_str = cr.get('roadmeet', 'organiser')
+        self.commissaire_str = cr.get('roadmeet', 'commissaire')
+        self.linkbase = cr.get('roadmeet', 'linkbase')
+        self.distance = cr.get_float('roadmeet', 'distance')
+        self.diststr = cr.get('roadmeet', 'diststr')
+        self.docindex = cr.get_posint('roadmeet', 'docindex', 0)
+        self.competitioncode = cr.get('roadmeet', 'competitioncode')
+        self.eventcode = cr.get('roadmeet', 'eventcode')
+        self.racetype = cr.get('roadmeet', 'racetype')
+        self.linkbase = cr.get('roadmeet', 'linkbase')
+        self.indexlink = cr.get('roadmeet', 'indexlink')
+        self.prevlink = cr.get('roadmeet', 'prevlink')
+        self.nextlink = cr.get('roadmeet', 'nextlink')
+        self.competitortype = cr.get('roadmeet', 'competitortype')
+        self.documentversion = cr.get('roadmeet', 'documentversion')
+        self.bibs_in_results = cr.get_bool('roadmeet', 'resultnos')
+        self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
 
 
 def main():
