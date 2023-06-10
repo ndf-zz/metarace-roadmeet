@@ -494,12 +494,15 @@ def riderview(rdb):
     return l
 
 
-def about_dlg(window):
+def about_dlg(window, version=None):
     """Display shared about dialog."""
     dlg = Gtk.AboutDialog.new()
     dlg.set_transient_for(window)
     dlg.set_program_name(u'roadmeet')
-    dlg.set_version(metarace.VERSION)
+    vtxt = 'Library: ' + metarace.VERSION
+    if version:
+        vtxt = 'Application: ' + version + '; ' + vtxt
+    dlg.set_version(vtxt)
     dlg.set_copyright(
         u'Copyright \u00a9 2012-2023 Nathan Fraser and contributors')
     dlg.set_comments(u'Road cycle race result handler')
