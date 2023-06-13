@@ -637,6 +637,28 @@
               </object>
             </child>
             <child>
+              <object class="GtkScrolledWindow" id="cat_box">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="border_width">5</property>
+                <property name="hscrollbar_policy">automatic</property>
+                <property name="vscrollbar_policy">automatic</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <placeholder/>
+                </child>
+              </object>
+              <packing>
+                <property name="position">2</property>
+              </packing>
+            </child>
+            <child type="tab">
+              <object class="GtkLabel" id="cat_box_tab">
+                <property name="label">Categories</property>
+                <property name="width_chars">16</property>
+              </object>
+            </child>
+            <child>
               <object class="GtkScrolledWindow" id="log_box">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -658,7 +680,7 @@
                 </child>
               </object>
               <packing>
-                <property name="position">2</property>
+                <property name="position">3</property>
               </packing>
             </child>
             <child type="tab">
