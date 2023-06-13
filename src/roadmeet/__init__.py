@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
 
 import sys
@@ -1359,35 +1358,47 @@ class roadmeet:
         """Handle a change in the rider model"""
         if rider is not None:
             r = self.rdb[rider]
-            otag = None
-            ntag = r['refid'].lower()
-            if rider in self._maptag:
-                otag = self._maptag[rider]
-            if otag != ntag:
+            if rider[1] != 'cat':
+                otag = None
+                ntag = r['refid'].lower()
                 if rider in self._maptag:
-                    del (self._maptag[rider])
-                if otag in self._tagmap:
-                    del (self._tagmap[otag])
-                if ntag:
-                    self._maptag[rider] = ntag
-                    self._tagmap[ntag] = rider
-                _log.debug('Updated tag map %r = %r', ntag, rider)
-            for lr in self._rlm:
-                if lr[0] == rider[0] and lr[1] == rider[1]:
-                    lr[2] = r.fitname(64)
-                    lr[3] = r['org']
-                    lr[4] = r['cat']
-                    lr[5] = r['refid']
-                    lr[6] = htlib.escape(r.summary())
-                    break
+                    otag = self._maptag[rider]
+                if otag != ntag:
+                    if rider in self._maptag:
+                        del (self._maptag[rider])
+                    if otag in self._tagmap:
+                        del (self._tagmap[otag])
+                    if ntag:
+                        self._maptag[rider] = ntag
+                        self._tagmap[ntag] = rider
+                    _log.debug('Updated tag map %r = %r', ntag, rider)
+                for lr in self._rlm:
+                    if lr[0] == rider[0] and lr[1] == rider[1]:
+                        lr[2] = r.fitname(64)
+                        lr[3] = r['org']
+                        lr[4] = r['cat']
+                        lr[5] = r['refid']
+                        lr[6] = htlib.escape(r.summary())
+                        break
+            else:
+                for lr in self._clm:
+                    if lr[0] == rider[0]:
+                        lr[1] = r['title']
+                        lr[2] = r['subtitle']
+                        lr[3] = r['footer']
+                        lr[4] = r['target']
+                        lr[5] = r['distance']
+                        lr[6] = r['start']
+                        break
         else:
             # assume entire map has to be rebuilt
             self._tagmap = {}
             self._maptag = {}
             self._rlm.clear()
+            self._clm.clear()
             for r in self.rdb:
+                dbr = self.rdb[r]
                 if r[1] != 'cat':
-                    dbr = self.rdb[r]
                     refid = dbr['refid'].lower()
                     if refid:
                         self._tagmap[refid] = r
@@ -1398,6 +1409,13 @@ class roadmeet:
                         htlib.escape(dbr.summary())
                     ]
                     self._rlm.append(rlr)
+                else:
+                    rlr = [
+                        dbr['id'], dbr['title'], dbr['subtitle'],
+                        dbr['footer'], dbr['target'], dbr['distance'],
+                        dbr['start']
+                    ]
+                    self._clm.append(rlr)
             _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
         if self.curevent is not None:
             self.curevent.ridercb(rider)
@@ -1418,20 +1436,57 @@ class roadmeet:
     def _rcb(self, rider):
         GLib.idle_add(self.ridercb, rider)
 
+    def _catcol_cb(self, cell, path, new_text, col):
+        """Callback for editing category info"""
+        new_text = new_text.strip()
+        bib = self._clm[path][0]
+        self._clm[path][col] = new_text
+        r = self.rdb.get_rider(bib, 'cat')
+        # TODO: fix the disconnect here between col and field
+        if r is not None:
+            if col == 1:
+                if new_text != r['title']:
+                    r['title'] = new_text
+            elif col == 2:
+                if new_text != r['subtitle']:
+                    r['subtitle'] = new_text
+            elif col == 3:
+                if new_text != r['footer']:
+                    r['footer'] = new_text
+            elif col == 4:
+                if new_text != r['target']:
+                    nt = strops.confopt_posint(new_text, None)
+                    if nt is not None:
+                        r['target'] = str(nt)
+            elif col == 5:
+                if new_text != r['distance']:
+                    nt = strops.confopt_float(new_text, None)
+                    if nt is not None:
+                        r['distance'] = str(nt)
+            elif col == 6:
+                if new_text != r['start']:
+                    nt = tod.mktod(new_text)
+                    if nt is not None:
+                        r['start'] = nt.rawtime(0)
+
     def _editcol_cb(self, cell, path, new_text, col):
         """Callback for editing a transponder ID"""
         new_text = new_text.strip()
         bib = self._rlm[path][0]
         series = self._rlm[path][1]
+        self._rlm[path][col] = new_text
         r = self.rdb.get_rider(bib, series)
+        # TODO: fix the disconnect here between col and field
         if r is not None:
             if col == 3:
-                r['org'] = new_text
+                if new_text != r['org']:
+                    r['org'] = new_text
             elif col == 4:
-                r['cat'] = new_text.upper()
+                if new_text.upper() != r['cat']:
+                    r['cat'] = new_text.upper()
             elif col == 5:
-                r['refid'] = new_text.lower()
-            self._rlm[path][col] = new_text
+                if new_text.lower() != r['refid']:
+                    r['refid'] = new_text.lower()
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
@@ -1576,6 +1631,50 @@ class roadmeet:
         uiutil.mkviewcoltxt(t, 'Refid', 5, width=80, cb=self._editcol_cb)
         t.show()
         b.get_object('riders_box').add(t)
+
+        # Build a cat list store and view
+        self._clm = Gtk.ListStore(
+            str,  # ID 0
+            str,  # Title 1
+            str,  # Subtitle 2
+            str,  # Footer 3
+            str,  # Target Laps 4
+            str,  # Distance 5
+            str,  # Start Offset 6
+        )
+        t = Gtk.TreeView(self._clm)
+        t.set_reorderable(True)
+        t.set_rules_hint(True)
+        uiutil.mkviewcoltxt(t, 'ID', 0, calign=0.0, width=40)
+        uiutil.mkviewcoltxt(t, 'Title', 1, width=140, cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t, 'Subtitle', 2, expand=True, cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t,
+                            'Footer',
+                            3,
+                            width=140,
+                            maxwidth=140,
+                            cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t,
+                            'Laps',
+                            4,
+                            width=40,
+                            calign=1.0,
+                            cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t,
+                            'Distance',
+                            5,
+                            width=40,
+                            calign=1.0,
+                            cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t,
+                            'Start Offset',
+                            6,
+                            width=50,
+                            calign=1.0,
+                            cb=self._catcol_cb)
+
+        t.show()
+        b.get_object('cat_box').add(t)
 
         # get rider db
         _log.debug('Add riderdb and eventdb')
