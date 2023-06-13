@@ -134,6 +134,12 @@ class irtt(rms):
             self.riders.set_value(i, COL_PASS, 0)
             self.riders.set_value(i, COL_DIST, 0)
             self.riders.set_value(i, COL_LASTSEEN, None)
+            self.riders.set_value(i, COL_ETA, None)
+            self.riders.set_value(i, COL_INTERA, None)
+            self.riders.set_value(i, COL_INTERB, None)
+            self.riders.set_value(i, COL_INTERC, None)
+            self.riders.set_value(i, COL_INTERD, None)
+            self.riders.set_value(i, COL_INTERE, None)
             self.settimes(i, doplaces=False)
             i = self.riders.iter_next(i)
         for cat in self.cats:
@@ -361,17 +367,37 @@ class irtt(rms):
                 _log.info('Placeholder in places')
         return ret
 
+    def retriders(self, biblist=''):
+        """Return all listed riders to the event."""
+        recalc = False
+        for bibstr in biblist.split():
+            bib, ser = strops.bibstr2bibser(bibstr)
+            r = self.getrider(bib, ser)
+            if r is not None:
+                r[COL_COMMENT] = ''
+                recalc = True
+                _log.info('Rider %r returned to event', bib)
+            else:
+                _log.warning('Unregistered rider %r unchanged', bib)
+        if recalc:
+            self.placexfer()
+        return False
+
     def race_ctrl(self, acode='', rlist=''):
         """Apply the selected action to the provided bib list."""
         if acode in self.intermeds:
-            rlist = strops.reformat_bibserplacelist(rlist)
-            if self.checkplaces(rlist, dnf=False):
-                self.intermap[acode]['places'] = rlist
-                self.placexfer()
-                _log.info('Intermediate %r == %r', acode, rlist)
+            if acode == 'brk':
+                rlist = ' '.join(strops.riderlist_split(rlist))
+                self.intsprint(acode, rlist)
             else:
-                _log.error('Intermediate %r not updated', acode)
-                return False
+                rlist = strops.reformat_bibserplacelist(rlist)
+                if self.checkplaces(rlist, dnf=False):
+                    self.intermap[acode]['places'] = rlist
+                    self.placexfer()
+                    _log.info('Intermediate %r == %r', acode, rlist)
+                else:
+                    _log.error('Intermediate %r not updated', acode)
+            return False
         elif acode == 'que':
             _log.debug('Query rider not implemented - reannounce ridercat')
             self.curcat = self.ridercat(rlist.strip())
@@ -398,8 +424,21 @@ class irtt(rms):
         elif acode == 'otl':
             self.dnfriders(strops.reformat_bibserlist(rlist), 'otl')
             return True
+        elif acode == 'wd':
+            self.dnfriders(strops.reformat_bibserlist(rlist), 'wd')
+            return True
         elif acode == 'dns':
             self.dnfriders(strops.reformat_bibserlist(rlist), 'dns')
+            return True
+        elif acode == 'ret':
+            self.retriders(strops.reformat_bibserlist(rlist))
+            return True
+        elif acode == 'man':
+            # crude hack tool for now
+            self.manpassing(strops.reformat_bibserlist(rlist))
+            return True
+        elif acode == 'fin':
+            _log.info('Finish places ignored')
             return True
         elif acode == 'com':
             self.add_comment(rlist)
@@ -679,9 +718,9 @@ class irtt(rms):
         elif self.finishloop is not None or self.startloop is not None:
             timingmode = 'Transponder'
         _log.info(
-            'Start mode: %s; Timing mode: %s; Precision: %d; Target Laps: %r; Default Target: %r; Inters: %r/%r',
+            'Start mode: %s; Timing mode: %s; Precision: %d; Laps: %r; Default Laps: %r',
             startmode, timingmode, self.precision, self.targetlaps,
-            self.finishpass, self.interloops, self.interlaps)
+            self.finishpass)
 
         # recalculate rankings
         self.placexfer()
@@ -1944,7 +1983,7 @@ class irtt(rms):
         if rider is not None:
             if rider[1] == 'cat':
                 # if cat is a result category in this event
-                if self.ridercat(rider(0)):
+                if self.ridercat(rider[0]):
                     self.load_cat_data()
             else:
                 bib = rider[0]
@@ -2492,6 +2531,7 @@ class irtt(rms):
         self.event = event
         self.evno = event['evid']
         # series is specified per-rider
+        self.series = ''
         self.configfile = meet.event_configfile(self.evno)
         self.readonly = not ui
         rstr = ''

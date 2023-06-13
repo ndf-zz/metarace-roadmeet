@@ -914,8 +914,7 @@ class rms:
                 if missing:
                     _log.warning('Categories missing target lap count: %s',
                                  ', '.join(missing))
-        _log.debug('Loaded cat data: laps=%r, starts=%r', self.catlaps,
-                   self.catstarts)
+        _log.debug('Re-load result cats: %r', self.cats)
 
     def startlist_report_gen(self, cat=None, callup=False):
         catname = ''
@@ -1958,12 +1957,27 @@ class rms:
         return odat
 
     def result_gen(self, cat=''):
-        """Generator function to export a final result."""
-        self.recalculate()  # fix up ordering of rows
+        """Create and return result list with rows:
+
+           ( rank, bib, time, bonus, penalty )
+
+        Notes: 
+
+           - Handicap race type includes start offset in bonus time
+           - Cross type adjusts time to include cat leader's average
+             lap time and time down at finish
+        """
+        self.recalculate()
         mcat = self.ridercat(cat)
         rcount = 0
         lrank = None
         lcrank = None
+        lft = None
+        lavg = None
+        lbib = None
+        llaps = None
+        lpass = None
+        ret = []
         for r in self.riders:
             rcat = r[COL_CAT].upper()
             rcats = ['']
@@ -1989,14 +2003,40 @@ class rms:
                     elif rcat in self.catstarts:
                         sof = self.catstarts[rcat]
                     if sof is not None and bt is not None:
-                        if self.event['type'] != 'handicap':
-                            ft = bt - sof
-                        else:
+                        if self.event['type'] == 'cross':
+                            if lavg is None:
+                                llaps = r[COL_LAPS]
+                                lpass = r[COL_RFSEEN]
+                                lavg = tod.tod(ft.timeval / llaps)
+                                lbib = bib
+                                ft = bt - sof
+                                lft = ft
+                                _log.debug(
+                                    'leader %r: %r laps, lap avg: %s, ft: %s',
+                                    bib, llaps, lavg.rawtime(6), ft.rawtime(0))
+                            else:
+                                # do the faux down time
+                                lxtra = tod.ZERO
+                                rcnt = r[COL_LAPS]
+                                rdwn = llaps - rcnt
+                                if rcnt != llaps:
+                                    lelap = lft
+                                    lxtra = tod.tod(lavg.timeval * rdwn)
+                                    if bt < ft:
+                                        # is this a valid finish time?
+                                        _log.error(
+                                            '%r finish time %s ahead of cat leader %r: %s',
+                                            bib, ft.rawtime(0), lbib,
+                                            lft.rawtime(0))
+                                ft = bt + lxtra - sof
+                        elif self.event['type'] == 'handicap':
                             # for handicap, time is stage time, bonus
                             # carries the start offset, elapsed is:
                             # stage - bonus
                             ft = bt
                             bonus = sof
+                        else:
+                            ft = bt - sof
                 plstr = r[COL_PLACE]
                 if plstr.isdigit():
                     rank = int(plstr)
@@ -2020,7 +2060,8 @@ class rms:
                     penalty = r[COL_PENALTY]
                 if ft is not None:
                     ft = ft.truncate(0)  # force whole second for bunch times
-                yield [crank, bib, ft, bonus, penalty]
+                ret.append((crank, bib, ft, bonus, penalty))
+        return ret
 
     def clear_results(self):
         """Clear all data from event model."""
@@ -2442,7 +2483,7 @@ class rms:
                 self.updateteam(rider)
             elif rider[1] == 'cat':
                 # if cat is a result category in this event
-                if self.ridercat(rider(0)):
+                if self.ridercat(rider[0]):
                     self.load_cat_data()
                 ## TODO: verify if recalc required
                 #self._dorecalc = True
@@ -3705,10 +3746,11 @@ class rms:
                 lastpass = tod.MAX
             if self.event['type'] in ['road', 'criterium']:
                 # partition into seen and not seen
-                if rftime < tod.MAX or lastpass < tod.MAX:
-                    rlaps = 999
-                else:
-                    rlaps = 0
+                if r[COL_INRACE]:
+                    if rftime < tod.MAX or lastpass < tod.MAX:
+                        rlaps = 999
+                    else:
+                        rlaps = 0
             auxtbl.append(
                 (not r[COL_INRACE], strops.dnfcode_key(rplace), -rlaps, rftime,
                  lastpass, strops.riderno_key(rbib), idx))
