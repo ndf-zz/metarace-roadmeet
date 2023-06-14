@@ -550,11 +550,15 @@ class roadmeet:
         if self.curevent is None:
             _log.info('No event open for starters import')
             return
-        count = 0
         sfile = uiutil.chooseCsvFile(title='Select startlist file to import',
                                      parent=self.window,
                                      path='.')
+        self.import_starters(sfile)
+
+    def import_starters(self, sfile):
+        """Import starters from the nominated csvfile"""
         if os.path.isfile(sfile):
+            count = 0
             with open(sfile, encoding='utf-8', errors='replace') as f:
                 cr = csv.reader(f)
                 for r in cr:

@@ -1392,6 +1392,7 @@ class irtt(rms):
 
     def result_gen(self, cat=''):
         """Generator function to export a final result."""
+        ret = []
         self.placexfer()
         mcat = self.ridercat(cat)
         rcount = 0
@@ -1443,7 +1444,8 @@ class irtt(rms):
                 if r[COL_PENALTY] is not None:
                     penalty = r[COL_PENALTY]
 
-                yield [crank, bs, ft, bonus, penalty]
+                ret.append((crank, bs, ft, bonus, penalty))
+        return ret
 
     def set_syncstart(self, start=None, lstart=None):
         if start is not None:
