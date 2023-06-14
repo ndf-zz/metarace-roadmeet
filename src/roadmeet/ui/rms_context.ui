@@ -95,6 +95,14 @@
       </object>
     </child>
     <child>
+      <object class="GtkMenuItem" id="rms_context_down">
+        <property name="label" translatable="yes">Laps Down</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text" translatable="yes">Assign rider's finish time based on laps down</property>
+        <signal name="activate" handler="rms_context_down_activate_cb"/>
+      </object>
+    </child>
+    <child>
       <object class="GtkMenuItem" id="rms_context_swap">
         <property name="label" translatable="yes">Swap</property>
         <property name="visible">True</property>

@@ -3772,7 +3772,7 @@ class rms:
                 rcomment = r[COL_COMMENT]
                 if r[COL_INRACE] or rcomment == 'otl':
                     rtime = r[COL_RFTIME]
-                    if self.event['type'] == 'cross':
+                    if self.event['type'] in ['cross', 'circuit']:
                         if ll is None or ll != r[COL_LAPS]:
                             # invalidate last passing since on a different lap
                             lt = None
@@ -4027,6 +4027,59 @@ class rms:
             newplaces.append('-'.join(gv))
         self.places = ' '.join(newplaces)
         _log.debug('Places after swap: %r', self.places)
+
+    def rms_context_down_activate_cb(self, menuitem, data=None):
+        """Assign a finish time based on laps down from cat leader."""
+        sel = self.view.get_selection().get_selected()
+        bib = None
+        if sel is not None:
+            i = sel[1]
+            r = Gtk.TreeModelRow(self.riders, i)
+            if len(r[COL_RFSEEN]) > 0:
+                self.lapsdown(r, r[COL_RFSEEN][-1])
+            else:
+                _log.info('No passings to use for laps down')
+        if sel is None:
+            _log.info('Unable to set empty rider selection')
+
+    def lapsdown(self, lr, passing=None):
+        # determine rider's result cat
+        cs = lr[COL_CAT]
+        rcat = self.ridercat(riderdb.primary_cat(cs))
+        bt = None
+        ldr = None
+        # scan rider list for cat leader
+        for r in self.riders:
+            if rcat == '' or rcat in r[COL_CAT]:
+                bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
+                if bt is not None:
+                    st = self.getstart(r)
+                    if st is not None:
+                        bt = bt - st
+                    # rider has a finish bunch
+                    ldr = r
+                    break
+        if ldr is not None:
+            # compare laps
+            if ldr[COL_LAPS] > 0 and ldr[COL_LAPS] > lr[COL_LAPS]:
+                lavg = tod.tod(bt.timeval / ldr[COL_LAPS])
+                deficit = ldr[COL_LAPS] - lr[COL_LAPS]
+                lxtra = tod.tod(lavg.timeval * deficit)
+                lr[COL_RFTIME] = passing + lxtra
+                _log.debug(
+                    'Leader %r: %d laps, avg=%s, Rider %r: deficit=%d, xtra=%s, pass=%s, fin=%s, ',
+                    ldr[COL_BIB], ldr[COL_LAPS],
+                    lavg.rawtime(1), lr[COL_BIB], deficit, lxtra.rawtime(1),
+                    passing.rawtime(1), lr[COL_RFTIME].rawtime(1))
+
+                self._dorecalc = True
+            else:
+                _log.warning(
+                    'Leader %r on lap %r, rider %r on lap %r - unchanged',
+                    ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB], lr[COL_LAPS])
+        else:
+            _log.warning('No leader found for cat %r, %s unchanged', rcat,
+                         lr[COL_BIB])
 
     def rms_context_swap_activate_cb(self, menuitem, data=None):
         """Swap data to/from another rider."""
