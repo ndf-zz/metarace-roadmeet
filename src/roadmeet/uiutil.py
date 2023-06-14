@@ -671,15 +671,15 @@ def coltxtbibser(col, cr, model, iter, data):
 
 def mkviewcolbibser(view=None,
                     header='No.',
-                    bibno=0,
-                    serno=1,
+                    bibcol=0,
+                    sercol=1,
                     width=None,
                     expand=False):
     """Return a column to display bib/series as a bib.ser string."""
     i = Gtk.CellRendererText()
     i.set_property('xalign', 1.0)
     j = Gtk.TreeViewColumn(header, i)
-    j.set_cell_data_func(i, coltxtbibser, (bibno, serno))
+    j.set_cell_data_func(i, coltxtbibser, (bibcol, sercol))
     if expand:
         j.set_min_width(width)
         j.set_expand(True)

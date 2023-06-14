@@ -58,27 +58,33 @@ ARRIVALTIMEOUT = tod.tod('2:30')
 
 # startlist model columns
 COL_BIB = 0
-COL_SERIES = 1
-COL_NAMESTR = 2
+COL_NAMESTR = 1
+COL_SHORTNAME = 2
 COL_CAT = 3
 COL_COMMENT = 4
-COL_WALLSTART = 5
-COL_TODSTART = 6
-COL_TODFINISH = 7
-COL_TODPENALTY = 8
-COL_PLACE = 9
-COL_SHORTNAME = 10
-COL_INTERA = 11
-COL_INTERB = 12
-COL_INTERC = 13
-COL_INTERD = 14
-COL_INTERE = 15
-COL_LASTSEEN = 16
-COL_ETA = 17
-COL_PASS = 18
-COL_DIST = 19
-COL_BONUS = 20
-COL_PENALTY = 21
+COL_INRACE = 5
+COL_PLACE = 6
+COL_LAPS = 7
+COL_SEED = 8
+
+COL_WALLSTART = 9
+COL_TODSTART = 10
+COL_TODFINISH = 11
+COL_TODPENALTY = 12
+
+COL_BONUS = 13
+COL_PENALTY = 14
+
+COL_INTERA = 15
+COL_INTERB = 16
+COL_INTERC = 17
+COL_INTERD = 18
+COL_INTERE = 19
+COL_LASTSEEN = 20
+COL_ETA = 21
+COL_PASS = 22
+COL_DIST = 23
+COL_SERIES = 24
 
 # autotime tuning parameters
 _START_MATCH_THRESH = tod.tod('5.0')
@@ -501,6 +507,7 @@ class irtt(rms):
                 'startpasses': [],
                 'finishpasses': [],
                 'showuciids': False,
+                'showcats': True,
                 'timelimit': None,
                 'finished': False,
                 'showinter': None,
@@ -548,6 +555,7 @@ class irtt(rms):
         self.sloppyimpulse = cr.get_bool('irtt', 'sloppyimpulse')
         # uci ids on startlists and results
         self.showuciids = cr.get_bool('irtt', 'showuciids')
+        self.showcats = cr.get_bool('irtt', 'showcats')
         # count of finish passings to set finish time
         self.finishpass = cr.get_posint('irtt', 'finishpass', None)
         if self.finishpass is not None:
@@ -786,6 +794,7 @@ class irtt(rms):
         cw.set('irtt', 'finishpass', self.finishpass)
         cw.set('irtt', 'onestartlist', self.onestartlist)
         cw.set('irtt', 'showuciids', self.showuciids)
+        cw.set('irtt', 'showcats', self.showcats)
         cw.set('irtt', 'precision', self.precision)
         cw.set('irtt', 'timelimit', self.timelimit)
         cw.set('irtt', 'hidetimers', self.hidetimers)
@@ -890,8 +899,8 @@ class irtt(rms):
             self.riders.reorder([a[1] for a in aux])
         return cnt
 
-    def reorder_startlist(self, callup=False):
-        """Reorder riders for a startlist."""
+    def reorder_callup(self):
+        """Reorder riders for the tt callup report."""
         aux = []
         cnt = 0
         for r in self.riders:
@@ -918,12 +927,8 @@ class irtt(rms):
         return ret
 
     def callup_report(self):
-        """Return startlist report."""
-        return self.startlist_report()
-
-    def startlist_report(self):
-        """Return a startlist report."""
-        self.reorder_startlist()
+        """Return a TT call up report."""
+        self.reorder_callup()
         ret = []
         if len(self.cats) > 1 and not self.onestartlist:
             for c in self.cats:
@@ -931,10 +936,10 @@ class irtt(rms):
                 ret.extend(self.startlist_report_gen(c))
                 ret.append(report.pagebreak(0.05))
         else:
-            ret = self.startlist_report_gen()
+            ret = self.callup_report_gen()
         return ret
 
-    def startlist_report_gen(self, cat=None):
+    def callup_report_gen(self, cat=None):
         catnamecache = {}
         catname = ''
         subhead = ''
@@ -962,7 +967,7 @@ class irtt(rms):
         """Return a startlist report (rough style)."""
         ret = []
         sec = report.rttstartlist('startlist')
-        sec.heading = 'Startlist'
+        sec.heading = 'Start Order'
         if catname:
             sec.heading += ': ' + catname
             sec.subheading = subhead
@@ -1968,9 +1973,11 @@ class irtt(rms):
         if bib == '' or self.getrider(bib, series) is None:
             ## could be a rmap lookup here
             nr = [
-                bib, series, '', '', '', None, None, None, tod.ZERO, '', '',
-                None, None, None, None, None, None, None, 0, 0, None, None
+                bib, '', '', '', '', True, '', 0, 0, None, None, None,
+                tod.ZERO, None, None, None, None, None, None, None, None, None,
+                0, 0, series
             ]
+
             dbr = self.meet.rdb.get_rider(bib, series)
             if dbr is not None:
                 self.updaterider(nr, dbr)
@@ -2549,6 +2556,7 @@ class irtt(rms):
         self.precision = 2
         self.finishpass = None
         self.hidetimers = False
+        self.showcats = True
 
         # race run time attributes
         self.onestart = False
@@ -2597,28 +2605,31 @@ class irtt(rms):
         self.tallymap = {}  # map of tally keys
 
         self.riders = Gtk.ListStore(
-            str,  # gobject.TYPE_STRING,  # 0 bib
-            str,  # gobject.TYPE_STRING,  # 1 series
-            str,  # gobject.TYPE_STRING,  # 2 namestr
-            str,  # gobject.TYPE_STRING,  # 3 cat
-            str,  # gobject.TYPE_STRING,  # 4 comment
-            object,  # gobject.TYPE_PYOBJECT,  # 5 wstart
-            object,  # gobject.TYPE_PYOBJECT,  # 6 tstart
-            object,  # gobject.TYPE_PYOBJECT,  # 7 finish
-            object,  # gobject.TYPE_PYOBJECT,  # 8 penalty
-            str,  # gobject.TYPE_STRING,  # 9 place
-            str,  # gobject.TYPE_STRING,  # 10 shortname
-            object,  # gobject.TYPE_PYOBJECT,  # 11 intermediate
-            object,  # gobject.TYPE_PYOBJECT,  # 12 intermediate
-            object,  # gobject.TYPE_PYOBJECT,  # 13 intermediate
-            object,  # gobject.TYPE_PYOBJECT,  # 14 intermediate
-            object,  # gobject.TYPE_PYOBJECT,  # 15 intermediate
-            object,  # gobject.TYPE_PYOBJECT,  # 16 last seen
-            object,  # gobject.TYPE_PYOBJECT,  # 17 eta
-            int,  # gobject.TYPE_INT,  # 18 pass count
-            int,  # gobject.TYPE_INT,  # 19 int distance
-            object,  # gobject.TYPE_PYOBJECT,  # 20 stage bonus
-            object,  # gobject.TYPE_PYOBJECT  # 21 stage penalty (sep to time pen)
+            str,  # bib 0
+            str,  # namestr 1
+            str,  # shortname 2
+            str,  # cat 3
+            str,  # comment 4
+            bool,  # inrace 5
+            str,  # place 6
+            int,  # laps 7
+            int,  # seed 8
+            object,  # wallstart 9
+            object,  # todstart 10
+            object,  # todfinish 11
+            object,  # todpenalty 12
+            object,  # stagebonus 13
+            object,  # stagepenalty 14
+            object,  # intera 15
+            object,  # interb 16
+            object,  # interc 17
+            object,  # interd 18
+            object,  # intere 19
+            object,  # lastseen 20
+            object,  # eta 21
+            int,  # pass count 22
+            int,  # distance 23
+            str,  # series 24
         )
 
         b = uiutil.builder('irtt.ui')
@@ -2655,7 +2666,7 @@ class irtt(rms):
         if ui:
             t.connect('button_press_event', self.treeview_button_press)
             # TODO: show team name & club but pop up for rider list
-            uiutil.mkviewcolbibser(t)
+            uiutil.mkviewcolbibser(t, bibcol=COL_BIB, sercol=COL_SERIES)
             uiutil.mkviewcoltxt(t, 'Rider', COL_NAMESTR, expand=True)
             uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, self.editcol_cb)
             uiutil.mkviewcoltxt(t, 'Passes', COL_PASS, self.editcol_cb)
