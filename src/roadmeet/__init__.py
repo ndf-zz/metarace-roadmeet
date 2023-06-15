@@ -1264,6 +1264,12 @@ class roadmeet:
             topic = '/'.join((self.anntopic, command))
             self.announce.publish(msg, topic)
 
+    def obj_announce(self, command, obj):
+        """Publish obj to command as JSON"""
+        if self.anntopic:
+            topic = '/'.join((self.anntopic, command))
+            self.announce.publish_json(obj, topic)
+
     def rider_announce(self, rvec):
         """Issue a serialised rider vector to announcer."""
         # Deprecated UNT-style list

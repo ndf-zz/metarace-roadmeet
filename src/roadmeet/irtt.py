@@ -54,7 +54,7 @@ RESERVED_SOURCES = [
 
 DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
 STARTFUDGE = tod.tod(30)
-ARRIVALTIMEOUT = tod.tod('2:30')
+ARRIVALTIMEOUT = tod.tod('1:15')
 
 # startlist model columns
 COL_BIB = 0
@@ -241,12 +241,10 @@ class irtt(rms):
                 self.meet.rider_announce(
                     [rank, bib, namestr, cat,
                      et.rawtime(2)])
-        arrivalsec = self.arrival_report(0)  # fetch all arrivals
-        if len(arrivalsec) > 0:
-            arrivals = arrivalsec[0].lines
-            for a in arrivals:
-                # announce arrival
-                pass
+        rep = report.report()
+        arrivals = self.arrival_report()  # fetch all arrivals
+        if len(arrivals) > 0:
+            self.meet.obj_announce('arrivals', arrivals[0].serialize(rep))
         return False
 
     def wallstartstr(self, col, cr, model, iter, data=None):
@@ -1022,7 +1020,7 @@ class irtt(rms):
             ret.append(sec)
         return ret
 
-    def arrival_report(self, limit=0):
+    def arrival_report(self):
         """Return an arrival report."""
         # build aux table
         aux = []
@@ -1033,14 +1031,18 @@ class irtt(rms):
             rarr = tod.MAX
             plstr = r[COL_PLACE]
             bstr = r[COL_BIB]
-            nstr = r[COL_NAMESTR]
+            nstr = r[COL_SHORTNAME]
             turnstr = ''
             ets = ''
-            speedstr = ''
             rankstr = ''
             noshow = False
             cs = r[COL_CAT]
+            catstr = cs
             cat = self.ridercat(riderdb.primary_cat(cs))
+            if cat:
+                cbr = self.meet.rdb.get_rider(cat, 'cat')
+                if cbr is not None:
+                    catstr = cbr['title']
             if plstr.isdigit():  # rider placed at finish
                 ## only show for a short while
                 until = r[COL_TODFINISH] + ARRIVALTIMEOUT
@@ -1050,20 +1052,27 @@ class irtt(rms):
                     reta = et
                     ets = et.rawtime(self.precision)
                     rankstr = '(' + plstr + '.)'
-                    speedstr = ''
+                    #speedstr = ''
                     # cat distance should override this
-                    if self.meet.distance is not None:
-                        speedstr = et.speedstr(1000.0 * self.meet.distance)
+                    #if self.meet.distance is not None:
+                    #speedstr = et.speedstr(1000.0 * self.meet.distance)
                 else:
                     noshow = True
-                    speedstr = ''
+                    #speedstr = ''
             elif r[COL_ETA] is not None:
                 # append km mark if available - dist based inters only
-                if r[COL_DIST] > 0:
-                    nstr += (' @ km' + str(r[COL_DIST]))
-                # projected finish time
-                ets = '*' + r[COL_ETA].rawtime(self.precision)
-                reta = r[COL_ETA]
+                if r[COL_PASS] > 0:
+                    nstr += ' @ Lap ' + str(r[COL_PASS])
+                elif r[COL_DIST] > 0:
+                    nstr += ' @ km' + str(r[COL_DIST])
+                # Don't show projected finish time
+                #ets = '*' + r[COL_ETA].rawtime(self.precision)
+
+                # projected arrival at finish line
+                st = r[COL_TODSTART]
+                if st is None:  # defer to start time
+                    st = r[COL_WALLSTART]
+                reta = r[COL_ETA] + st
 
             if self.showinter is not None and self.showinter in self.ischem and self.ischem[
                     self.showinter] is not None:
@@ -1075,19 +1084,19 @@ class irtt(rms):
                     tplstr = str(trk + 1)
                     trankstr = ' (' + tplstr + '.)'
                     turnstr = tet.rawtime(self.precision) + trankstr
-                    if not speedstr:
-                        # override speed from turn
-                        speedstr = ''
-                        dist = self.ischem[self.showinter]['dist']
-                        if dist is not None:
-                            speedstr = tet.speedstr(1000.0 * dist)
+                    #if not speedstr:
+                    # override speed from turn
+                    #speedstr = ''
+                    #dist = self.ischem[self.showinter]['dist']
+                    #if dist is not None:
+                    #speedstr = tet.speedstr(1000.0 * dist)
                 else:
                     pass
 
             if not noshow:
-                if ets or speedstr:  # only add riders with an estimate
+                if ets or turnstr:  # only add riders with an estimate
                     aux.append((rarr, reta, count,
-                                [rankstr, bstr, nstr, turnstr, ets, speedstr]))
+                                [rankstr, bstr, nstr, turnstr, ets, catstr]))
                     count += 1
 
         # reorder by arrival times
@@ -1100,16 +1109,21 @@ class irtt(rms):
             intlbl = 'Inter'
         if self.interloops or self.interlaps:
             sec.heading = 'Riders On Course'
-            sec.footer = '* denotes projected finish time.'
+            #sec.footer = '* denotes projected finish time.'
         else:
             sec.heading = 'Recent Arrivals'
         sec.colheader = [None, None, None, intlbl, 'Finish', 'Avg']
+        pr = ''
         for r in aux:
             hr = r[3]
+            rank = hr[0]
+            if not rank and pr:
+                # add a spacer for intermeds
+                sec.lines.append(['', '', ''])
+            pr = rank
             sec.lines.append(hr)
         ret = []
-        if len(sec.lines) > 0:
-            ret.append(sec)
+        ret.append(sec)
         return ret
 
     def analysis_report(self):
@@ -1341,7 +1355,7 @@ class irtt(rms):
         # show arrivals if running
         if self.timerstat == 'running':
             # until final, show last few
-            ret.extend(self.arrival_report(self.arrivalcount))
+            ret.extend(self.arrival_report())
 
         # add result sections
         if len(self.cats) > 1:
@@ -1366,7 +1380,8 @@ class irtt(rms):
     def startlist_gen(self, cat=''):
         """Generator function to export a startlist."""
         mcat = self.ridercat(cat)
-        self.reorder_startlist()
+        # order this export by start time as per callup
+        self.reorder_callup()
         for r in self.riders:
             cs = r[COL_CAT]
             rcat = self.ridercat(riderdb.primary_cat(cs))
