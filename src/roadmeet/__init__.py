@@ -1832,6 +1832,11 @@ class fakemeet(roadmeet):
 
 def main():
     """Run the road meet application as a console script."""
+    chk = Gtk.init_check()
+    if not chk[0]:
+        print('Unable to init Gtk display')
+        sys.exit(-1)
+
     # attach a console log handler to the root logger then run the ui
     ch = logging.StreamHandler()
     ch.setLevel(metarace.LOGLEVEL)
@@ -1879,4 +1884,4 @@ def runapp(configpath, etype=None):
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
