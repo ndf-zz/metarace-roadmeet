@@ -1861,7 +1861,7 @@ class irtt(rms):
                     _log.error('Missing rider at start')
                     self.sl.toidle()
             # save passing to start passing store
-            self.startpasses.insert(t, prec=4)
+            self.startpasses.insert(nst, prec=4)
         elif self.timerstat == 'armstart':
             self.set_syncstart(t, tod.now())
 
