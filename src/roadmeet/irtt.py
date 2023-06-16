@@ -87,8 +87,8 @@ COL_DIST = 23
 COL_SERIES = 24
 
 # autotime tuning parameters
-_START_MATCH_THRESH = tod.tod('5.0')
-_FINISH_MATCH_THRESH = tod.tod('1.200')
+_START_MATCH_THRESH = tod.tod('6.0')
+_FINISH_MATCH_THRESH = tod.tod('0.400')
 
 # extended function key mappings
 key_abort = 'F5'  # + ctrl for clear/abort
@@ -1112,7 +1112,7 @@ class irtt(rms):
             #sec.footer = '* denotes projected finish time.'
         else:
             sec.heading = 'Recent Arrivals'
-        sec.colheader = [None, None, None, intlbl, 'Finish', 'Avg']
+        sec.colheader = [None, None, None, intlbl, 'Finish', '']
         pr = ''
         for r in aux:
             hr = r[3]
@@ -1355,7 +1355,9 @@ class irtt(rms):
         # show arrivals if running
         if self.timerstat == 'running':
             # until final, show last few
-            ret.extend(self.arrival_report())
+            arvls = self.arrival_report()
+            if len(arvls[0].lines) > 0:
+                ret.extend(self.arrival_report())
 
         # add result sections
         if len(self.cats) > 1:
@@ -2039,7 +2041,7 @@ class irtt(rms):
         """Update the local record lr with data from riderdb handle r"""
         lr[COL_NAMESTR] = r.listname()
         lr[COL_CAT] = r['cat']
-        lr[COL_SHORTNAME] = r.fitname(12)
+        lr[COL_SHORTNAME] = r.fitname(24)
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Toggle the visibility of timer panes"""
