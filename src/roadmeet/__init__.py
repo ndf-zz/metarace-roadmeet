@@ -37,7 +37,7 @@ from roadmeet.rms import rms
 from roadmeet.irtt import irtt
 from roadmeet.trtt import trtt
 
-VERSION = '1.0.0'
+VERSION = '1.13.0'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -1837,7 +1837,7 @@ def main():
         print('Unable to init Gtk display')
         sys.exit(-1)
 
-    # attach a console log handler to the root logger then run the ui
+    # attach a console log handler to the root logger
     ch = logging.StreamHandler()
     ch.setLevel(metarace.LOGLEVEL)
     fh = logging.Formatter(metarace.LOGFORMAT)
@@ -1845,6 +1845,16 @@ def main():
     logging.getLogger().addHandler(ch)
 
     metarace.init()
+
+    # try to set the menubar accel and logo
+    try:
+        lfile = metarace.default_file(metarace.LOGO)
+        Gtk.Window.set_default_icon_from_file(lfile)
+        mset = Gtk.Settings.get_default()
+        mset.set_property('gtk-menu-bar-accel', 'F24')
+    except Exception as e:
+        _log.debug('%s setting property: %s', e.__class__.__name__, e)
+
     configpath = metarace.DATA_PATH
     if len(sys.argv) > 2:
         _log.error('Usage: roadmeet [configdir]')
@@ -1854,7 +1864,16 @@ def main():
     configpath = metarace.config_path(configpath)
     if configpath is None:
         _log.error('Unable to open meet config %r', sys.argv[1])
-        sys.exit(1)
+        if not os.isatty(sys.stdout.fileno()):
+            err = Gtk.MessageDialog(None, Gtk.DialogFlags.MODAL,
+                                    Gtk.MessageType.ERROR,
+                                    Gtk.ButtonsType.CLOSE,
+                                    'Error reading meet config.')
+            err.set_title('roadmeet: Error')
+            err.format_secondary_text(
+                'Check config file and event log for error messages')
+            err.run()
+        sys.exit(-1)
     app = runapp(configpath)
     return Gtk.main()
 
@@ -1864,20 +1883,20 @@ def runapp(configpath, etype=None):
     lf = metarace.lockpath(configpath)
     if lf is None:
         _log.error('Unable to lock meet config, already in use')
-        sleep(2)
-        sys.exit(1)
+        if not os.isatty(sys.stdout.fileno()):
+            err = Gtk.MessageDialog(None, Gtk.DialogFlags.MODAL,
+                                    Gtk.MessageType.ERROR,
+                                    Gtk.ButtonsType.CLOSE,
+                                    'Meet folder is locked.')
+            err.format_secondary_text(
+                'Another application has locked the meet folder for use.')
+            err.set_title('roadmeet: Locked')
+            err.run()
+        sys.exit(-1)
     _log.debug('Entering meet folder %r', configpath)
     os.chdir(configpath)
     app = roadmeet(etype, lf)
     app.loadconfig()
-    # try to set the menubar accel and logo
-    try:
-        lfile = metarace.default_file(metarace.LOGO)
-        Gtk.Window.set_default_icon_from_file(lfile)
-        mset = Gtk.Settings.get_default()
-        mset.set_property('gtk-menu-bar-accel', 'F24')
-    except Exception as e:
-        _log.debug('%s setting property: %s', e.__class__.__name__, e)
     app.window.show()
     app.start()
     return app
