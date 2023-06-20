@@ -505,7 +505,6 @@ class irtt(rms):
                 'startpasses': [],
                 'finishpasses': [],
                 'showuciids': False,
-                'showcats': True,
                 'timelimit': None,
                 'finished': False,
                 'showinter': None,
@@ -548,7 +547,6 @@ class irtt(rms):
         self.sloppyimpulse = cr.get_bool('irtt', 'sloppyimpulse')
         # uci ids on startlists and results
         self.showuciids = cr.get_bool('irtt', 'showuciids')
-        self.showcats = cr.get_bool('irtt', 'showcats')
         # count of finish passings to set finish time
         self.finishpass = cr.get_posint('irtt', 'finishpass', None)
         if self.finishpass is not None:
@@ -781,7 +779,6 @@ class irtt(rms):
         cw.set('irtt', 'finishpass', self.finishpass)
         cw.set('irtt', 'onestartlist', self.onestartlist)
         cw.set('irtt', 'showuciids', self.showuciids)
-        cw.set('irtt', 'showcats', self.showcats)
         cw.set('irtt', 'precision', self.precision)
         cw.set('irtt', 'timelimit', self.timelimit)
         cw.set('irtt', 'hidetimers', self.hidetimers)
@@ -2550,7 +2547,6 @@ class irtt(rms):
         self.precision = 2
         self.finishpass = None
         self.hidetimers = False
-        self.showcats = True
 
         # race run time attributes
         self.onestart = False

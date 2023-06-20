@@ -303,7 +303,6 @@ class rms:
                 'finished': False,
                 'showdowntimes': DEFDOWNTIMES,
                 'showuciids': False,
-                'showcats': True,
                 'places': '',
                 'comment': [],
                 'hidecols': [INCOLUMN],
@@ -439,7 +438,6 @@ class rms:
             self.set_finished()
         self.showdowntimes = cr.get_bool('rms', 'showdowntimes')
         self.showuciids = cr.get_bool('rms', 'showuciids')
-        self.showcats = cr.get_bool('rms', 'showcats')
         self.clubmode = cr.get_bool('rms', 'clubmode')
         self.laplength = cr.get_posint('rms', 'laplength')
         self.recalculate()
@@ -599,7 +597,6 @@ class rms:
             cw.set('rms', 'lapfin', self.lapfin.rawtime())
         cw.set('rms', 'showdowntimes', self.showdowntimes)
         cw.set('rms', 'showuciids', self.showuciids)
-        cw.set('rms', 'showcats', self.showcats)
         cw.set('rms', 'minlap', self.minlap.rawtime())
         cw.set('rms', 'gapthresh', self.gapthresh.rawtime())
         cw.set('rms', 'finished', self.timerstat == 'finished')
@@ -969,9 +966,6 @@ class rms:
                     dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
                     if dbr is not None:
                         ucicode = dbr['uci id']
-                if self.showcats and not ucicode and cat == '':
-                    # Rider may have a typo in cat, show the catlist
-                    ucicode = cs
                 comment = ''
                 if callup:
                     comment = str(rcnt + 1) + '.'
@@ -1614,8 +1608,6 @@ class rms:
                     dbr = self.meet.rdb.get_rider(bstr, self.series)
                     if dbr is not None:
                         cstr = dbr['uci id']
-                elif not self.showcats:
-                    cstr = ''
                 pstr = ''  # 'place'
                 tstr = ''  # 'elap' (hcp only)
                 dstr = ''  # 'time/gap'
@@ -4273,7 +4265,6 @@ class rms:
         self.maxfinish = None
         self.showdowntimes = True
         self.showuciids = False
-        self.showcats = False
         self.winbunch = None  # bunch time of winner (overall race time)
         self.winopen = True
         self.timerstat = 'idle'
