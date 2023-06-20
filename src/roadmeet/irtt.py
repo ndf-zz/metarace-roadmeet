@@ -493,7 +493,6 @@ class irtt(rms):
                 'minelap': STARTFUDGE,
                 'sloppystart': False,
                 'sloppyimpulse': False,
-                'startdelay': None,
                 'startloop': None,
                 'starttrig': None,
                 'finishloop': None,
@@ -534,11 +533,6 @@ class irtt(rms):
         self.precision = cr.get_posint('irtt', 'precision', 1)
         if self.precision > 2:  # posint forbids negatives
             self.precision = 2
-
-        # load start delay for wireless impulse
-        self.startdelay = tod.mktod(cr.get('irtt', 'startdelay'))
-        if self.startdelay is None:
-            self.startdelay = tod.ZERO
 
         # load minimum elapsed time
         self.minelap = tod.mktod(cr.get('irtt', 'minelap'))
@@ -763,10 +757,6 @@ class irtt(rms):
             cw.set('irtt', 'startgap', self.startgap.rawtime(0))
         else:
             cw.set('irtt', 'startgap', None)
-        if self.startdelay is not None:
-            cw.set('irtt', 'startdelay', self.startdelay.rawtime())
-        else:
-            cw.set('irtt', 'startdelay', None)
         if self.minelap is not None:
             cw.set('irtt', 'minelap', self.minelap.rawtime())
         else:
@@ -1851,18 +1841,17 @@ class irtt(rms):
         _log.info('Start trigger %s@%s/%s', t.chan, t.rawtime(4), t.source)
         if self.timerstat == 'running':
             # apply start trig to start line rider
-            nst = t - self.startdelay
             if self.sl.getstatus() == 'armstart':
                 i = self.getiter(self.sl.bibent.get_text(),
                                  self.sl.serent.get_text())
                 if i is not None:
-                    self.settimes(i, tst=nst, doplaces=False)
+                    self.settimes(i, tst=t, doplaces=False)
                     self.sl.torunning()
                 else:
                     _log.error('Missing rider at start')
                     self.sl.toidle()
             # save passing to start passing store
-            self.startpasses.insert(nst, prec=4)
+            self.startpasses.insert(t, prec=4)
         elif self.timerstat == 'armstart':
             self.set_syncstart(t, tod.now())
 
@@ -2573,7 +2562,6 @@ class irtt(rms):
         self.lstart = None
         self.start_unload = None
         self.startgap = None
-        self.startdelay = tod.ZERO
         self.cats = []  # the ordered list of cats for results
         self.autocats = False
         self.startpasses = tod.todlist('start')
