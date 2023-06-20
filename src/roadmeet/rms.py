@@ -302,7 +302,6 @@ class rms:
                 'finish': None,
                 'finished': False,
                 'showdowntimes': DEFDOWNTIMES,
-                'showuciids': False,
                 'places': '',
                 'comment': [],
                 'hidecols': [INCOLUMN],
@@ -437,7 +436,6 @@ class rms:
         if cr.get_bool('rms', 'finished'):
             self.set_finished()
         self.showdowntimes = cr.get_bool('rms', 'showdowntimes')
-        self.showuciids = cr.get_bool('rms', 'showuciids')
         self.clubmode = cr.get_bool('rms', 'clubmode')
         self.laplength = cr.get_posint('rms', 'laplength')
         self.recalculate()
@@ -596,7 +594,6 @@ class rms:
         if self.lapfin is not None:
             cw.set('rms', 'lapfin', self.lapfin.rawtime())
         cw.set('rms', 'showdowntimes', self.showdowntimes)
-        cw.set('rms', 'showuciids', self.showuciids)
         cw.set('rms', 'minlap', self.minlap.rawtime())
         cw.set('rms', 'gapthresh', self.gapthresh.rawtime())
         cw.set('rms', 'finished', self.timerstat == 'finished')
@@ -962,10 +959,9 @@ class rms:
             if cat == rcat:
                 ucicode = None
                 name = r[COL_NAMESTR]
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
-                    if dbr is not None:
-                        ucicode = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
+                if dbr is not None:
+                    ucicode = dbr['uci id']
                 comment = ''
                 if callup:
                     comment = str(rcnt + 1) + '.'
@@ -981,9 +977,7 @@ class rms:
                     dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
                     if dbr is not None:
                         sec.even = True  # force even first column
-                        puci = None
-                        if self.showuciids:
-                            puci = dbr['uci id']
+                        puci = dbr['uci id']
                         pnam = dbr.listname()
                         sec.lines.append(['', '', pnam, puci])
                 rcnt += 1
@@ -1275,10 +1269,9 @@ class rms:
                 dstr = ''  # time/gap
                 cstr = ''
                 rpass = None
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(bstr, self.series)
-                    if dbr is not None:
-                        cstr = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(bstr, self.series)
+                if dbr is not None:
+                    cstr = dbr['uci id']
                 placed = False  # placed at finish
                 timed = False  # timed at finish
                 virtual = False  # oncourse
@@ -1419,9 +1412,7 @@ class rms:
                         # lookup pilot
                         dbr = self.meet.rdb.get_rider(bstr, 'pilot')
                         if dbr is not None:
-                            puci = ''
-                            if self.showuciids:
-                                puci = dbr['uci id']
+                            puci = dbr['uci id']
                             pnam = dbr.listname()
                             sec.lines.append(['', 'pilot', pnam, puci, '', ''])
                 if doflap and comment != 'dns':
@@ -1604,10 +1595,9 @@ class rms:
                 rcat = self.ridercat(cstr)
                 if cstr.upper() in catcache:
                     cstr = catcache[cstr.upper()]
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(bstr, self.series)
-                    if dbr is not None:
-                        cstr = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(bstr, self.series)
+                if dbr is not None:
+                    cstr = dbr['uci id']
                 pstr = ''  # 'place'
                 tstr = ''  # 'elap' (hcp only)
                 dstr = ''  # 'time/gap'
@@ -4264,7 +4254,6 @@ class rms:
         self.altfinish = None
         self.maxfinish = None
         self.showdowntimes = True
-        self.showuciids = False
         self.winbunch = None  # bunch time of winner (overall race time)
         self.winopen = True
         self.timerstat = 'idle'

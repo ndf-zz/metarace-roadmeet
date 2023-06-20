@@ -504,7 +504,6 @@ class irtt(rms):
                 'hidetimers': False,
                 'startpasses': [],
                 'finishpasses': [],
-                'showuciids': False,
                 'timelimit': None,
                 'finished': False,
                 'showinter': None,
@@ -545,8 +544,6 @@ class irtt(rms):
         self.sloppystart = cr.get_bool('irtt', 'sloppystart')
         # sloppy impulse mode (aka auto timing)
         self.sloppyimpulse = cr.get_bool('irtt', 'sloppyimpulse')
-        # uci ids on startlists and results
-        self.showuciids = cr.get_bool('irtt', 'showuciids')
         # count of finish passings to set finish time
         self.finishpass = cr.get_posint('irtt', 'finishpass', None)
         if self.finishpass is not None:
@@ -778,7 +775,6 @@ class irtt(rms):
         cw.set('irtt', 'finishloop', self.finishloop)
         cw.set('irtt', 'finishpass', self.finishpass)
         cw.set('irtt', 'onestartlist', self.onestartlist)
-        cw.set('irtt', 'showuciids', self.showuciids)
         cw.set('irtt', 'precision', self.precision)
         cw.set('irtt', 'timelimit', self.timelimit)
         cw.set('irtt', 'hidetimers', self.hidetimers)
@@ -969,10 +965,9 @@ class irtt(rms):
                 rcnt += 1
                 ucicode = None
                 name = r[COL_NAMESTR]
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(bib, series)
-                    if dbr is not None:
-                        ucicode = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(bib, series)
+                if dbr is not None:
+                    ucicode = dbr['uci id']
                 #if not ucicode and cat == u'':
                 ## Rider may have a typo in cat, show the catlist
                 #ucicode = cs
@@ -1238,10 +1233,9 @@ class irtt(rms):
                 cstr = ''
                 if cat == '':  # categorised result does not need cat
                     cstr = rcat
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(bstr, self.series)
-                    if dbr is not None:
-                        cstr = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(bstr, self.series)
+                if dbr is not None:
+                    cstr = dbr['uci id']
                 if ct is None:
                     ct = ft
                 pstr = None
@@ -2553,7 +2547,6 @@ class irtt(rms):
         self.winopen = True
         self.timerstat = 'idle'
         self.racestat = 'prerace'
-        self.showuciids = False
         self.start = None
         self.lstart = None
         self.start_unload = None

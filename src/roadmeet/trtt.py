@@ -123,7 +123,6 @@ class trtt(rms):
                 'start': None,
                 'id': EVENT_ID,
                 'finished': False,
-                'showuciids': False,
                 'relativestart': False,
                 'showriders': True,
                 'places': '',
@@ -227,7 +226,6 @@ class trtt(rms):
         self.places = strops.reformat_placelist(cr.get('trtt', 'places'))
         self.comment = cr.get('trtt', 'comment')
         self.autoexport = cr.get_bool('trtt', 'autoexport')
-        self.showuciids = cr.get_bool('trtt', 'showuciids')
         self.showriders = cr.get_bool('trtt', 'showriders')
         self.relativestart = cr.get_bool('trtt', 'relativestart')
         if strops.confopt_bool(cr.get('trtt', 'finished')):
@@ -295,7 +293,6 @@ class trtt(rms):
             cw.set('trtt', 'minlap', self.minlap.rawtime())
         else:
             cw.set('trtt', 'minlap', None)
-        cw.set('trtt', 'showuciids', self.showuciids)
         cw.set('trtt', 'showriders', self.showriders)
         cw.set('trtt', 'relativestart', self.relativestart)
         cw.set('trtt', 'finished', self.timerstat == 'finished')
@@ -417,10 +414,9 @@ class trtt(rms):
                 ltod = None
                 cs = r[COL_CAT]
                 tcat = self.ridercat(riderdb.primary_cat(cs))
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(rteam, 'team')
-                    if dbr is not None:
-                        tuci = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(rteam, 'team')
+                if dbr is not None:
+                    tuci = dbr['uci id']
                 if not tuci and tcat == '':
                     tuci = cs
                 if lcat != tcat:
@@ -464,10 +460,9 @@ class trtt(rms):
                     [startStr, tcodestr, tname, tuci, '___', cstr])
                 lteam = rteam
             if self.showriders:
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(rno, self.series)
-                    if dbr is not None:
-                        ruci = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(rno, self.series)
+                if dbr is not None:
+                    ruci = dbr['uci id']
                 sec.lines.append([None, rno, rname, ruci, None, None, None])
         ret.append(sec)
         return ret
@@ -756,8 +751,7 @@ class trtt(rms):
                         finCnt += 1
                         auxTime = self.teamtimes[rteam]
                         tUci = ''
-                        if self.showuciids:
-                            tUci = self.teamuci[rteam]
+                        tUci = self.teamuci[rteam]
                         teamAux.append((auxTime, teamCnt, rteam))
                         teamRes[rteam]['time'] = auxTime
                         teamRes[rteam]['tline'] = [
@@ -777,10 +771,9 @@ class trtt(rms):
                 else:
                     rCom = r[COL_COMMENT]
                 rUci = ''
-                if self.showuciids:
-                    dbr = self.meet.rdb.get_rider(rBib, self.series)
-                    if dbr is not None:
-                        rUci = dbr['uci id']
+                dbr = self.meet.rdb.get_rider(rBib, self.series)
+                if dbr is not None:
+                    rUci = dbr['uci id']
                 teamRes[rteam]['rlines'].append(
                     [rCom, rBib, rName, rUci, rTime, ''])
 
@@ -1427,7 +1420,6 @@ class trtt(rms):
         # event run time attributes
         self.autoexport = False
         self.autofinish = False
-        self.showuciids = False
         self.relativestart = False
         self.showriders = True
         self.owntime = True  # dropped riders get own time
