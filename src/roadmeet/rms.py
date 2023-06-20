@@ -374,42 +374,43 @@ class rms:
         onestoft = False
         oneseed = False
         for r in starters:
-            self.addrider(r)
-            if cr.has_option('riders', r):
-                nr = self.getrider(r)
-                # bib = comment,in,laps,rftod,mbunch,rfseen...
-                ril = cr.get('riders', r)  # rider op is vec
-                lr = len(ril)
-                if lr > 0:
-                    nr[COL_COMMENT] = ril[0]
-                if lr > 1:
-                    nr[COL_INRACE] = strops.confopt_bool(ril[1])
-                if lr > 2:
-                    nr[COL_LAPS] = strops.confopt_posint(ril[2])
-                if lr > 3:
-                    evtseed = strops.confopt_posint(ril[3], 0)
-                    if evtseed > 0:
-                        nr[COL_SEED] = evtseed
-                    if nr[COL_SEED] != 0:
-                        oneseed = True
-                if lr > 4:
-                    nr[COL_RFTIME] = tod.mktod(ril[4])
-                if lr > 5:
-                    nr[COL_MBUNCH] = tod.mktod(ril[5])
-                if lr > 6:
-                    nr[COL_STOFT] = tod.mktod(ril[6])
-                    if nr[COL_STOFT] is not None:
-                        onestoft = True
-                if lr > 7:
-                    for i in range(7, lr):
-                        laptod = tod.mktod(ril[i])
-                        if laptod is not None:
-                            nr[COL_RFSEEN].append(laptod)
-            # record any extra bonus/penalty to rider model
-            if cr.has_option('stagebonus', r):
-                nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
-            if cr.has_option('stagepenalty', r):
-                nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
+            ri = self.addrider(r)
+            if ri is not None:
+                nr = Gtk.TreeModelRow(self.riders, ri)
+                if cr.has_option('riders', r):
+                    # bib = comment,in,laps,rftod,mbunch,rfseen...
+                    ril = cr.get('riders', r)  # rider op is vec
+                    lr = len(ril)
+                    if lr > 0:
+                        nr[COL_COMMENT] = ril[0]
+                    if lr > 1:
+                        nr[COL_INRACE] = strops.confopt_bool(ril[1])
+                    if lr > 2:
+                        nr[COL_LAPS] = strops.confopt_posint(ril[2])
+                    if lr > 3:
+                        evtseed = strops.confopt_posint(ril[3], 0)
+                        if evtseed > 0:
+                            nr[COL_SEED] = evtseed
+                        if nr[COL_SEED] != 0:
+                            oneseed = True
+                    if lr > 4:
+                        nr[COL_RFTIME] = tod.mktod(ril[4])
+                    if lr > 5:
+                        nr[COL_MBUNCH] = tod.mktod(ril[5])
+                    if lr > 6:
+                        nr[COL_STOFT] = tod.mktod(ril[6])
+                        if nr[COL_STOFT] is not None:
+                            onestoft = True
+                    if lr > 7:
+                        for i in range(7, lr):
+                            laptod = tod.mktod(ril[i])
+                            if laptod is not None:
+                                nr[COL_RFSEEN].append(laptod)
+                # record any extra bonus/penalty to rider model
+                if cr.has_option('stagebonus', r):
+                    nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
+                if cr.has_option('stagepenalty', r):
+                    nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
 
         self.laptimes = []
         ltin = cr.get('rms', 'laptimes')
@@ -2103,6 +2104,7 @@ class rms:
         i = self.getiter(bib)
         if i is not None:
             self.riders.remove(i)
+            self.ridernos.remove(bib)
         self.clear_place(bib)
 
     def starttime(self, start=None, bib='', series=''):
@@ -2113,12 +2115,17 @@ class rms:
                 r[COL_STOFT] = start
 
     def addrider(self, bib='', series=None):
-        """Add specified rider to event model."""
+        """Add specified rider to event model, return tree iter."""
         if series is not None and series != self.series:
             _log.debug('Ignoring non-series rider: %r',
                        strops.bibser2bibstr(bib, series))
             return None
-        if bib == '' or self.getrider(bib) is None:
+
+        if bib and bib in self.ridernos:
+            _log.warning('Rider %r already in viewmodel', bib)
+            return None
+
+        if bib:
             nr = [
                 bib, '', '', '', '', True, '', 0, 0, None, None, None, None,
                 None, None, []
@@ -2126,6 +2133,7 @@ class rms:
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is not None:
                 self.updaterider(nr, dbr)
+            self.ridernos.add(bib)
             return self.riders.append(nr)
         else:
             return None
@@ -2349,9 +2357,10 @@ class rms:
             # advance selection
             j = self.riders.iter_next(i)
             if j is not None:
-                # note: set by selection doesn't adjust focus
-                self.view.set_cursor_on_cell(self.riders.get_path(j), None,
-                                             None, False)
+                lr = Gtk.TreeModelRow(self.riders, j)
+                if lr[COL_PLACE] or lr[COL_RFTIME] is not None or lr[
+                        COL_MBUNCH] is not None:
+                    self.view.set_cursor(self.riders.get_path(j), None, False)
 
     def fill_places_to_selected(self):
         """Update places to match ordering up to selected rider."""
@@ -2368,23 +2377,31 @@ class rms:
             _log.info('Confirm places to: %r/%s', selbib, selpath)
             oplaces = self.places.split()
             nplaces = []
+            atbreak = False
             for r in self.riders:
                 rbib = r[COL_BIB]
-                if rbib in oplaces:
-                    oplaces.remove(rbib)  # strip out DNFed riders
-                if r[COL_INRACE]:
-                    nplaces.append(rbib)  # add to new list
+                if not atbreak:
+                    # re-order places up to selection
+                    if rbib in oplaces:
+                        oplaces.remove(rbib)
+                    if r[COL_INRACE]:
+                        nplaces.append(rbib)
+                else:
+                    # retain ordering after selection, removing dnf
+                    if rbib in oplaces and not r[COL_INRACE]:
+                        oplaces.remove(rbib)
                 if rbib == selbib:  # break after to get sel rider
-                    break
+                    atbreak = True
             nplaces.extend(oplaces)
             self.places = ' '.join(nplaces)
             self.recalculate()
-            # advance selection
+            # advance selection if next rider is finished
             j = self.riders.iter_next(i)
             if j is not None:
-                # note: set by selection doesn't adjust focus
-                self.view.set_cursor_on_cell(self.riders.get_path(j), None,
-                                             None, False)
+                lr = Gtk.TreeModelRow(self.riders, j)
+                if lr[COL_PLACE] or lr[COL_RFTIME] is not None or lr[
+                        COL_MBUNCH] is not None:
+                    self.view.set_cursor(self.riders.get_path(j), None, False)
 
     def clear_places_from_selection(self):
         """Clear all places from riders following the current selection."""
@@ -2441,6 +2458,8 @@ class rms:
             if r is not None:
                 if code != 'wd':
                     r[COL_INRACE] = False
+                    r[COL_CBUNCH] = None
+                    r[COL_MBUNCH] = None
                 r[COL_COMMENT] = code
                 recalc = True
                 _log.info('Rider %r did not finish with code: %r', bib, code)
@@ -2670,8 +2689,8 @@ class rms:
             if self.clubmode and self.timerstat in [
                     'armstart', 'running', 'armfinish'
             ]:
-                self.addrider(bib)
-                lr = self.getrider(bib)
+                ri = self.addrider(bib)
+                lr = Gtk.TreeModelRow(self.riders, ri)
                 _log.info('Added new starter: %s:%s@%s/%s', bib, e.chan,
                           e.rawtime(2), e.source)
             else:
@@ -3529,10 +3548,10 @@ class rms:
     def rider_in_cat(self, bib, cat):
         """Return True if rider is in nominated category."""
         ret = False
-        r = self.getrider(bib)
-        if cat and r is not None:
-            cv = r[COL_CAT].upper().split()
-            ret = cat.upper() in cv
+        if cat:
+            dbr = self.meet.rdb.get_rider(bib, self.series)
+            if dbr is not None:
+                ret = dbr.in_cat(cat)
         return ret
 
     def get_cat_placesr(self, cat):
@@ -3557,23 +3576,40 @@ class rms:
         """Transfer finish line places into rider model."""
         placestr = self.places
         placeset = set()
+        xfer = {}
         idx = 0
+
+        # scan placegroups once
         for placegroup in placestr.split():
             curplace = idx + 1
             for bib in placegroup.split('-'):
                 if bib not in placeset:
                     placeset.add(bib)
-                    r = self.getrider(bib)
-                    if r is None:
-                        self.addrider(bib)
-                        r = self.getrider(bib)
-                    if r[COL_INRACE]:
-                        idx += 1
-                        r[COL_PLACE] = str(curplace)
-                    else:
-                        _log.warning('DNF Rider %r in finish places', bib)
+                    xfer[bib] = str(curplace)
+                    idx += 1
                 else:
                     _log.warning('Duplicate no. %r in finish places', bib)
+
+        # scan model once
+        for r in self.riders:
+            bib = r[COL_BIB]
+            if bib in xfer:
+                if r[COL_INRACE]:
+                    r[COL_PLACE] = xfer[bib]
+                else:
+                    _log.warning('DNF Rider %r in finish places', bib)
+                del (xfer[bib])
+                if not xfer:
+                    break
+
+        # handle places not yet in model
+        if xfer:
+            for bib in xfer:
+                ri = self.addrider(bib)
+                if ri is not None:
+                    lr = Gtk.TreeModelRow(self.riders, ri)
+                    _log.info('Added non-starter from finish places: %r', bib)
+                    lr[COL_PLACE] = xfer[bib]
 
     def assign_places(self, contest):
         """Transfer points and bonuses into the named contest."""
@@ -3969,15 +4005,15 @@ class rms:
             self.meet.timercb = self.timertrig
             dlg.destroy()
 
-    def treerow_selected(self, treeview, path, view_column, data=None):
-        """Select row, confirm only selected place"""
-        # filter on running/armfinish
-        if self.timerstat not in ['idle', 'armstart', 'finished']:
-            if self.finish is not None:
-                rbib = self.riders[path][COL_BIB]
-                _log.info('Confirmed next place by tree selection: %r/%r',
-                          rbib, path)
-                self.append_selected_place()
+    #def treerow_selected(self, treeview, path, view_column, data=None):
+    #"""Select row, confirm only selected place"""
+    ## filter on running/armfinish
+    #if self.timerstat not in ['idle', 'armstart', 'finished']:
+    #if self.finish is not None:
+    #rbib = self.riders[path][COL_BIB]
+    #_log.info('Confirmed next place by tree selection: %r/%r',
+    #rbib, path)
+    #self.append_selected_place()
 
     def treeview_button_press(self, treeview, event):
         """Set callback for mouse press on model view."""
@@ -4291,6 +4327,7 @@ class rms:
         self.newstartent = None
         self.newstartdlg = None
 
+        self.ridernos = set()
         self.riders = Gtk.ListStore(
             str,  # gobject.TYPE_STRING,  # BIB = 0
             str,  # gobject.TYPE_STRING,  # NAMESTR = 1
@@ -4367,7 +4404,6 @@ class rms:
             b = uiutil.builder('rms_context.ui')
             self.context_menu = b.get_object('rms_context')
             self.view.connect('button_press_event', self.treeview_button_press)
-            self.view.connect('row-activated', self.treerow_selected)
             b.connect_signals(self)
             self.meet.timercb = self.timertrig
             self.meet.alttimercb = self.alttimertrig

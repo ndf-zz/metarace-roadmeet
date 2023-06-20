@@ -64,6 +64,13 @@ GAPTHRESH = tod.tod('1.12')
 # config version string
 EVENT_ID = 'trtt-3.0'
 
+RESERVED_SOURCES = [
+    'fin',  # finished stage
+    'reg',  # registered to stage
+    'start'
+]  # started stage
+# additional cat finishes added in loadconfig
+
 
 class trtt(rms):
 
@@ -178,34 +185,35 @@ class trtt(rms):
             starters = strops.riderlist_split('all', self.meet.rdb)
         self.allowspares = cr.get_bool('trtt', 'allowspares')
         for r in starters:
-            self.addrider(r)
-            if cr.has_option('riders', r):
-                nr = self.getrider(r)
-                # bib = comment,in,laps,rftod,mbunch,rfseen...
-                ril = cr.get('riders', r)  # rider op is vec
-                lr = len(ril)
-                if lr > 0:
-                    nr[COL_COMMENT] = ril[0]
-                if lr > 1:
-                    nr[COL_INRACE] = strops.confopt_bool(ril[1])
-                if lr > 2:
-                    nr[COL_LAPS] = strops.confopt_posint(ril[2])
-                if lr > 3:
-                    nr[COL_RFTIME] = tod.mktod(ril[3])
-                if lr > 4:
-                    nr[COL_MBUNCH] = tod.mktod(ril[4])
-                if lr > 5:
-                    nr[COL_STOFT] = tod.mktod(ril[5])
-                if lr > 6:
-                    for i in range(6, lr):
-                        laptod = tod.mktod(ril[i])
-                        if laptod is not None:
-                            nr[COL_RFSEEN].append(laptod)
-            # record any extra bonus/penalty to rider model
-            if cr.has_option('stagebonus', r):
-                nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
-            if cr.has_option('stagepenalty', r):
-                nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
+            ri = self.addrider(r)
+            if ri is not None:
+                nr = Gtk.TreeModelRow(self.riders, ri)
+                if cr.has_option('riders', r):
+                    # bib = comment,in,laps,rftod,mbunch,rfseen...
+                    ril = cr.get('riders', r)  # rider op is vec
+                    lr = len(ril)
+                    if lr > 0:
+                        nr[COL_COMMENT] = ril[0]
+                    if lr > 1:
+                        nr[COL_INRACE] = strops.confopt_bool(ril[1])
+                    if lr > 2:
+                        nr[COL_LAPS] = strops.confopt_posint(ril[2])
+                    if lr > 3:
+                        nr[COL_RFTIME] = tod.mktod(ril[3])
+                    if lr > 4:
+                        nr[COL_MBUNCH] = tod.mktod(ril[4])
+                    if lr > 5:
+                        nr[COL_STOFT] = tod.mktod(ril[5])
+                    if lr > 6:
+                        for i in range(6, lr):
+                            laptod = tod.mktod(ril[i])
+                            if laptod is not None:
+                                nr[COL_RFSEEN].append(laptod)
+                # record any extra bonus/penalty to rider model
+                if cr.has_option('stagebonus', r):
+                    nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
+                if cr.has_option('stagepenalty', r):
+                    nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
 
         self.owntime = cr.get_bool('trtt', 'owntime')
         self.minlap = tod.mktod(cr.get('trtt', 'minlap'))
@@ -993,12 +1001,17 @@ class trtt(rms):
             yield yrec
 
     def addrider(self, bib='', series=None):
-        """Add specified rider to race model."""
+        """Add specified rider to event model, return tree iter."""
         if series is not None and series != self.series:
             _log.debug('Ignoring non-series rider: %r',
                        strops.bibser2bibstr(bib, series))
             return None
-        if bib == '' or self.getrider(bib) is None:
+
+        if bib and bib in self.ridernos:
+            _log.warning('Rider %r already in viewmodel', bib)
+            return None
+
+        if bib:
             nr = [
                 bib, '', '', '', '', True, '', 0, 0, None, None, None,
                 tod.ZERO, None, None, [], ''
@@ -1006,6 +1019,7 @@ class trtt(rms):
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is not None:
                 self.updaterider(nr, dbr)
+            self.ridernos.add(bib)
             return self.riders.append(nr)
         else:
             return None
@@ -1460,6 +1474,7 @@ class trtt(rms):
         self.newstartent = None
         self.newstartdlg = None
 
+        self.ridernos = set()
         self.riders = Gtk.ListStore(
             str,  # gobject.TYPE_STRING,  # BIB = 0
             str,  # gobject.TYPE_STRING,  # NAMESTR = 1
