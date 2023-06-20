@@ -471,6 +471,7 @@ class irtt(rms):
 
     def loadconfig(self):
         """Load race config from disk."""
+        self.ridernos.clear()
         self.riders.clear()
         self.results = {'': tod.todlist('UNCAT')}
         self.cats = []
@@ -641,6 +642,7 @@ class irtt(rms):
         for rs in cr.get('irtt', 'startlist').split():
             (r, s) = strops.bibstr2bibser(rs)
             i = self.addrider(r, s)
+            nr = Gtk.TreeModelRow(self.riders, i)
             wst = None
             tst = None
             ft = None
@@ -652,8 +654,6 @@ class irtt(rms):
             ime = None
             lpass = None
             pcnt = 0
-            #nr = self.getrider(r, s)
-            nr = Gtk.TreeModelRow(self.riders, i)
             if cr.has_option('riders', rs):
                 # bbb.sss = comment,wall_start,timy_start,finish,penalty,place
                 ril = cr.get('riders', rs)  # vec
@@ -683,7 +683,6 @@ class irtt(rms):
                 if lr > 12:
                     lpass = tod.mktod(ril[12])
             nri = i
-            #nri = self.getiter(r, s)
             self.settimes(nri, wst, tst, ft, pt, doplaces=False)
             self.setpasses(nri, pcnt)
             self.setinter(nri, ima, COL_INTERA)
@@ -1499,7 +1498,7 @@ class irtt(rms):
             # save and announce arrival at intermediate
             bib = lr[COL_BIB]
             series = lr[COL_SERIES]
-            nri = self.getiter(bib, series)
+            nri = lr.iter
             rank = self.setinter(nri, e, split)
             place = '(' + str(rank + 1) + '.)'
             namestr = lr[COL_NAMESTR]
@@ -1547,7 +1546,7 @@ class irtt(rms):
 
                 if split is not None:
                     # save and announce arrival at intermediate
-                    nri = self.getiter(bib, series)
+                    nri = lr.iter
                     rank = self.setinter(nri, e, split)
                     place = '(' + str(rank + 1) + '.)'
                     namestr = lr[COL_NAMESTR]
@@ -1602,7 +1601,7 @@ class irtt(rms):
                               lr[COL_WALLSTART].rawtime(0), diff, thresh)
                     return False
 
-        i = self.getiter(lr[COL_BIB], lr[COL_SERIES])
+        i = lr.iter
         if self.sloppyimpulse:
             # match this rfid passing to a start impulse
             self.start_match(i, e, bibstr)
@@ -1685,7 +1684,7 @@ class irtt(rms):
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]  # use tod if avail
             if e > st + self.minelap:
-                i = self.getiter(lr[COL_BIB], lr[COL_SERIES])
+                i = lr.iter
                 if self.sloppyimpulse:
                     self.finish_match(i, lr[COL_TODSTART], e, bibstr)
                 else:
@@ -1705,7 +1704,7 @@ class irtt(rms):
                 lr[COL_PASS] += 1
                 nc = lr[COL_PASS]
                 if nc >= finishpass:
-                    i = self.getiter(lr[COL_BIB], lr[COL_SERIES])
+                    i = lr.iter
                     if self.sloppyimpulse:
                         self.finish_match(i, lr[COL_TODSTART], e, bibstr)
                     else:
@@ -1986,20 +1985,24 @@ class irtt(rms):
         i = self.getiter(bib, series)
         if i is not None:
             self.riders.remove(i)
+            self.ridernos.remove((bib, series))
 
     def addrider(self, bib='', series=''):
         """Add specified rider to race model."""
-        if bib == '' or self.getrider(bib, series) is None:
-            ## could be a rmap lookup here
+        if bib and (bib, series) in self.ridernos:
+            _log.warning('Rider %r.%r already in viewmodel', bib)
+            return None
+
+        if bib:
             nr = [
                 bib, '', '', '', '', True, '', 0, 0, None, None, None,
                 tod.ZERO, None, None, None, None, None, None, None, None, None,
                 0, 0, series
             ]
-
             dbr = self.meet.rdb.get_rider(bib, series)
             if dbr is not None:
                 self.updaterider(nr, dbr)
+            self.ridernos.add((bib, series))
             return self.riders.append(nr)
         else:
             return None
@@ -2054,20 +2057,7 @@ class irtt(rms):
     def editcol_cb(self, cell, path, new_text, col):
         """Update value in edited cell."""
         new_text = new_text.strip()
-        if col == COL_BIB:
-            if new_text.isalnum():
-                if self.getrider(new_text,
-                                 self.riders[path][COL_SERIES]) is None:
-                    self.riders[path][COL_BIB] = new_text
-                    dbr = self.meet.rdb.getrider(new_text, self.series)
-                    if dbr is not None:
-                        nr[COL_NAMESTR] = strops.listname(
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_FIRST),
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_LAST),
-                            self.meet.rdb.getvalue(dbr, riderdb.COL_ORG))
-                        nr[COL_CAT] = self.meet.rdb.getvalue(
-                            dbr, riderdb.COL_CAT)
-        elif col == COL_PASS:
+        if col == COL_PASS:
             if new_text.isdigit():
                 self.riders[path][COL_PASS] = int(new_text)
                 _log.debug('Adjusted pass count: %r:%r',
@@ -2130,7 +2120,6 @@ class irtt(rms):
             if r[COL_PLACE] and r[COL_PLACE] in ['dns', 'dnf', 'dsq']:
                 r[COL_ETA] = None
             else:
-                #i = self.getiter(r[COL_BIB], r[COL_SERIES])
                 i = r.iter
                 r[COL_ETA] = self.geteta(i)
             if r[COL_PLACE]:
@@ -2202,9 +2191,6 @@ class irtt(rms):
             placestr = self.get_startlist()
         elif src == 'start':
             placestr = self.get_starters()
-        #elif src in self.catplaces:  # ERROR -> cat climb tally needs type?
-        #placestr = self.get_cat_placesr(self.catplaces[src])
-        #countbackwinner = True
         else:
             placestr = self.intermap[src]['places']
         placeset = set()
@@ -2284,7 +2270,7 @@ class irtt(rms):
             r = self.getrider(bib, ser)
             if r is not None:
                 r[COL_COMMENT] = code
-                nri = self.getiter(bib, ser)
+                nri = r.iter
                 self.settimes(nri, doplaces=False)
                 recalc = True
             else:
@@ -2623,6 +2609,7 @@ class irtt(rms):
         self.tallys = []  # sorted list of points tallys
         self.tallymap = {}  # map of tally keys
 
+        self.ridernos = set()
         self.riders = Gtk.ListStore(
             str,  # bib 0
             str,  # namestr 1

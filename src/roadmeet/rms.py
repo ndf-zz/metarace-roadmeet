@@ -288,6 +288,7 @@ class rms:
 
     def loadconfig(self):
         """Load event config from disk."""
+        self.ridernos.clear()
         self.riders.clear()
         self.resettimer()
         self.cats = []
