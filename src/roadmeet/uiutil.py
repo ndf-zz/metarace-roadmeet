@@ -496,7 +496,7 @@ def riderview(rdb):
 
 def about_dlg(window, version=None):
     """Display shared about dialog."""
-    dlg = Gtk.AboutDialog.new()
+    dlg = Gtk.AboutDialog(modal=True, destroy_with_parent=True)
     dlg.set_transient_for(window)
     dlg.set_program_name(u'roadmeet')
     vtxt = 'Library: ' + metarace.VERSION
@@ -510,6 +510,7 @@ def about_dlg(window, version=None):
     dlg.set_license(metarace.LICENSETEXT)
     dlg.set_wrap_license(True)
     dlg.run()
+    dlg.hide()
     dlg.destroy()
 
 
@@ -519,7 +520,9 @@ def chooseCsvFile(title='',
                   path=None,
                   hintfile=None):
     ret = None
-    dlg = Gtk.FileChooserNative.new(title, parent, mode, None, None)
+    dlg = Gtk.FileChooserNative(title=title, modal=True)
+    dlg.set_transient_for(parent)
+    dlg.set_action(mode)
     cfilt = Gtk.FileFilter()
     cfilt.set_name('CSV Files')
     cfilt.add_mime_type('text/csv')
@@ -690,15 +693,21 @@ def mkviewcolbibser(view=None,
     return i
 
 
-def questiondlg(window, question, subtext=None):
+def questiondlg(window, question, subtext=None, title=None):
     """Display a question dialog and return True/False."""
-    dlg = Gtk.MessageDialog(window, Gtk.DialogFlags.MODAL,
-                            Gtk.MessageType.QUESTION,
-                            Gtk.ButtonsType.OK_CANCEL, question)
+    dlg = Gtk.MessageDialog(modal=True,
+                            message_type=Gtk.MessageType.QUESTION,
+                            buttons=Gtk.ButtonsType.OK_CANCEL,
+                            text=question,
+                            destroy_with_parent=True)
+    dlg.set_transient_for(window)
+    if title:
+        dlg.set_title(title)
     if subtext is not None:
         dlg.format_secondary_text(subtext)
     ret = False
     response = dlg.run()
+    dlg.hide()
     if response == Gtk.ResponseType.OK:
         ret = True
     dlg.destroy()
@@ -709,6 +718,388 @@ def now_button_clicked_cb(button, entry=None):
     """Copy the current time of day into the supplied entry."""
     if entry is not None:
         entry.set_text(tod.now().timestr())
+
+
+class option:
+    """Base class for configuration option"""
+
+    def __init__(self, key, schema, obj=None):
+        self.key = key
+        self._obj = None
+        self._attr = None
+        self._value = None
+        self._oldvalue = None
+        self._type = 'str'
+        self._prompt = None
+        self._hint = None
+        self._subtext = None
+        self._control = None
+        self._options = {}
+        self._places = 0
+
+        # import schema
+        if obj is not None and 'attr' in schema:
+            self._obj = obj
+            if schema['attr'] is not None and hasattr(self._obj,
+                                                      schema['attr']):
+                self._attr = schema['attr']
+        if 'value' in schema:
+            self._value = schema['value']
+        if self._attr is not None and self._value is None:
+            self._value = getattr(self._obj, self._attr)
+        self._oldvalue = self._value
+        if 'type' in schema:
+            self._type = schema['type']
+        if 'prompt' in schema:
+            self._prompt = schema['prompt']
+        else:
+            self._prompt = key
+        if 'hint' in schema:
+            self._hint = schema['hint']
+        if 'subtext' in schema:
+            self._subtext = schema['subtext']
+        if 'places' in schema:
+            self._places = strops.confopt_posint(schema['places'], 0)
+        if 'options' in schema:
+            if isinstance(schema['options'], dict):
+                for kv in schema['options']:
+                    k = str(kv)
+                    v = schema['options'][kv]
+                    self._options[k] = v
+
+    def changed(self):
+        """Return true if current value differ from original"""
+        return self._value != self._oldvalue
+
+    def get_prev(self):
+        """Return original option value"""
+        return self._oldvalue
+
+    def get_value(self):
+        """Return the option's current value"""
+        return self._value
+
+    def reset(self):
+        self.set_value(self._oldvalue)
+
+    def validate(self):
+        """Check proposed value in control"""
+        return self.read_value(self._control.get_text())
+
+    def read_value(self, newtext):
+        """Try to read and update value from newtext"""
+        ret = False
+        newval = None
+        if self._type == 'tod':
+            if newtext:
+                newval = tod.mktod(newtext)
+                if newval is not None:
+                    ret = True
+            else:
+                ret = True
+        elif self._type == 'int':
+            if newtext:
+                newval = strops.confopt_int(newtext)
+                if newval is not None:
+                    ret = True
+            else:
+                ret = True
+        elif self._type == 'bool':
+            newval = strops.confopt_bool(newtext)
+            ret = True
+        elif self._type == 'chan':
+            if newtext:
+                newval = strops.confopt_chan(newtext)
+                if newval != strops.CHAN_UNKNOWN:
+                    ret = True
+            else:
+                ret = True
+        elif self._type == 'float':
+            if newtext:
+                newval = strops.confopt_float(newtext)
+                if newval is not None:
+                    ret = True
+            else:
+                ret = True
+        elif self._type == 'str':
+            newval = str(newtext)
+            ret = True
+        else:
+            _log.warning('Unknown option value type %r=%r', self._type,
+                         newtext)
+            newval = newtext
+            ret = True
+
+        if ret:
+            self.set_value(newval)
+        return ret
+
+    def format_value(self):
+        """Return a string for use in a text entry"""
+        ret = ''
+        if self._value is not None:
+            if self._type == 'tod':
+                if self._value is not None:
+                    ret = self._value.rawtime(places=self._places)
+            else:
+                ret = str(self._value)
+        return ret
+
+    def set_value(self, newval):
+        """Store new value in object and update obj if provided"""
+        self._value = newval
+        if self._obj is not None and self._attr is not None:
+            setattr(self._obj, self._attr, self._value)
+        if self.changed():
+            _log.debug('Option %r update value: %r=>%r (%s)', self.key,
+                       self._oldvalue, self._value,
+                       self._value.__class__.__name__)
+        return True
+
+    def _updated(self, control):
+        """Handle update event on control"""
+        if self.read_value(control.get_text()):
+            control.set_text(self.format_value())
+            return True
+        else:
+            return False
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        lbl = Gtk.Label(label=self._prompt)
+        lbl.set_single_line_mode(True)
+        lbl.set_halign(Gtk.Align.FILL)
+        lbl.set_xalign(0.0)
+        lbl.set_hexpand(True)
+        lbl.show()
+        grid.attach(lbl, 0, row, 1, 1)
+
+        self._control = Gtk.Entry()
+        self._control.set_width_chars(32)
+        self._control.set_activates_default(True)
+        if self._value is not None:
+            self._control.set_text(self.format_value())
+        if self._hint is not None:
+            self._control.set_tooltip_text(self._hint)
+        self._control.show()
+        self._control.connect('activate', self._updated)
+        grid.attach(self._control, 1, row, 2, 1)
+
+
+class optionShort(option):
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        lbl = Gtk.Label(label=self._prompt)
+        lbl.set_single_line_mode(True)
+        lbl.set_halign(Gtk.Align.FILL)
+        lbl.set_xalign(0.0)
+        lbl.set_hexpand(True)
+        lbl.show()
+        grid.attach(lbl, 0, row, 1, 1)
+
+        self._control = Gtk.Entry()
+        self._control.set_width_chars(9)
+        self._control.set_activates_default(True)
+        if self._value is not None:
+            self._control.set_text(self.format_value())
+        if self._hint is not None:
+            self._control.set_tooltip_text(self._hint)
+        self._control.show()
+        self._control.connect('activate', self._updated)
+        grid.attach(self._control, 1, row, 1, 1)
+
+        if self._subtext:
+            lbl = Gtk.Label(label=self._subtext)
+            lbl.set_single_line_mode(True)
+            lbl.set_halign(Gtk.Align.FILL)
+            lbl.set_xalign(0.0)
+            lbl.set_hexpand(True)
+            lbl.show()
+            grid.attach(lbl, 2, row, 1, 1)
+
+
+class optionCheck(option):
+
+    def validate(self):
+        """Check proposed value in control"""
+        return self.read_value(self._control.get_active())
+
+    def _updated(self, control):
+        """Handle update event on control"""
+        return self.read_value(self._control.get_active())
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        lbl = Gtk.Label(label=self._prompt)
+        lbl.set_single_line_mode(True)
+        lbl.set_halign(Gtk.Align.FILL)
+        lbl.set_xalign(0.0)
+        lbl.set_hexpand(True)
+        lbl.show()
+        grid.attach(lbl, 0, row, 1, 1)
+
+        st = ''
+        if self._subtext:
+            st = self._subtext
+        self._control = Gtk.CheckButton.new_with_label(st)
+        if self._value:
+            self._control.set_active(True)
+        if self._hint is not None:
+            self._control.set_tooltip_text(self._hint)
+        self._control.show()
+        self._control.connect('toggled', self._updated)
+        grid.attach(self._control, 1, row, 2, 1)
+
+
+class optionChoice(option):
+
+    def validate(self):
+        """Check proposed value in control"""
+        return self.read_value(self._control.get_active_id())
+
+    def _updated(self, control):
+        """Handle update event on control"""
+        return self.read_value(self._control.get_active_id())
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        lbl = Gtk.Label(label=self._prompt)
+        lbl.set_single_line_mode(True)
+        lbl.set_halign(Gtk.Align.FILL)
+        lbl.set_xalign(0.0)
+        lbl.set_hexpand(True)
+        lbl.show()
+        grid.attach(lbl, 0, row, 1, 1)
+
+        self._control = Gtk.ComboBoxText.new()
+        for k in self._options:
+            self._control.append(k, self._options[k])
+        if self._value is not None:
+            self._control.set_active_id(self.format_value())
+        self._control.show()
+        self._control.connect('changed', self._updated)
+        grid.attach(self._control, 1, row, 2, 1)
+
+
+class optionSection(option):
+
+    def validate(self):
+        return True
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        lbl = Gtk.Label(label=self._prompt)
+        lbl.set_single_line_mode(True)
+        lbl.set_width_chars(42)
+        lbl.set_halign(Gtk.Align.FILL)
+        lbl.set_xalign(0.0)
+        lbl.set_hexpand(True)
+        lbl.show()
+        grid.attach(lbl, 0, row, 3, 1)
+
+
+def options_dlg(window=None, title='Options', schema=[], obj=None):
+    """Build and display an option editor for the provided schema
+
+          schema = {
+            "key": {
+              "value": [Original value],
+              "control": [Control type],
+              "type" : [Value type],
+              "prompt": [Prompt text],
+              "subtext": [Extra info],
+              "hint": [Tooltip],
+              "places": [Decimal places for tod value],
+              "attr": [Attribute in optional obj for direct edit],
+              "options": { "key":"Text", ... },
+            },
+            ...
+          }
+
+       Value types:
+
+         str: text string
+         int: integer value
+         float: floating point number
+         chan: timing channel
+         bool: True/False
+         tod: Time of day object with number of places in schema
+
+       Control types:
+
+         section: section delimiter
+         text: standard text input
+         short: short text input, extra info displayed right of input
+         check: on/off selection, extra info displayed right of input
+         choice: select box, choice of options provided in schema
+
+    Return value is a dict with one tuple per key:
+
+        "key": (changed, oldval, newval)
+
+    Note: section controls return (False, None, None)
+    """
+    omap = {}
+    # read schema into options map
+    for key in schema:
+        oschema = schema[key]
+        otype = 'text'
+        if 'control' in oschema:
+            otype = oschema['control']
+        if otype == 'section':
+            omap[key] = optionSection(key, oschema, obj)
+        elif otype == 'short':
+            omap[key] = optionShort(key, oschema, obj)
+        elif otype == 'check':
+            omap[key] = optionCheck(key, oschema, obj)
+        elif otype == 'choice':
+            omap[key] = optionChoice(key, oschema, obj)
+        else:
+            omap[key] = option(key, oschema, obj)
+
+    # build dialog
+    dlg = Gtk.Dialog(title=title, modal=True, destroy_with_parent=True)
+    dlg.set_transient_for(window)
+    dlg.add_buttons("Cancel", 2, "OK", 0)
+    dlg.set_default_response(0)
+    scr = Gtk.ScrolledWindow()
+    scr.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scr.set_propagate_natural_height(True)
+    scr.show()
+    grid = Gtk.Grid()
+    grid.props.margin = 8
+    grid.set_row_spacing(4)
+    grid.set_column_spacing(8)
+    grid.set_row_homogeneous(True)
+    row = 0
+    for key in omap:
+        omap[key].add_control(grid, row)
+        row += 1
+    grid.show()
+    scr.add(grid)
+    dlg.get_content_area().pack_start(scr, True, True, 0)
+    retval = dlg.run()
+    dlg.hide()
+
+    # change report
+    res = {}
+    if retval == 2:
+        # on cancel, reset all values and report no changes
+        for key in omap:
+            o = omap[key]
+            o.reset()
+            res[key] = (False, o.get_prev(), o.get_prev())
+    else:
+        # re-validate all entries and report changes
+        for key in omap:
+            o = omap[key]
+            if not o.validate():
+                _log.warning('Invalid value for option %r ignored', key)
+            res[key] = (o.changed(), o.get_prev(), o.get_value())
+
+    dlg.destroy()
+    return res
 
 
 def edit_times_dlg(window,
