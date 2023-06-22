@@ -65,8 +65,8 @@ ROADRACE_TYPES = {
     'criterium': 'Criterium',
     'handicap': 'Handicap',
     'cross': 'Cyclocross',
-    'irtt': 'Road Time Trial',
-    'trtt': 'Team Road Time Trial',
+    'irtt': 'Individual Time Trial',
+    'trtt': 'Team Time Trial',
 }
 
 # rider commands
@@ -93,9 +93,8 @@ RIDER_COMMANDS = {
 RESERVED_SOURCES = [
     'fin',  # finished stage
     'reg',  # registered to stage
-    'start'
-]  # started stage
-# additional cat finishes added in loadconfig
+    'start',  # started stage
+]
 
 DNFCODES = ['otl', 'wd', 'dsq', 'dnf', 'dns']
 GAPTHRESH = tod.tod('1.12')
@@ -119,7 +118,102 @@ key_clearfrom = 'F7'  # clear places on selected rider and all following
 key_clearplace = 'F8'  # clear rider from place list
 
 # config version string
-EVENT_ID = 'roadrace-4.0'
+EVENT_ID = 'roadrace-4.1'
+
+_CONFIG_SCHEMA = {
+    'etype': {
+        'prompt': '',
+        'control': 'section'
+    },
+    'categories': {
+        'prompt': 'Categories:',
+        'hint': 'Categories included in startlists and results'
+    },
+    'minlap': {
+        'prompt': 'Minimum Lap:',
+        'control': 'short',
+        'places': 1,
+        'type': 'tod',
+        'attr': 'minlap'
+    },
+    'totlaps': {
+        'prompt': 'Laps:',
+        'control': 'short',
+        'type': 'int',
+        'attr': 'totlaps',
+        'subtext': '(Cat laps override)',
+        'hint': 'Default target number of laps for event'
+    },
+    'autofinish': {
+        'prompt':
+        'Finish:',
+        'control':
+        'check',
+        'type':
+        'bool',
+        'attr':
+        'targetlaps',
+        'subtext':
+        'Automatically Finish?',
+        'hint':
+        'If enabled, riders are automatically finished when lap count matches target laps',
+    },
+    'autoexport': {
+        'prompt': 'Export:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'autoexport',
+        'subtext': 'Automatically export?',
+        'hint': 'If enabled, results will be exported automatically',
+    },
+    'showdowntimes': {
+        'prompt': 'Down Times:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'showdowntimes',
+        'subtext': 'Show on result?',
+        'hint': 'If enabled, down times are displayed on results',
+    },
+    'dofastestlap': {
+        'prompt': 'Fastest Lap:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'dofastestlap',
+        'subtext': 'Report with result?',
+        'hint': 'If enabled, the fastest lap will be reported with results',
+    },
+    'timelimit': {
+        'prompt': 'Time Limit:',
+        'control': 'short',
+        'attr': 'timelimit',
+        'hint':
+        'Time limit as percent, down time or absolute: 12%  +1:23  4h00:00'
+    },
+    'gapthresh': {
+        'prompt': 'Time Gap:',
+        'control': 'short',
+        'type': 'tod',
+        'places': 2,
+        'hint': 'Threshold for automatic time gap insertion',
+        'attr': 'gapthresh'
+    },
+    'clubmode': {
+        'prompt': 'Club Mode:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'clubmode',
+        'subtext': 'Add starters by transponder passing?',
+        'hint': 'Riders automatically added to event on passing',
+    },
+    'allowspares': {
+        'prompt': 'Spares:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'allowspares',
+        'subtext': 'Record spare bike passings?',
+        'hint': 'Spare bike passings will be added to event as placeholders',
+    },
+}
 
 
 class rms:
@@ -131,7 +225,11 @@ class rms:
             tc.set_visible(visible)
 
     def loadcats(self, cats=[]):
+        # clear old cats and reset reserved sources
         self.cats = []  # clear old cat list
+        self.catplaces = {}
+        self.reserved_sources = [i for i in RESERVED_SOURCES]
+
         if 'AUTO' in cats:  # ignore any others and re-load from rdb
             self.cats = self.meet.rdb.listcats()
             self.autocats = True
@@ -145,7 +243,17 @@ class rms:
                     else:
                         _log.warning('Invalid result category: %r', cat)
         self.cats.append('')  # always include one empty cat
-        _log.debug('Result category list updated: %r', self.cats)
+
+        # update reserved sources list with any cat finish labels
+        if len(self.cats) > 1:
+            for cat in self.cats:
+                if cat:
+                    srcid = cat.lower() + 'fin'
+                    self.reserved_sources.append(srcid)
+                    self.catplaces[srcid] = cat
+
+        _log.debug('Result categories: %r; Reserved sources: %r', self.cats,
+                   self.reserved_sources)
 
     def downtimes(self, show):
         """Set the downtimes flag"""
@@ -157,7 +265,7 @@ class rms:
 
         # load intermediates
         for i in cr.get(section, 'intermeds'):
-            if i in RESERVED_SOURCES:
+            if i in self.reserved_sources:
                 _log.info('Ignoring reserved inter: %r', i)
             else:
                 crkey = 'intermed_' + i
@@ -311,7 +419,6 @@ class rms:
                 'contests': [],
                 'tallys': [],
                 'lapstart': None,
-                'laplength': None,
                 'dofastestlap': False,
                 'minlap': MINPASSSTR,
                 'lapfin': None,
@@ -339,14 +446,6 @@ class rms:
 
         # load result categories
         self.loadcats(cr.get('rms', 'categories'))
-
-        # amend reserved sources with any cats
-        if len(self.cats) > 1:
-            for cat in self.cats:
-                if cat:
-                    srcid = cat.lower() + 'fin'
-                    RESERVED_SOURCES.append(srcid)
-                    self.catplaces[srcid] = cat
 
         self.passlabels = cr.get('rms', 'passlabels')
         self.catonlap = cr.get('rms', 'catonlap')
@@ -437,7 +536,6 @@ class rms:
             self.set_finished()
         self.showdowntimes = cr.get_bool('rms', 'showdowntimes')
         self.clubmode = cr.get_bool('rms', 'clubmode')
-        self.laplength = cr.get_posint('rms', 'laplength')
         self.recalculate()
 
         self.hidecols = cr.get('rms', 'hidecols')
@@ -609,7 +707,6 @@ class rms:
         cw.set('rms', 'autoexport', self.autoexport)
         cw.set('rms', 'passingsource', self.passingsource)
         cw.set('rms', 'clubmode', self.clubmode)
-        cw.set('rms', 'laplength', self.laplength)
         cw.set('rms', 'autofinish', self.targetlaps)
         ltout = []
         for lt in self.laptimes:
@@ -918,6 +1015,7 @@ class rms:
         footer = ''
         uncat = False
         if cat is not None:
+            catname = cat
             dbr = self.meet.rdb.get_rider(cat, 'cat')
             if dbr is not None:
                 catname = dbr['title']
@@ -2287,8 +2385,8 @@ class rms:
                 if key == key_abort:  # override ctrl+f5
                     if uiutil.questiondlg(
                             self.meet.window, 'Reset event to idle?',
-                            'Note: All result and timing data will be cleared.'
-                    ):
+                            'Note: All result and timing data will be cleared.',
+                            'Reset Event?'):
                         self.resettimer()
                     return True
                 elif key == key_announce:  # re-send current announce vars
@@ -3378,7 +3476,21 @@ class rms:
 
     def edit_event_properties(self, window, data=None):
         """Edit event specifics."""
-        _log.warning('Edit event properties not implemented')
+        # set current event type label
+        _CONFIG_SCHEMA['etype']['prompt'] = ROADRACE_TYPES[self.event['type']]
+
+        # flatten current cat list
+        _CONFIG_SCHEMA['categories']['value'] = ' '.join(
+            self.get_catlist()).strip()
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Event Properties',
+                                 schema=_CONFIG_SCHEMA,
+                                 obj=self)
+        # handle a change in result categories
+        if res['categories'][0]:
+            self.loadcats(res['categories'][2].split())
+            self.load_cat_data()
+        return False
 
     def getbunch_iter(self, iter):
         """Return a 'bunch' string for the rider."""
@@ -3598,7 +3710,7 @@ class rms:
         """Transfer points and bonuses into the named contest."""
         # fetch context meta infos
         src = self.contestmap[contest]['source']
-        if src not in RESERVED_SOURCES and src not in self.intermeds:
+        if src not in self.reserved_sources and src not in self.intermeds:
             _log.info('Invalid inter source %r in contest %r', src, contest)
             return
         # todo: remove this countback flag - does not work as expected
@@ -3894,7 +4006,7 @@ class rms:
                         placed += 1
                         handled += 1
                     else:
-                        if limit is not None:
+                        if limit is not None and bt is not None:
                             if bt > limit:
                                 r[COL_COMMENT] = 'otl'
                                 handled += 1
@@ -4278,7 +4390,6 @@ class rms:
         self.timelimit = None
         self.passlabels = {}  # sector labels for mult passings
         self.catonlap = {}  # onlap per category
-        self.laplength = None
         self.clubmode = False
         self.allowspares = False
         self.gapthresh = GAPTHRESH  # time gap to set new time
@@ -4291,7 +4402,8 @@ class rms:
         self.lapfin = None
         self.minlap = MINPASSTIME  # minimum lap/elap time if relevant
 
-        # stage ntermediates
+        # stage intermediates
+        self.reserved_sources = RESERVED_SOURCES
         self.intermeds = []  # sorted list of intermediate keys
         self.intermap = {}  # map of intermediate keys to results
         self.contests = []  # sorted list of contests

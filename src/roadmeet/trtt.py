@@ -20,7 +20,7 @@ from metarace import report
 from metarace import jsonconfig
 from . import uiutil
 
-from roadmeet.rms import rms
+from roadmeet.rms import rms, RESERVED_SOURCES, GAPTHRESH
 
 _log = logging.getLogger('metarace.trtt')
 _log.setLevel(logging.DEBUG)
@@ -58,18 +58,115 @@ MINLAP = tod.tod('2:00')
 # Add a gap in the startlist when gap is larger than TEAMGAP
 TEAMGAP = tod.tod('4:00')
 
-# Default time gap threshold
-GAPTHRESH = tod.tod('1.12')
-
 # config version string
-EVENT_ID = 'trtt-3.0'
+EVENT_ID = 'trtt-3.1'
 
-RESERVED_SOURCES = [
-    'fin',  # finished stage
-    'reg',  # registered to stage
-    'start'
-]  # started stage
-# additional cat finishes added in loadconfig
+_CONFIG_SCHEMA = {
+    'etype': {
+        'prompt': 'Team Time Trial',
+        'control': 'section'
+    },
+    'categories': {
+        'prompt': 'Categories:',
+        'hint': 'Categories included in startlists and results'
+    },
+    'minlap': {
+        'prompt': 'Minimum Lap:',
+        'control': 'short',
+        'places': 1,
+        'type': 'tod',
+        'attr': 'minlap'
+    },
+    'totlaps': {
+        'prompt': 'Laps:',
+        'control': 'short',
+        'type': 'int',
+        'attr': 'totlaps',
+        'subtext': '(Cat laps override)',
+        'hint': 'Default target number of laps for event'
+    },
+    'defaultnth': {
+        'prompt': 'Nth Wheel:',
+        'control': 'short',
+        'type': 'int',
+        'attr': 'defaultnth',
+        'hint': 'Default wheel to determine team time'
+    },
+    'owntime': {
+        'prompt': 'Own Time:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'owntime',
+        'subtext': 'Dropped riders get own time?',
+        'hint': 'Riders finishing behind team awarded their own time',
+    },
+    'showriders': {
+        'prompt': 'Show Riders:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'showriders',
+        'subtext': 'Display team member names on reports?',
+        'hint': 'Include rider names on startlists and results',
+    },
+    'relativestart': {
+        'prompt': 'Relative:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'relativestart',
+        'subtext': 'Team start times are relative?',
+        'hint': 'Team start times are relative to event start',
+    },
+    'autofinish': {
+        'prompt': 'Finish:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'targetlaps',
+        'subtext': 'Automatically Finish?',
+        'hint':
+        'Automatically finish riders when lap count matches target laps',
+    },
+    'autoexport': {
+        'prompt': 'Export:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'autoexport',
+        'subtext': 'Automatically export?',
+        'hint': 'If enabled, results will be exported automatically',
+    },
+    # Note: on trtt, time limit usually requires manual intervention
+    #'timelimit': {
+    #'prompt': 'Time Limit:',
+    #'control': 'short',
+    #'attr': 'timelimit',
+    #'hint':
+    #'Time limit as percent, down time or absolute: 12%  +1:23  4h00:00'
+    #},
+    'gapthresh': {
+        'prompt': 'Time Gap:',
+        'control': 'short',
+        'type': 'tod',
+        'places': 2,
+        'hint': 'Threshold for automatic time gap insertion',
+        'attr': 'gapthresh'
+    },
+    # Clubmode may trigger problems with team data, todo: fix addrider
+    #'clubmode': {
+    #'prompt': 'Club Mode:',
+    #'control': 'check',
+    #'type': 'bool',
+    #'attr': 'clubmode',
+    #'subtext': 'Add starters by transponder passing?',
+    #'hint': 'Riders automatically added to event on passing',
+    #},
+    'allowspares': {
+        'prompt': 'Spares:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'allowspares',
+        'subtext': 'Record spare bike passings?',
+        'hint': 'Spare bike passings will be added to event as placeholders',
+    },
+}
 
 
 class trtt(rms):
@@ -133,13 +230,14 @@ class trtt(rms):
                 'contests': [],
                 'tallys': [],
                 'owntime': True,
+                'gapthresh': None,
                 'totlaps': None,
                 'passingsource': [],
                 'defaultnth': NTH_WHEEL,
                 'minlap': None,
+                'clubmode': False,
                 'nthwheel': {},
                 'startlist': '',
-                'resultcats': False,
                 'autofinish': False,
                 'autoexport': False,
             }
@@ -165,16 +263,17 @@ class trtt(rms):
         if len(self.nthwheel) > 0:
             _log.debug('Nth Wheel: %r', self.nthwheel)
 
-        # amend reserved sources with any cats
-        if len(self.cats) > 1:
-            for cat in self.cats:
-                if cat:
-                    srcid = cat.lower() + 'fin'
-                    RESERVED_SOURCES.append(srcid)
-                    self.catplaces[srcid] = cat
         self.passingsource = []
         for source in cr.get('trtt', 'passingsource'):
             self.passingsource.append(source.lower())  # force lower case
+
+        # fetch time gap threshold
+        ngt = tod.mktod(cr.get('trtt', 'gapthresh'))
+        if ngt is not None:
+            self.gapthresh = ngt
+            if self.gapthresh != GAPTHRESH:
+                _log.warning('Set time gap threshold %s',
+                             self.gapthresh.rawtime(2))
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'trtt')
@@ -230,6 +329,7 @@ class trtt(rms):
         self.relativestart = cr.get_bool('trtt', 'relativestart')
         if strops.confopt_bool(cr.get('trtt', 'finished')):
             self.set_finished()
+        self.clubmode = cr.get_bool('trtt', 'clubmode')
         self.recalculate()
 
         self.load_cat_data()
@@ -295,6 +395,7 @@ class trtt(rms):
             cw.set('trtt', 'minlap', None)
         cw.set('trtt', 'showriders', self.showriders)
         cw.set('trtt', 'relativestart', self.relativestart)
+        cw.set('trtt', 'gapthresh', self.gapthresh.rawtime())
         cw.set('trtt', 'finished', self.timerstat == 'finished')
         cw.set('trtt', 'places', self.places)
         cw.set('trtt', 'totlaps', self.totlaps)
@@ -353,10 +454,26 @@ class trtt(rms):
         with metarace.savefile(self.configfile) as f:
             cw.write(f)
 
+    def edit_event_properties(self, window, data=None):
+        """Edit event specifics."""
+
+        # flatten current cat list
+        _CONFIG_SCHEMA['categories']['value'] = ' '.join(
+            self.get_catlist()).strip()
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Event Properties',
+                                 schema=_CONFIG_SCHEMA,
+                                 obj=self)
+        # handle a change in result categories
+        if res['categories'][0]:
+            self.loadcats(res['categories'][2].split())
+            self.load_cat_data()
+        return False
+
     def set_titlestr(self, titlestr=None):
         """Update the title string label."""
         if titlestr is None or titlestr == '':
-            titlestr = '[Road Team Time Trial]'
+            titlestr = '[Team Time Trial]'
         self.title_namestr.set_text(titlestr)
 
     def reorder_riderno(self):
@@ -386,11 +503,7 @@ class trtt(rms):
         return cnt
 
     def callup_report(self):
-        """Callup is startlist in this case"""
-        return self.startlist_report()
-
-    def startlist_report(self):
-        """Return a startlist report."""
+        """Return a start order report."""
         # This is time trial - so generate a time specific startlist
         ret = []
         cnt = self.reorder_startlist()
@@ -428,7 +541,7 @@ class trtt(rms):
                         ##pb.set_threshold(0.60)
                         ret.append(pb)
                     sec = report.rttstartlist('startlist')
-                    sec.heading = 'Startlist'
+                    sec.heading = 'Start Order'
                     dbr = self.meet.rdb.get_rider(tcat, 'cat')
                     if dbr is not None:
                         catname = dbr['title']
@@ -1041,6 +1154,7 @@ class trtt(rms):
         self.meet.alttimer.dearm(1)
         self.set_start()
         self.clear_results()
+        self.teamtimes = {}
         self.timerstat = 'idle'
         self.meet.cmd_announce('timerstat', 'idle')
         self.meet.stat_but.update('idle', 'Idle')
@@ -1374,7 +1488,8 @@ class trtt(rms):
                     r[COL_CBUNCH] = thetime
                 for r in tlist[nth_wheel:]:
                     et = r[COL_RFTIME] - self.start - r[COL_STOFT]
-                    if self.owntime and (et > ct and (et - ct) > GAPTHRESH):
+                    if self.owntime and (et > ct and
+                                         (et - ct) > self.gapthresh):
                         # TIME GAP!
                         thetime = et.truncate(1)
                     r[COL_CBUNCH] = thetime
@@ -1451,6 +1566,7 @@ class trtt(rms):
         self.gapthresh = GAPTHRESH  # time gap to set new time
 
         # intermediates
+        self.reserved_sources = RESERVED_SOURCES
         self.intermeds = []  # sorted list of intermediate keys
         self.intermap = {}  # map of intermediate keys to results
         self.contests = []  # sorted list of contests

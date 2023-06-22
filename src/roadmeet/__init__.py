@@ -51,8 +51,8 @@ ROADRACE_TYPES = {
     'criterium': 'Criterium',
     'handicap': 'Handicap',
     'cross': 'Cyclocross',
-    'irtt': 'Road Time Trial',
-    'trtt': 'Team Road Time Trial',
+    'irtt': 'Individual Time Trial',
+    'trtt': 'Team Time Trial',
 }
 _DEFAULT_HANDLER = 'null'
 _HANDLERS = {
@@ -274,7 +274,9 @@ class roadmeet:
         """Edit race specific properties."""
         if self.curevent is not None:
             _log.debug('Editing race properties')
-            self.curevent.edit_event_properties(self.window)
+            if self.curevent.edit_event_properties(self.window):
+                _log.info('Event re-start required')
+                self.menu_race_run_activate_cb()
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
@@ -1321,10 +1323,10 @@ class roadmeet:
             topic = '/'.join((self.anntopic, command))
             self.announce.publish_json(obj, topic)
 
-    def rider_announce(self, rvec):
+    def rider_announce(self, rvec, command='rider'):
         """Issue a serialised rider vector to announcer."""
         # Deprecated UNT-style list
-        self.cmd_announce('rider', '\x1f'.join(rvec))
+        self.cmd_announce(command, '\x1f'.join(rvec))
 
     def timer_announce(self, evt, timer=None, source=''):
         """Send message into announce for remote control."""
