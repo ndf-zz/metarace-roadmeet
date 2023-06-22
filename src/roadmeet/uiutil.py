@@ -999,7 +999,7 @@ class optionSection(option):
         grid.attach(lbl, 0, row, 3, 1)
 
 
-def options_dlg(window=None, title='Options', schema=[], obj=None):
+def options_dlg(window=None, title='Options', schema={}, obj=None):
     """Build and display an option editor for the provided schema
 
           schema = {

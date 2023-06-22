@@ -41,7 +41,7 @@ VERSION = '1.13.0'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
-ROADMEET_ID = 'roadmeet_3.0'  # configuration versioning
+ROADMEET_ID = 'roadmeet_3.1'  # configuration versioning
 EXPORTPATH = 'export'
 _log = logging.getLogger('metarace.roadmeet')
 _log.setLevel(logging.DEBUG)
@@ -60,6 +60,160 @@ _HANDLERS = {
     'thbc': thbc,
     'rrs': rrs,
     'rru': rru,
+}
+_CONFIG_SCHEMA = {
+    'etype': {
+        'prompt': 'Type:',
+        'control': 'choice',
+        'attr': 'etype',
+        'options': ROADRACE_TYPES,
+    },
+    'title': {
+        'prompt': 'Title:',
+        'hint': 'Meet title',
+        'attr': 'title_str'
+    },
+    'subtitle': {
+        'prompt': 'Subtitle:',
+        'hint': 'Meet subtitle',
+        'attr': 'subtitle_str'
+    },
+    'host': {
+        'prompt': 'Host:',
+        'hint': 'Text for the meet host / sponsor line',
+        'attr': 'host_str'
+    },
+    'document': {
+        'prompt': 'Location:',
+        'hint': 'Text for the meet location or document line',
+        'attr': 'document_str'
+    },
+    'date': {
+        'prompt': 'Date:',
+        'hint': 'Date of the meet as human-readable text',
+        'attr': 'date_str'
+    },
+    'commissaire': {
+        'prompt': 'PCP:',
+        'hint': 'Name of the president of the commissaires panel',
+        'attr': 'commissaire_str'
+    },
+    'organiser': {
+        'prompt': 'Organiser:',
+        'hint': 'Name of the meet organiser',
+        'attr': 'organiser_str'
+    },
+    'distance': {
+        'prompt': 'Distance:',
+        'hint': 'Advertised distance of the meet (if applicable)',
+        'type': 'float',
+        'control': 'short',
+        'subtext': 'km',
+        'attr': 'distance'
+    },
+    'diststr': {
+        'prompt': 'Dist String:',
+        'hint': 'Override distance string for crit/cat races',
+        'attr': 'diststr'
+    },
+    'provisionalstart': {
+        'prompt': 'Startlist:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Provisional?',
+        'hint': 'If enabled, startlist reports will be marked provisional',
+        'attr': 'provisionalstart'
+    },
+    'sectele': {
+        'control': 'section',
+        'prompt': 'Telegraph'
+    },
+    'anntopic': {
+        'prompt': 'Announce:',
+        'hint': 'Base topic for announce messages',
+        'attr': 'anntopic'
+    },
+    'timertopic': {
+        'prompt': 'Timer:',
+        'hint': 'Topic for timer messages',
+        'attr': 'timertopic'
+    },
+    'remote_enable': {
+        'prompt': 'Option:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Receive remote timer messages?',
+        'hint':
+        'If enabled, remote timer messages are received on timer topic',
+        'attr': 'remote_enable'
+    },
+    'sechw': {
+        'control': 'section',
+        'prompt': 'Hardware'
+    },
+    'timer': {
+        'prompt': 'Transponders:',
+        'hint': 'Transponder decoder port',
+        'attr': 'timer_port'
+    },
+    'alttimer': {
+        'prompt': 'Impulse:',
+        'hint': 'Impulse timer port',
+        'attr': 'alttimer_port'
+    },
+    'secexp': {
+        'control': 'section',
+        'prompt': 'Export'
+    },
+    'mirrorcmd': {
+        'prompt': 'Command:',
+        'hint': 'Export command',
+        'attr': 'mirrorcmd'
+    },
+    'mirrorpath': {
+        'prompt': 'Path:',
+        'hint': 'Result export path',
+        'attr': 'mirrorpath'
+    },
+    'mirrorfile': {
+        'prompt': 'Filename:',
+        'hint': 'Result export filename prefix',
+        'attr': 'mirrorfile'
+    },
+    'shortname': {
+        'prompt': 'Short Name:',
+        'hint': 'Short meet name on web export header',
+        'attr': 'shortname'
+    },
+    'eventcode': {
+        'prompt': 'Event Code:',
+        'hint': 'Event code saved in reports',
+        'attr': 'eventcode'
+    },
+    'resfiles': {
+        'prompt': 'Result Files:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Build results on export?',
+        'hint': 'Build result files with export',
+        'attr': 'resfiles'
+    },
+    'announceresult': {
+        'prompt': 'Announce Result:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Publish result to telegraph?',
+        'hint': 'Announce result to telegraph on export',
+        'attr': 'announceresult'
+    },
+    'lifexport': {
+        'prompt': 'LIF Export:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Build LIF file on export?',
+        'hint': 'If enabled, a LIF result file will be built on export',
+        'attr': 'lifexport'
+    },
 }
 
 
@@ -124,150 +278,56 @@ class roadmeet:
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
-        b = uiutil.builder('roadmeet_props.ui')
-        dlg = b.get_object('properties')
-        dlg.set_transient_for(self.window)
+        res = uiutil.options_dlg(window=self.window,
+                                 title='Meet Properties',
+                                 schema=_CONFIG_SCHEMA,
+                                 obj=self)
 
-        # setup the type entry
-        tcombo = b.get_object('type_combo')
-        tmodel = b.get_object('type_model')
-        tlbl = self.etype
-        dotype = False
-        # correct empty type
-        if self.etype == '':
-            self.etype = 'road'
-        if self.etype in ROADRACE_TYPES:
-            tlbl = ROADRACE_TYPES[self.etype]
-            dotype = True
-            cnt = 0
-            for t in [
-                    'road', 'circuit', 'handicap', 'criterium', 'cross',
-                    'irtt', 'trtt'
-            ]:
-                tmodel.append([t, ROADRACE_TYPES[t]])
-                if t == self.etype:
-                    tcombo.set_active(cnt)
-                cnt += 1
-            tcombo.set_sensitive(True)
-        else:
-            _log.warning('Unknown event type %r', self.etype)
-            tmodel.append([self.etype, tlbl])
-            tcombo.set_active(0)
-            tcombo.set_sensitive(False)
+        # handle a change in announce topic
+        if res['anntopic'][0]:
+            otopic = res['anntopic'][1]
+            if otopic:
+                self.announce.unsubscribe('/'.join((otopic, 'control', '#')))
+            if self.anntopic:
+                self.announce.subscribe('/'.join(
+                    (self.anntopic, 'control', '#')))
 
-        # fetch event result categories
-        ocats = []
-        cat_ent = b.get_object('cat_entry')
-        if self.curevent is not None:
-            ocats = self.curevent.get_catlist()
-            cat_ent.set_text(' '.join(ocats))
-            cba = b.get_object('cat_but_auto')
-            cba.connect('clicked', self.cat_but_auto_clicked, cat_ent)
+        # handle change in timer topic
+        if res['timertopic'][0]:
+            otopic = res['timertopic'][1]
+            if otopic:
+                self.announce.unsubscribe(otopic)
 
-        # fill text entries
-        t_ent = b.get_object('title_entry')
-        t_ent.set_text(self.title_str)
-        st_ent = b.get_object('subtitle_entry')
-        st_ent.set_text(self.subtitle_str)
-        doc_ent = b.get_object('document_entry')
-        doc_ent.set_text(self.document_str)
-        d_ent = b.get_object('date_entry')
-        d_ent.set_text(self.date_str)
-        o_ent = b.get_object('organiser_entry')
-        o_ent.set_text(self.organiser_str)
-        c_ent = b.get_object('commissaire_entry')
-        c_ent.set_text(self.commissaire_str)
-        di_ent = b.get_object('distance_entry')
-        if self.distance is not None:
-            di_ent.set_text(str(self.distance))
-        dis_ent = b.get_object('diststr_entry')
-        if self.diststr is not None:
-            dis_ent.set_text(self.diststr)
-        ate = b.get_object('announce_topic_entry')
-        if self.anntopic is not None:
-            ate.set_text(self.anntopic)
-        tte = b.get_object('timing_topic_entry')
-        if self.timertopic is not None:
-            tte.set_text(self.timertopic)
-        ren = b.get_object('remote_enable_check')
-        ren.set_active(self.remote_enable)
-        mte = b.get_object('timing_main_entry')
-        mte.set_text(self.timer_port)
-        alte = b.get_object('timing_alt_entry')
-        alte.set_text(self.alttimer_port)
-        response = dlg.run()
-        if response == 1:  # id 1 set in glade for "Apply"
-            _log.debug('Updating meet properties')
-            self.title_str = t_ent.get_text()
-            self.subtitle_str = st_ent.get_text()
-            self.document_str = doc_ent.get_text()
-            self.date_str = d_ent.get_text()
-            self.organiser_str = o_ent.get_text()
-            self.commissaire_str = c_ent.get_text()
-            self.distance = strops.confopt_float(di_ent.get_text())
-            self.diststr = dis_ent.get_text()
-
-            # 'announce' topic
-            ntopic = ate.get_text()
-            if ntopic != self.anntopic:
-                if self.anntopic is not None:
-                    self.announce.unsubscribe('/'.join(
-                        (self.anntopic, 'control', '#')))
-                self.anntopic = None
-                if ntopic:
-                    self.anntopic = ntopic
-                    self.announce.subscribe('/'.join(
-                        (self.anntopic, 'control', '#')))
-            # remote timer topic
-            ntopic = tte.get_text()
-            if ntopic != self.timertopic:
-                if self.timertopic is not None:
-                    self.announce.unsubscribe(self.timertopic)
-                self.timertopic = None
-                if ntopic:
-                    self.timertopic = ntopic
-
-            # update remote subscription
-            self.remote_enable = ren.get_active()
+        # reset remote option
+        if res['timertopic'][0] or res['remote_enable'][0]:
             self.remote_reset()
 
-            # reset timer
-            self.set_timer(mte.get_text())
+        # reset timer ports
+        if res['timer'][0] or res['alttimer'][0]:
+            self.menu_timing_reconnect_activate_cb(None)
 
-            nport = alte.get_text()
-            if nport != self.alttimer_port:
-                self.alttimer_port = nport
-                self.alttimer.setport(nport)
-
-            reload = False
+        # if type has changed, backup config and reload
+        if res['etype'][0]:
+            reopen = False
             if self.curevent is not None:
-                ncats = cat_ent.get_text().split()
-                if ncats != ocats:
-                    _log.debug('Result cats changed %r -> %r', ocats, ncats)
-                    self.curevent.loadcats(ncats)
-                    reload = True
-            nt = tmodel.get_value(tcombo.get_active_iter(), 0)
-            if dotype:
-                # check for type change
-                if nt != self.etype:
-                    _log.info('Event type changed from %r to %r', self.etype,
-                              nt)
-                    if nt == 'crit':
-                        self.curevent.downtimes(False)
-                    else:
-                        self.curevent.downtimes(True)
-                    reload = True
-            if reload:
-                event = self.edb.getfirst()
-                event['type'] = nt
-                self.etype = nt
-                self.menu_race_run_activate_cb(None, None)
-
-            self.set_title()
-            _log.debug('Properties updated')
-        else:
-            _log.debug('Edit properties cancelled')
-        dlg.destroy()
+                reopen = True
+                conf = self.curevent.configfile
+                self.close_event()
+                backup = conf + '.bak'
+                _log.warning('Event type change, backing up old config to %r',
+                             backup)
+                try:
+                    if os.path.exists(backup):
+                        os.unlink(backup)
+                    os.link(conf, backup)
+                except Exception as e:
+                    _log.warning('%s saving event backup: %s',
+                                 e.__class__.__name__, e)
+            eh = self.edb.getfirst()
+            eh['type'] = self.etype
+            if reopen:
+                self.open_event(eh)
+        self.set_title()
 
     def print_report(self, sections=[], provisional=False):
         """Print the pre-formatted sections in a standard report."""
@@ -314,7 +374,6 @@ class roadmeet:
             _log.debug('Updated print preferences')
         elif res == Gtk.PrintOperationResult.IN_PROGRESS:
             _log.debug('Print operation in progress')
-        self.docindex += 1
 
         # For convenience, also save copies to pdf and xls
         ofile = 'output.pdf'
@@ -442,7 +501,7 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.startlist_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, provisional=self.provisionalstart)
             else:
                 _log.info('Startlist - Nothing to print')
 
@@ -451,7 +510,7 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.callup_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, provisional=self.provisionalstart)
             else:
                 _log.info('Callup - Nothing to print')
 
@@ -675,7 +734,8 @@ class roadmeet:
             filebase = '.'
         if filebase in ['', '.']:
             filebase = ''
-            _log.warn('Using default filenames for export')
+            if self.resfiles:
+                _log.warn('Using default filenames for export')
         else:
             pass
 
@@ -688,7 +748,7 @@ class roadmeet:
         ffile = '_'.join(fnv)
 
         # Write out a startlist unless event finished
-        if self.curevent.timerstat not in ['finished']:
+        if self.resfiles and self.curevent.timerstat not in ['finished']:
             filename = sfile
             rep = report.report()
             rep.strings['title'] = self.title_str
@@ -782,18 +842,24 @@ class roadmeet:
         lt = ['pdf', 'xls']
         rep.canonical = '.'.join([lb, 'json'])
 
-        ofile = os.path.join(self.exportpath, filename + '.pdf')
-        with metarace.savefile(ofile, mode='b') as f:
-            rep.output_pdf(f)
-        ofile = os.path.join(self.exportpath, filename + '.xls')
-        with metarace.savefile(ofile, mode='b') as f:
-            rep.output_xls(f)
-        ofile = os.path.join(self.exportpath, filename + '.json')
-        with metarace.savefile(ofile) as f:
-            rep.output_json(f)
-        ofile = os.path.join(self.exportpath, filename + '.html')
-        with metarace.savefile(ofile) as f:
-            rep.output_html(f, linkbase=lb, linktypes=lt)
+        # announce to telegraph if enabled
+        if self.announceresult:
+            self.obj_announce(command='result', obj=rep.serialise())
+
+        # then dump out files
+        if self.resfiles:
+            ofile = os.path.join(self.exportpath, filename + '.pdf')
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_pdf(f)
+            ofile = os.path.join(self.exportpath, filename + '.xls')
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_xls(f)
+            ofile = os.path.join(self.exportpath, filename + '.json')
+            with metarace.savefile(ofile) as f:
+                rep.output_json(f)
+            ofile = os.path.join(self.exportpath, filename + '.html')
+            with metarace.savefile(ofile) as f:
+                rep.output_html(f, linkbase=lb, linktypes=lt)
 
     def menu_data_results_cb(self, menuitem, data=None):
         """Create live result report and export"""
@@ -808,7 +874,7 @@ class roadmeet:
                     cw = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
                     for r in lifdat:
                         cw.writerow(r)
-        if self.resfiles:
+        if self.resfiles or self.announceresult:
             self.export_result_maker()
         GLib.idle_add(self.mirror_start)
 
@@ -1082,21 +1148,16 @@ class roadmeet:
         cw.set('roadmeet', 'date', self.date_str)
         cw.set('roadmeet', 'organiser', self.organiser_str)
         cw.set('roadmeet', 'commissaire', self.commissaire_str)
-        cw.set('roadmeet', 'resultnos', self.bibs_in_results)
         cw.set('roadmeet', 'lifexport', self.lifexport)
         cw.set('roadmeet', 'resfiles', self.resfiles)
+        cw.set('roadmeet', 'announceresult', self.announceresult)
         cw.set('roadmeet', 'provisionalstart', self.provisionalstart)
         cw.set('roadmeet', 'distance', self.distance)
         cw.set('roadmeet', 'diststr', self.diststr)
-        cw.set('roadmeet', 'docindex', self.docindex)
         cw.set('roadmeet', 'mirrorpath', self.mirrorpath)
         cw.set('roadmeet', 'mirrorcmd', self.mirrorcmd)
         cw.set('roadmeet', 'mirrorfile', self.mirrorfile)
-        cw.set('roadmeet', 'competitioncode', self.competitioncode)
         cw.set('roadmeet', 'eventcode', self.eventcode)
-        cw.set('roadmeet', 'racetype', self.racetype)
-        cw.set('roadmeet', 'competitortype', self.competitortype)
-        cw.set('roadmeet', 'documentversion', self.documentversion)
 
         with metarace.savefile(CONFIGFILE) as f:
             cw.write(f)
@@ -1127,10 +1188,8 @@ class roadmeet:
                 'commissaire': '',
                 'distance': None,
                 'diststr': '',
-                'docindex': '0',
                 'timer': '',
                 'alttimer': '',
-                'resultnos': True,
                 'anntopic': None,
                 'timertopic': None,
                 'remote_enable': False,
@@ -1140,15 +1199,12 @@ class roadmeet:
                 'prevlink': None,
                 'lifexport': False,
                 'resfiles': True,
+                'announceresult': True,
                 'provisionalstart': False,
-                'mirrorpath': '',
-                'mirrorcmd': 'echo',
-                'mirrorfile': '',
-                'competitioncode': '',
+                'mirrorpath': None,
+                'mirrorcmd': None,
+                'mirrorfile': None,
                 'eventcode': '',
-                'racetype': '',
-                'competitortype': '',
-                'documentversion': '',
                 'id': ''
             }
         })
@@ -1201,22 +1257,17 @@ class roadmeet:
         self.commissaire_str = cr.get('roadmeet', 'commissaire')
         self.distance = cr.get_float('roadmeet', 'distance')
         self.diststr = cr.get('roadmeet', 'diststr')
-        self.docindex = cr.get_posint('roadmeet', 'docindex', 0)
         self.linkbase = cr.get('roadmeet', 'linkbase')
         self.indexlink = cr.get('roadmeet', 'indexlink')
         self.prevlink = cr.get('roadmeet', 'prevlink')
         self.nextlink = cr.get('roadmeet', 'nextlink')
-        self.bibs_in_results = cr.get_bool('roadmeet', 'resultnos')
         self.mirrorpath = cr.get('roadmeet', 'mirrorpath')
         self.mirrorcmd = cr.get('roadmeet', 'mirrorcmd')
         self.mirrorfile = cr.get('roadmeet', 'mirrorfile')
-        self.competitioncode = cr.get('roadmeet', 'competitioncode')
         self.eventcode = cr.get('roadmeet', 'eventcode')
-        self.racetype = cr.get('roadmeet', 'racetype')
-        self.competitortype = cr.get('roadmeet', 'competitortype')
-        self.documentversion = cr.get('roadmeet', 'documentversion')
         self.lifexport = cr.get_bool('roadmeet', 'lifexport')
         self.resfiles = cr.get_bool('roadmeet', 'resfiles')
+        self.announceresult = cr.get_bool('roadmeet', 'announceresult')
         self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
 
         # Re-Initialise rider and event databases
@@ -1516,7 +1567,6 @@ class roadmeet:
         self.commissaire_str = ''
         self.distance = None
         self.diststr = ''
-        self.docindex = 0
         self.linkbase = '.'
         self.provisionalstart = False
         self.indexlink = None
@@ -1527,6 +1577,7 @@ class roadmeet:
         self.remote_enable = False
         self.lifexport = False
         self.resfiles = True
+        self.announceresult = True
 
         # printer preferences
         paper = Gtk.PaperSize.new_custom('metarace-full', 'A4 for reports',
@@ -1554,14 +1605,10 @@ class roadmeet:
         self.announce.setcb(self._controlcb)
         self.anntopic = None
         self.mirrorpath = ''
-        self.mirrorcmd = 'echo'
+        self.mirrorcmd = None
         self.mirrorfile = ''
         self.mirror = None
-        self.competitioncode = ''
         self.eventcode = ''
-        self.racetype = ''
-        self.competitortype = ''
-        self.documentversion = ''
 
         b = uiutil.builder('roadmeet.ui')
         self.window = b.get_object('meet')
@@ -1725,7 +1772,6 @@ class fakemeet(roadmeet):
         self.organiser_str = ''
         self.commissaire_str = ''
         self.distance = None
-        self.docindex = 0
         self.linkbase = '.'
         self.provisionalstart = False
         self.indexlink = None
@@ -1785,18 +1831,12 @@ class fakemeet(roadmeet):
                 'commissaire': '',
                 'distance': None,
                 'diststr': '',
-                'docindex': '0',
                 'linkbase': '.',
                 'indexlink': None,
                 'nextlink': None,
                 'prevlink': None,
-                'resultnos': 'Yes',
                 'provisionalstart': False,
-                'competitioncode': '',
                 'eventcode': '',
-                'racetype': '',
-                'competitortype': '',
-                'documentversion': '',
                 'id': ''
             }
         })
@@ -1816,17 +1856,11 @@ class fakemeet(roadmeet):
         self.linkbase = cr.get('roadmeet', 'linkbase')
         self.distance = cr.get_float('roadmeet', 'distance')
         self.diststr = cr.get('roadmeet', 'diststr')
-        self.docindex = cr.get_posint('roadmeet', 'docindex', 0)
-        self.competitioncode = cr.get('roadmeet', 'competitioncode')
         self.eventcode = cr.get('roadmeet', 'eventcode')
-        self.racetype = cr.get('roadmeet', 'racetype')
         self.linkbase = cr.get('roadmeet', 'linkbase')
         self.indexlink = cr.get('roadmeet', 'indexlink')
         self.prevlink = cr.get('roadmeet', 'prevlink')
         self.nextlink = cr.get('roadmeet', 'nextlink')
-        self.competitortype = cr.get('roadmeet', 'competitortype')
-        self.documentversion = cr.get('roadmeet', 'documentversion')
-        self.bibs_in_results = cr.get_bool('roadmeet', 'resultnos')
         self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
 
 
