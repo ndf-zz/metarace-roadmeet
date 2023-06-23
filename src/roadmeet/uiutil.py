@@ -18,6 +18,7 @@ from gi.repository import Pango
 import metarace
 from metarace import tod
 from metarace import strops
+from metarace.riderdb import rider
 
 _log = logging.getLogger('roadmeet.uiutil')
 _log.setLevel(logging.DEBUG)
@@ -736,17 +737,25 @@ class option:
         self._control = None
         self._options = {}
         self._places = 0
+        self._readonly = False
+        self._defer = False
 
         # import schema
         if obj is not None and 'attr' in schema:
             self._obj = obj
-            if schema['attr'] is not None and hasattr(self._obj,
-                                                      schema['attr']):
+            if isinstance(self._obj, rider):
                 self._attr = schema['attr']
+            else:
+                if schema['attr'] is not None and hasattr(
+                        self._obj, schema['attr']):
+                    self._attr = schema['attr']
         if 'value' in schema:
             self._value = schema['value']
         if self._attr is not None and self._value is None:
-            self._value = getattr(self._obj, self._attr)
+            if isinstance(self._obj, rider):
+                self._value = self._obj[attr]
+            else:
+                self._value = getattr(self._obj, self._attr)
         self._oldvalue = self._value
         if 'type' in schema:
             self._type = schema['type']
@@ -760,6 +769,10 @@ class option:
             self._subtext = schema['subtext']
         if 'places' in schema:
             self._places = strops.confopt_posint(schema['places'], 0)
+        if 'readonly' in schema:
+            self._readonly = bool(schema['readonly'])
+        if 'defer' in schema:
+            self._defer = bool(schema['defer'])
         if 'options' in schema:
             if isinstance(schema['options'], dict):
                 for kv in schema['options']:
@@ -849,7 +862,11 @@ class option:
         """Store new value in object and update obj if provided"""
         self._value = newval
         if self._obj is not None and self._attr is not None:
-            setattr(self._obj, self._attr, self._value)
+            if isinstance(self._obj, rider):
+                self._obj[attr] = self._value
+            else:
+                # assume object.attribute
+                setattr(self._obj, self._attr, self._value)
         if self.changed():
             _log.debug('Option %r update value: %r=>%r (%s)', self.key,
                        self._oldvalue, self._value,
@@ -882,7 +899,10 @@ class option:
         if self._hint is not None:
             self._control.set_tooltip_text(self._hint)
         self._control.show()
-        self._control.connect('activate', self._updated)
+        if not self._defer:
+            self._control.connect('activate', self._updated)
+        if self._readonly:
+            self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 2, 1)
 
 
@@ -906,7 +926,10 @@ class optionShort(option):
         if self._hint is not None:
             self._control.set_tooltip_text(self._hint)
         self._control.show()
-        self._control.connect('activate', self._updated)
+        if not self._defer:
+            self._control.connect('activate', self._updated)
+        if self._readonly:
+            self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 1, 1)
 
         if self._subtext:
@@ -948,7 +971,10 @@ class optionCheck(option):
         if self._hint is not None:
             self._control.set_tooltip_text(self._hint)
         self._control.show()
-        self._control.connect('toggled', self._updated)
+        if not self._defer:
+            self._control.connect('toggled', self._updated)
+        if self._readonly:
+            self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 2, 1)
 
 
@@ -978,7 +1004,10 @@ class optionChoice(option):
         if self._value is not None:
             self._control.set_active_id(self.format_value())
         self._control.show()
-        self._control.connect('changed', self._updated)
+        if not self._defer:
+            self._control.connect('changed', self._updated)
+        if self._readonly:
+            self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 2, 1)
 
 

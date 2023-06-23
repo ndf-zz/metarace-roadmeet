@@ -127,13 +127,15 @@ _CONFIG_SCHEMA = {
     },
     'categories': {
         'prompt': 'Categories:',
-        'hint': 'Categories included in startlists and results'
+        'hint': 'Startlist and result categories',
+        'defer': True
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
         'control': 'short',
         'places': 1,
         'type': 'tod',
+        'hint': 'Reject laps shorter than minimum lap time',
         'attr': 'minlap'
     },
     'totlaps': {
@@ -145,18 +147,12 @@ _CONFIG_SCHEMA = {
         'hint': 'Default target number of laps for event'
     },
     'autofinish': {
-        'prompt':
-        'Finish:',
-        'control':
-        'check',
-        'type':
-        'bool',
-        'attr':
-        'targetlaps',
-        'subtext':
-        'Automatically Finish?',
-        'hint':
-        'If enabled, riders are automatically finished when lap count matches target laps',
+        'prompt': 'Finish:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'targetlaps',
+        'subtext': 'Automatically Finish?',
+        'hint': 'Automatically finish riders on target lap',
     },
     'autoexport': {
         'prompt': 'Export:',
@@ -164,7 +160,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
-        'hint': 'If enabled, results will be exported automatically',
+        'hint': 'Export result automatically',
     },
     'showdowntimes': {
         'prompt': 'Down Times:',
@@ -172,7 +168,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'showdowntimes',
         'subtext': 'Show on result?',
-        'hint': 'If enabled, down times are displayed on results',
+        'hint': 'Display down times on result',
     },
     'dofastestlap': {
         'prompt': 'Fastest Lap:',
@@ -180,14 +176,13 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'dofastestlap',
         'subtext': 'Report with result?',
-        'hint': 'If enabled, the fastest lap will be reported with results',
+        'hint': 'Report fastest lap time with categorised result',
     },
     'timelimit': {
         'prompt': 'Time Limit:',
         'control': 'short',
         'attr': 'timelimit',
-        'hint':
-        'Time limit as percent, down time or absolute: 12%  +1:23  4h00:00'
+        'hint': 'Time limit eg: 12%  +1:23  4h00:00'
     },
     'gapthresh': {
         'prompt': 'Time Gap:',
@@ -203,7 +198,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'clubmode',
         'subtext': 'Add starters by transponder passing?',
-        'hint': 'Riders automatically added to event on passing',
+        'hint': 'Add riders to event on passing',
     },
     'allowspares': {
         'prompt': 'Spares:',
@@ -211,7 +206,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'allowspares',
         'subtext': 'Record spare bike passings?',
-        'hint': 'Spare bike passings will be added to event as placeholders',
+        'hint': 'Add spare bike passings to event as placeholders',
     },
 }
 
@@ -231,7 +226,7 @@ class rms:
         self.reserved_sources = [i for i in RESERVED_SOURCES]
 
         if 'AUTO' in cats:  # ignore any others and re-load from rdb
-            self.cats = self.meet.rdb.listcats()
+            self.cats = list(self.meet.rdb.listcats())
             self.autocats = True
         else:
             self.autocats = False
@@ -1800,7 +1795,7 @@ class rms:
                         None, 'Average speed of the winner: ' +
                         we.speedstr(1000.0 * dval)
                     ])
-            if dofastest:
+            if self.event['type'] == 'handicap' and dofastest:
                 if vfastest and vfastest < fastest:
                     _log.info('Fastest time not yet available')
                 else:
@@ -3488,8 +3483,13 @@ class rms:
                                  obj=self)
         # handle a change in result categories
         if res['categories'][0]:
-            self.loadcats(res['categories'][2].split())
+            self.loadcats(res['categories'][2].upper().split())
             self.load_cat_data()
+            if len(self.cats) > 1:
+                _log.info('Loaded result categories: %s',
+                          ', '.join(self.cats[0:-1]))
+            else:
+                _log.info('Result categories cleared')
         return False
 
     def getbunch_iter(self, iter):

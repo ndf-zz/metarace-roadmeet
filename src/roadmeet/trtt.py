@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Road team time time trial."""
 
-#import os
 import gi
 import logging
 import threading
@@ -68,13 +67,15 @@ _CONFIG_SCHEMA = {
     },
     'categories': {
         'prompt': 'Categories:',
-        'hint': 'Categories included in startlists and results'
+        'hint': 'Startlist and result categories',
+        'defer': True
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
         'control': 'short',
         'places': 1,
         'type': 'tod',
+        'hint': 'Reject laps shorter than minimum lap time',
         'attr': 'minlap'
     },
     'totlaps': {
@@ -98,7 +99,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'owntime',
         'subtext': 'Dropped riders get own time?',
-        'hint': 'Riders finishing behind team awarded their own time',
+        'hint': 'Award riders finishing behind team their own time',
     },
     'showriders': {
         'prompt': 'Show Riders:',
@@ -122,8 +123,7 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'targetlaps',
         'subtext': 'Automatically Finish?',
-        'hint':
-        'Automatically finish riders when lap count matches target laps',
+        'hint': 'Automatically finish riders on target lap',
     },
     'autoexport': {
         'prompt': 'Export:',
@@ -131,16 +131,16 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
-        'hint': 'If enabled, results will be exported automatically',
+        'hint': 'Export result automatically',
     },
     # Note: on trtt, time limit usually requires manual intervention
-    #'timelimit': {
-    #'prompt': 'Time Limit:',
-    #'control': 'short',
-    #'attr': 'timelimit',
-    #'hint':
-    #'Time limit as percent, down time or absolute: 12%  +1:23  4h00:00'
-    #},
+    'timelimit': {
+        'prompt': 'Time Limit:',
+        'control': 'short',
+        'attr': 'timelimit',
+        'readonly': True,
+        'hint': 'Time limit eg: 12%  +1:23  4h00:00'
+    },
     'gapthresh': {
         'prompt': 'Time Gap:',
         'control': 'short',
@@ -150,21 +150,22 @@ _CONFIG_SCHEMA = {
         'attr': 'gapthresh'
     },
     # Clubmode may trigger problems with team data, todo: fix addrider
-    #'clubmode': {
-    #'prompt': 'Club Mode:',
-    #'control': 'check',
-    #'type': 'bool',
-    #'attr': 'clubmode',
-    #'subtext': 'Add starters by transponder passing?',
-    #'hint': 'Riders automatically added to event on passing',
-    #},
+    'clubmode': {
+        'prompt': 'Club Mode:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'clubmode',
+        'readonly': True,
+        'subtext': 'Add starters by transponder passing?',
+        'hint': 'Add riders to event on passing',
+    },
     'allowspares': {
         'prompt': 'Spares:',
         'control': 'check',
         'type': 'bool',
         'attr': 'allowspares',
         'subtext': 'Record spare bike passings?',
-        'hint': 'Spare bike passings will be added to event as placeholders',
+        'hint': 'Add spare bike passings to event as placeholders',
     },
 }
 

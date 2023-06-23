@@ -100,13 +100,15 @@ _CONFIG_SCHEMA = {
     },
     'categories': {
         'prompt': 'Categories:',
-        'hint': 'Categories included in startlists and results'
+        'hint': 'Startlist and result categories',
+        'defer': True
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
         'control': 'short',
         'places': 1,
         'type': 'tod',
+        'hint': 'Reject laps shorter than minimum lap time',
         'attr': 'minlap'
     },
     'totlaps': {
@@ -129,6 +131,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Autotime:',
         'control': 'check',
         'type': 'bool',
+        'defer': True,
         'attr': 'autoimpulse',
         'subtext': 'Match impulses to transponder?',
         'hint': 'Impulses automatically matched to transponder readings',
@@ -137,6 +140,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Start Loop:',
         'control': 'short',
         'type': 'chan',
+        'defer': True,
         'attr': 'startloop',
         'hint': 'Transponder loop/channel ID at start line'
     },
@@ -144,6 +148,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Finish Loop:',
         'control': 'short',
         'type': 'chan',
+        'defer': True,
         'attr': 'finishloop',
         'hint': 'Transponder loop/channel ID at finish line'
     },
@@ -151,9 +156,10 @@ _CONFIG_SCHEMA = {
         'prompt': 'Start:',
         'control': 'check',
         'type': 'bool',
+        'defer': True,
         'attr': 'strictstart',
         'subtext': 'Start times are strict?',
-        'hint': 'Rider start times are checked against schedule',
+        'hint': 'Check rider start times against schedule',
     },
     'arrivaltimeout': {
         'prompt': 'Arvl Timeout:',
@@ -177,39 +183,33 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
-        'hint': 'If enabled, results will be exported automatically',
+        'hint': 'Export result automatically',
     },
     'timelimit': {
         'prompt': 'Time Limit:',
         'control': 'short',
         'attr': 'timelimit',
-        'hint':
-        'Time limit as percent, down time or absolute: 12%  +1:23  4h00:00'
+        'hint': 'Time limit eg: 12%  +1:23  4h00:00',
     },
     # Clubmode does not function well with irtt
-    #'clubmode': {
-    #'prompt': 'Club Mode:',
-    #'control': 'check',
-    #'type': 'bool',
-    #'attr': 'clubmode',
-    #'subtext': 'Add starters by transponder passing?',
-    #'hint': 'Riders automatically added to event on passing',
-    #},
+    'clubmode': {
+        'prompt': 'Club Mode:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'clubmode',
+        'subtext': 'Add starters by transponder passing?',
+        'hint': 'Add riders to event on passing',
+    },
     # Spare bikes should be handled manually on irtt
-    #'allowspares': {
-    #'prompt':
-    #'Spares:',
-    #'control':
-    #'check',
-    #'type':
-    #'bool',
-    #'attr':
-    #'allowspares',
-    #'subtext':
-    #'Record spare bike passings?',
-    #'hint':
-    #'Spare bike passings will be added to event as placeholders',
-    #},
+    'allowspares': {
+        'prompt': 'Spares:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'allowspares',
+        'subtext': 'Record spare bike passings?',
+        'readonly': True,
+        'hint': 'Add spare bike passings to event as placeholders',
+    },
 }
 
 
