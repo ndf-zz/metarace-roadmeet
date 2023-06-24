@@ -66,6 +66,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Type:',
         'control': 'choice',
         'attr': 'etype',
+        'defer': True,
         'options': ROADRACE_TYPES,
     },
     'title': {
@@ -85,7 +86,7 @@ _CONFIG_SCHEMA = {
     },
     'document': {
         'prompt': 'Location:',
-        'hint': 'Text for the meet location or document line',
+        'hint': 'Text for the meet location / document line',
         'attr': 'document_str'
     },
     'date': {
@@ -121,7 +122,7 @@ _CONFIG_SCHEMA = {
         'control': 'check',
         'type': 'bool',
         'subtext': 'Provisional?',
-        'hint': 'If enabled, startlist reports will be marked provisional',
+        'hint': 'Mark startlist reports as provisional',
         'attr': 'provisionalstart'
     },
     'sectele': {
@@ -130,12 +131,12 @@ _CONFIG_SCHEMA = {
     },
     'anntopic': {
         'prompt': 'Announce:',
-        'hint': 'Base topic for announce messages',
+        'hint': 'Base topic for announcer messages',
         'attr': 'anntopic'
     },
     'timertopic': {
         'prompt': 'Timer:',
-        'hint': 'Topic for timer messages',
+        'hint': 'Full topic for timer messages',
         'attr': 'timertopic'
     },
     'remote_enable': {
@@ -143,8 +144,7 @@ _CONFIG_SCHEMA = {
         'control': 'check',
         'type': 'bool',
         'subtext': 'Receive remote timer messages?',
-        'hint':
-        'If enabled, remote timer messages are received on timer topic',
+        'hint': 'Receive remote timer messages from timer topic',
         'attr': 'remote_enable'
     },
     'sechw': {
@@ -153,12 +153,14 @@ _CONFIG_SCHEMA = {
     },
     'timer': {
         'prompt': 'Transponders:',
-        'hint': 'Transponder decoder port',
+        'hint': 'Transponder decoder spec TYPE:ADDR, eg: rrs:10.1.2.3',
+        'defer': True,
         'attr': 'timer_port'
     },
     'alttimer': {
         'prompt': 'Impulse:',
-        'hint': 'Impulse timer port',
+        'hint': 'Impulse timer port eg: /dev/ttyS0',
+        'defer': True,
         'attr': 'alttimer_port'
     },
     'secexp': {
@@ -211,7 +213,7 @@ _CONFIG_SCHEMA = {
         'control': 'check',
         'type': 'bool',
         'subtext': 'Build LIF file on export?',
-        'hint': 'If enabled, a LIF result file will be built on export',
+        'hint': 'Export LIF result file with results',
         'attr': 'lifexport'
     },
 }
@@ -409,6 +411,7 @@ class roadmeet:
         if eh is not None:
             self.open_event(eh)
             self.set_title()
+        return False
 
     def menu_race_close_activate_cb(self, menuitem, data=None):
         """Close callback - disabled in roadrace."""
@@ -1421,7 +1424,9 @@ class roadmeet:
         """Handle a change in the rider model"""
         if rider is not None:
             r = self.rdb[rider]
-            if rider[1] != 'cat':
+            # note: duplicate ids mangle series, so use series from rider
+            series = r['series'].lower()
+            if series != 'cat':
                 otag = None
                 ntag = r['refid'].lower()
                 if rider in self._maptag:
@@ -1435,24 +1440,41 @@ class roadmeet:
                         self._maptag[rider] = ntag
                         self._tagmap[ntag] = rider
                     _log.debug('Updated tag map %r = %r', ntag, rider)
+                found = False
                 for lr in self._rlm:
-                    if lr[0] == rider[0] and lr[1] == rider[1]:
+                    if lr[7] == rider:
                         lr[2] = r.fitname(64)
                         lr[3] = r['org']
                         lr[4] = r['cat']
                         lr[5] = r['refid']
                         lr[6] = htlib.escape(r.summary())
+                        found = True
                         break
+                if not found:
+                    lr = [
+                        rider[0], series,
+                        r.fitname(64), r['org'], r['cat'], r['refid'],
+                        htlib.escape(r.summary()), rider
+                    ]
+                    self._rlm.append(lr)
             else:
+                found = False
                 for lr in self._clm:
-                    if lr[0] == rider[0]:
+                    if lr[7] == rider:
                         lr[1] = r['title']
                         lr[2] = r['subtitle']
                         lr[3] = r['footer']
                         lr[4] = r['target']
                         lr[5] = r['distance']
                         lr[6] = r['start']
+                        found = True
                         break
+                if not found:
+                    lr = [
+                        rider[0], r['title'], r['subtitle'], r['footer'],
+                        r['target'], r['distance'], r['start'], rider
+                    ]
+                    self._clm.append(lr)
         else:
             # assume entire map has to be rebuilt
             self._tagmap = {}
@@ -1461,22 +1483,23 @@ class roadmeet:
             self._clm.clear()
             for r in self.rdb:
                 dbr = self.rdb[r]
-                if r[1] != 'cat':
+                # note: duplicate ids mangle series, so use series from rider
+                series = dbr['series'].lower()
+                if series != 'cat':
                     refid = dbr['refid'].lower()
                     if refid:
                         self._tagmap[refid] = r
                         self._maptag[r] = refid
                     rlr = [
-                        dbr['bib'], dbr['ser'],
+                        r[0], series,
                         dbr.fitname(64), dbr['org'], dbr['cat'], dbr['refid'],
-                        htlib.escape(dbr.summary())
+                        htlib.escape(dbr.summary()), r
                     ]
                     self._rlm.append(rlr)
                 else:
                     rlr = [
-                        dbr['id'], dbr['title'], dbr['subtitle'],
-                        dbr['footer'], dbr['target'], dbr['distance'],
-                        dbr['start']
+                        r[0], dbr['title'], dbr['subtitle'], dbr['footer'],
+                        dbr['target'], dbr['distance'], dbr['start'], r
                     ]
                     self._clm.append(rlr)
             _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
@@ -1550,6 +1573,196 @@ class roadmeet:
             elif col == 5:
                 if new_text.lower() != r['refid']:
                     r['refid'] = new_text.lower()
+
+    def _view_button_press(self, view, event):
+        """Handle mouse button event on tree view"""
+        if event.type == Gdk.EventType.BUTTON_PRESS:
+            if event.button == Gdk.BUTTON_SECONDARY:
+                self._cur_model = view.get_model()
+                pathinfo = view.get_path_at_pos(int(event.x), int(event.y))
+                if pathinfo is not None:
+                    path, col, cellx, celly = pathinfo
+                    view.grab_focus()
+                    view.set_cursor(path, col, False)
+                    sel = view.get_selection().get_selected()
+                    if sel is not None:
+                        i = sel[1]
+                        r = Gtk.TreeModelRow(self._cur_model, i)
+                        self._cur_rider_sel = r[7]
+                    else:
+                        _log.error('Invalid selection ignored')
+                        self._cur_rider_sel = None
+                self._rider_menu.popup_at_pointer(None)
+                return True
+        return False
+
+    def rider_add_cb(self, menuitem, data=None):
+        """Create a new rider entry and edit the content"""
+        nser = ''
+        if self._cur_model is self._clm:
+            nser = 'cat'
+        dbr = riderdb.rider(series=nser)
+        schema = dbr.get_schema()
+        rtype = schema['rtype']['prompt']
+        short = 'Create New %s' % (rtype)
+        res = uiutil.options_dlg(window=self.window,
+                                 title=short,
+                                 schema=schema,
+                                 obj=dbr)
+        chg = False
+        for k in res:
+            if res[k][0]:
+                chg = True
+                break
+        if chg:
+            rider = self.rdb.add_rider(dbr, overwrite=False)
+            GLib.idle_add(self.select_row, rider)
+
+    def select_row(self, rider):
+        """Select rider view model if possible"""
+        if rider in self.rdb:
+            rdb = self.rdb[rider]
+            model = self._rlm
+            view = self._rlv
+            if rdb['series'].lower() == 'cat':
+                model = self._clm
+                view = self._clv
+            found = False
+            for r in model:
+                if r[7] == rider:
+                    view.set_cursor(r.path, None, False)
+                    found = True
+                    break
+            if not found:
+                _log.debug('Entry %r not found, unable to select', rider)
+        return False
+
+    def rider_edit_cb(self, menuitem, data=None):
+        """Edit properties of currently selected entry in riderdb"""
+        if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
+            doreopen = False
+            rider = self._cur_rider_sel
+            dbr = self.rdb[rider]
+            schema = dbr.get_schema()
+            rtype = schema['rtype']['prompt']
+            short = 'Edit %s %s' % (rtype, dbr.get_bibstr())
+            res = uiutil.options_dlg(window=self.window,
+                                     title=short,
+                                     schema=schema,
+                                     obj=dbr)
+            if rtype == 'Team':
+                # Patch the org value which is not visible, without notify
+                dbr.set_value('org', dbr['no'].upper())
+            if res['no'][0] or res['series'][0]:
+                # change of number or series requires some care
+                self._cur_rider_sel = None
+                newrider = self.rdb.add_rider(dbr,
+                                              notify=False,
+                                              overwrite=False)
+                if rtype == 'Category':
+                    if uiutil.questiondlg(
+                            window=self.window,
+                            question='Update rider categories?',
+                            subtext=
+                            'Riders in the old category will be updated to the new one',
+                            title='Update Cats?'):
+                        self.rdb.update_cats(res['no'][1],
+                                             res['no'][2],
+                                             notify=False)
+                        # and current event
+                        if self.curevent is not None:
+                            if res['no'][1].upper() in self.curevent.cats:
+                                nc = []
+                                for c in self.curevent.cats:
+                                    if c == res['no'][1].upper():
+                                        nc.append(res['no'][2].upper())
+                                    else:
+                                        nc.append(c)
+                                self.curevent.loadcats(nc)
+                                doreopen = True
+                else:
+                    # update curevent
+                    if self.curevent is not None:
+                        if self.curevent.getrider(res['no'][1],
+                                                  res['series'][1]):
+                            # rider was in event, add new one
+                            self.curevent.addrider(dbr['no'], dbr['series'])
+                            if self.curevent.timerstat == 'idle':
+                                self.curevent.delrider(res['no'][1],
+                                                       res['series'][1])
+                            else:
+                                _log.warning(
+                                    'Changed rider number %r => %r, check data',
+                                    res['no'][1], res['no'][2])
+
+                # del triggers a global notify
+                del (self.rdb[rider])
+
+                # then try to select the modified row
+                GLib.idle_add(self.select_row, newrider)
+
+                # then reopen curevent if flagged after notify
+                if doreopen:
+                    GLib.idle_add(self.menu_race_run_activate_cb)
+            else:
+                # notify meet and event of any changes, once
+                for k in res:
+                    if res[k][0]:
+                        dbr.notify()
+                        break
+
+    def rider_lookup_cb(self, menuitem, data=None):
+        _log.info('Rider lookup not yet enabled')
+
+    def rider_delete_cb(self, menuitem, data=None):
+        """Delete currently selected entry from riderdb"""
+        if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
+            dbr = self.rdb[self._cur_rider_sel]
+            tv = []
+            series = dbr['series']
+            if series == 'cat':
+                tv.append('Category')
+                tv.append(dbr['no'].upper())
+                tv.append(':')
+                tv.append(dbr['first'])
+            elif series == 'team':
+                tv.append('Team')
+                tv.append(dbr['no'].upper())
+                tv.append(':')
+                tv.append(dbr['first'])
+            elif series == 'ds':
+                tv.append('DS')
+                tv.append(dbr.listname())
+            elif series == 'spare':
+                tv.append('Spare Bike')
+                tv.append(dbr['no'])
+                tv.append(dbr['org'])
+            else:
+                tv.append('Rider')
+                tv.append(dbr.get_bibstr())
+                tv.append(dbr.listname())
+                if dbr['cat']:
+                    tv.append(dbr['cat'].upper())
+            short = ' '.join(tv[0:2])
+            text = 'Delete %s?' % (short)
+            info = 'This action will permanently delete %s' % (' '.join(tv))
+            if uiutil.questiondlg(window=self.window,
+                                  question=text,
+                                  subtext=info,
+                                  title='Delete?'):
+                if self.curevent is not None:
+                    if series == 'cat':
+                        cat = dbr['no'].upper()
+                        if cat in self.curevent.cats:
+                            _log.warning('Deleted cat %s in open event', cat)
+                    elif series not in ['ds', 'spare', 'team']:
+                        self.curevent.delrider(dbr['no'], series)
+                        _log.info('Remove rider %s from event', short)
+                del (self.rdb[self._cur_rider_sel])
+                _log.info('Deleted %s', short)
+                self._cur_rider_sel = None
+            else:
+                _log.debug('Aborted')
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
@@ -1668,6 +1881,13 @@ class roadmeet:
         self.lh.setLevel(logging.INFO)  # show info+ in text view
         rootlogger.addHandler(self.lh)
 
+        # create a rider context menu
+        bc = uiutil.builder('rider_context.ui')
+        self._rider_menu = bc.get_object('rider_context')
+        self._cur_rider_sel = None
+        self._cur_model = None
+        bc.connect_signals(self)
+
         # Build a rider list store and view
         self._rlm = Gtk.ListStore(
             str,  # no 0
@@ -1677,6 +1897,7 @@ class roadmeet:
             str,  # categories 4
             str,  # Refid 5
             str,  # tooltip 6
+            object,  # rider ref 7
         )
         t = Gtk.TreeView(self._rlm)
         t.set_reorderable(True)
@@ -1689,6 +1910,8 @@ class roadmeet:
         uiutil.mkviewcoltxt(t, 'Cats', 4, width=80, cb=self._editcol_cb)
         uiutil.mkviewcoltxt(t, 'Refid', 5, width=80, cb=self._editcol_cb)
         t.show()
+        t.connect('button_press_event', self._view_button_press)
+        self._rlv = t
         b.get_object('riders_box').add(t)
 
         # Build a cat list store and view
@@ -1700,6 +1923,7 @@ class roadmeet:
             str,  # Target Laps 4
             str,  # Distance 5
             str,  # Start Offset 6
+            object,  # Rider ref 7
         )
         t = Gtk.TreeView(self._clm)
         t.set_reorderable(True)
@@ -1733,6 +1957,8 @@ class roadmeet:
                             cb=self._catcol_cb)
 
         t.show()
+        t.connect('button_press_event', self._view_button_press)
+        self._clv = t
         b.get_object('cat_box').add(t)
 
         # get rider db

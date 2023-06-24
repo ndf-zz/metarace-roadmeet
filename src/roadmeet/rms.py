@@ -541,9 +541,13 @@ class rms:
 
         # load starts and targets and then handle lap situation
         self.load_cat_data()
-        for c in self.catstarts:
-            if self.catstarts[c] is not None:
-                onestoft = True
+        if self.event['type'] != 'handicap':
+            for c in self.catstarts:
+                if self.catstarts[c] is not None:
+                    onestoft = True
+        else:
+            # don't autohide the start column for handicaps
+            onestoft = True
 
         # auto-hide the start column
         if not onestoft:
@@ -2157,31 +2161,35 @@ class rms:
             r[COL_MBUNCH] = None
         _log.debug('Clear rider data')
 
-    def getrider(self, bib):
+    def getrider(self, bib, series=''):
         """Return reference to selected rider no."""
         ret = None
-        for r in self.riders:
-            if r[COL_BIB] == bib:
-                ret = r
-                break
+        if series == self.series:
+            for r in self.riders:
+                if r[COL_BIB] == bib:
+                    ret = r
+                    break
         return ret
 
-    def getiter(self, bib):
+    def getiter(self, bib, series=''):
         """Return temporary iterator to model row."""
-        i = self.riders.get_iter_first()
-        while i is not None:
-            if self.riders.get_value(i, COL_BIB) == bib:
-                break
-            i = self.riders.iter_next(i)
+        i = None
+        if series == self.series:
+            i = self.riders.get_iter_first()
+            while i is not None:
+                if self.riders.get_value(i, COL_BIB) == bib:
+                    break
+                i = self.riders.iter_next(i)
         return i
 
     def delrider(self, bib='', series=''):
         """Remove the specified rider from the model."""
-        i = self.getiter(bib)
-        if i is not None:
-            self.riders.remove(i)
-            self.ridernos.remove(bib)
-        self.clear_place(bib)
+        if series == self.series:
+            self.clear_place(bib)
+            i = self.getiter(bib, series)
+            if i is not None:
+                self.riders.remove(i)
+                self.ridernos.remove(bib)
 
     def starttime(self, start=None, bib='', series=''):
         """Adjust start time for the rider."""
@@ -2415,7 +2423,7 @@ class rms:
             i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Confirmed next place: %r/%s', selbib, selpath)
+            _log.debug('Confirmed next place: %r/%s', selbib, selpath)
             nplaces = []
             # remove selected rider from places
             for placegroup in self.places.split():
@@ -2436,7 +2444,7 @@ class rms:
                 lr = Gtk.TreeModelRow(self.riders, j)
                 if lr[COL_PLACE] or lr[COL_RFTIME] is not None or lr[
                         COL_MBUNCH] is not None:
-                    self.view.set_cursor(self.riders.get_path(j), None, False)
+                    self.view.set_cursor(lr.path, None, False)
 
     def fill_places_to_selected(self):
         """Update places to match ordering up to selected rider."""
@@ -2477,7 +2485,7 @@ class rms:
                 lr = Gtk.TreeModelRow(self.riders, j)
                 if lr[COL_PLACE] or lr[COL_RFTIME] is not None or lr[
                         COL_MBUNCH] is not None:
-                    self.view.set_cursor(self.riders.get_path(j), None, False)
+                    self.view.set_cursor(lr.path, None, False)
 
     def clear_places_from_selection(self):
         """Clear all places from riders following the current selection."""

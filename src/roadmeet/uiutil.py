@@ -753,7 +753,7 @@ class option:
             self._value = schema['value']
         if self._attr is not None and self._value is None:
             if isinstance(self._obj, rider):
-                self._value = self._obj[attr]
+                self._value = self._obj[self._attr]
             else:
                 self._value = getattr(self._obj, self._attr)
         self._oldvalue = self._value
@@ -863,7 +863,8 @@ class option:
         self._value = newval
         if self._obj is not None and self._attr is not None:
             if isinstance(self._obj, rider):
-                self._obj[attr] = self._value
+                # Don't trigger notify in this path - leave that to the caller
+                self._obj.set_value(self._attr, self._value)
             else:
                 # assume object.attribute
                 setattr(self._obj, self._attr, self._value)
@@ -919,7 +920,7 @@ class optionShort(option):
         grid.attach(lbl, 0, row, 1, 1)
 
         self._control = Gtk.Entry()
-        self._control.set_width_chars(9)
+        self._control.set_width_chars(11)
         self._control.set_activates_default(True)
         if self._value is not None:
             self._control.set_text(self.format_value())

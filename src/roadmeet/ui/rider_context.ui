@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<interface>
+  <!-- interface-naming-policy project-wide -->
+  <object class="GtkMenu" id="rider_context">
+    <property name="visible">True</property>
+    <child>
+      <object class="GtkMenuItem" id="rider_edit">
+        <property name="label">Edit</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text">Edit details</property>
+        <signal name="activate" handler="rider_edit_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_lookup">
+        <property name="label">Lookup</property>
+        <property name="visible">True</property>
+        <property name="sensitive">False</property>
+        <property name="tooltip_text">Look up details on UCI Dataride</property>
+        <signal name="activate" handler="rider_lookup_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rider_sep1">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_add">
+        <property name="label">Add</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text">Add new entry</property>
+        <signal name="activate" handler="rider_add_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_del">
+        <property name="label">Delete</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text">Delete entry</property>
+        <signal name="activate" handler="rider_delete_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_import">
+        <property name="label">Import CSV</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text">Load rider data from CSV</property>
+        <signal name="activate" handler="menu_import_riders_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_chipfil">
+        <property name="label">Load Chipfile</property>
+        <property name="visible">True</property>
+        <property name="tooltip_text">Load transponders from CSV</property>
+        <signal name="activate" handler="menu_import_chipfile_activate_cb"/>
+      </object>
+    </child>
+  </object>
+</interface>
