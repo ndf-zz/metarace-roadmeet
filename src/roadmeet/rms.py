@@ -460,9 +460,9 @@ class rms:
         self.loadstageinters(cr, 'rms')
 
         # load competitors
-        starters = cr.get('rms', 'startlist').split()
-        if len(starters) == 1 and starters[0] == 'all':
-            starters = strops.riderlist_split('all', self.meet.rdb)
+        starters = strops.riderlist_split(
+            cr.get('rms', 'startlist').upper().strip(), self.meet.rdb)
+
         self.allowspares = cr.get_bool('rms', 'allowspares')
         onestoft = False
         oneseed = False
@@ -2258,6 +2258,12 @@ class rms:
             self.meet.cmd_announce('timerstat', 'armstart')
             self.meet.stat_but.update('activity', 'Arm Start')
             self.resetcatonlaps()
+            self.armlap()
+            if self.live_announce:
+                self.meet.cmd_announce('clear', 'all')
+                if self.event['type'] in ['criterium', 'circuit', 'cross']:
+                    self.armlap()
+
         elif self.timerstat == 'armstart':
             self.timerstat = 'idle'
             self.meet.cmd_announce('timerstat', 'idle')
@@ -2355,10 +2361,11 @@ class rms:
                 pass
             else:  # at start?
                 self.lapstart = self.start
-            if self.totlaps is not None and self.onlap is not None:
-                if self.totlaps > 0:
+            if self.onlap is not None:
+                if self.totlaps is not None and self.totlaps > 0:
                     lapstr = ('Lap ' + str(self.onlap) + '/' +
                               str(self.totlaps))
+                    self.totlapentry.set_text(str(self.totlaps))
                 else:  # 0 flags unknown total
                     lapstr = ''
                     passkey = str(self.curlap)
@@ -2366,7 +2373,6 @@ class rms:
                         lapstr = 'At ' + self.passlabels[passkey]
                     else:
                         lapstr = ('Lap ' + str(self.onlap))
-                self.totlapentry.set_text(str(self.totlaps))
                 self.meet.cmd_announce('laplbl', lapstr)
             else:
                 # make sure something is displayed in this path
@@ -2893,7 +2899,7 @@ class rms:
                         if self.lapfin is None:
                             self.set_lap_finish(e)
                         self.announce_rider('', bib, lr[COL_NAMESTR],
-                                            lr[COL_CAT], e)
+                                            lr[COL_CAT], e, lr[COL_LAPS])
             else:
                 _log.info('Duplicate finish rider %s:%s@%s/%s', bib, e.chan,
                           e.rawtime(2), e.source)
@@ -2976,18 +2982,23 @@ class rms:
                         pass
 
                 # announce all rider passings
-                self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e)
+                self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e,
+                                    lr[COL_LAPS])
         return False
 
-    def announce_rider(self, place, bib, namestr, cat, rftime):
+    def announce_rider(self, place, bib, namestr, cat, rftime, lap=None):
         """Log a rider in the lap and emit to announce."""
         if bib not in self.scratch_map:
             self.scratch_map[bib] = rftime
             self.scratch_ord.append(bib)
         if self.live_announce:
+            if lap is not None:
+                lap = str(lap)
+            else:
+                lap = ''
             GLib.idle_add(self.meet.rider_announce,
                           [place, bib, namestr, cat,
-                           rftime.rawtime()])
+                           rftime.rawtime(), lap])
 
     def lapentry_activate_cb(self, entry, data=None):
         """Transfer lap entry string into model if possible."""
@@ -3227,10 +3238,11 @@ class rms:
         lapstr = None
         if self.timerstat not in ['armfinish', 'finished']:
             self.meet.cmd_announce('finstr', None)
-            if self.totlaps is not None and self.onlap is not None:
-                if self.totlaps > 0:
+            if self.onlap is not None:
+                if self.totlaps is not None and self.totlaps > 0:
                     lapstr = ('Lap ' + str(self.onlap) + '/' +
                               str(self.totlaps))
+                    self.totlapentry.set_text(str(self.totlaps))
                 else:  # 0 flags unknown total
                     lapstr = ''
                     passkey = str(self.curlap)
@@ -3238,7 +3250,6 @@ class rms:
                         lapstr = 'At ' + self.passlabels[passkey]
                     else:
                         lapstr = ('Lap ' + str(self.onlap))
-                self.totlapentry.set_text(str(self.totlaps))
                 self.meet.cmd_announce('laplbl', lapstr)
             else:
                 # make sure something is displayed in this path
@@ -3294,22 +3305,19 @@ class rms:
                 # time limit is applied to total event time/first finisher
                 limit = self.decode_limit(self.timelimit, ft)
                 if limit is not None:
-                    evec.append('Limit:')
-                    evec.append('+' + (limit - ft).rawtime(0))
+                    evec.append('Limit: +' + (limit - ft).rawtime(0))
             else:
                 evec.append(et.rawtime(0))
                 if self.lapfin is not None:
                     # prev lap time
                     if self.lapstart is not None:
-                        evec.append('Lap:')
-                        #evec.append((self.lapfin - self.start).rawtime(0))
-                        #evec.append('/')
-                        evec.append((self.lapfin - self.lapstart).rawtime(0))
+                        evec.append('Lap: ' +
+                                    (self.lapfin - self.lapstart).rawtime(0))
                     # lap down time
                     dt = nt - self.lapfin
                     if dt < MAXELAP:
                         evec.append('+' + (dt).rawtime(0))
-            elapmsg = ' '.join(evec)
+            elapmsg = '\u2003'.join(evec)
             self.elaplbl.set_text(elapmsg)
             self.meet.cmd_announce('elapmsg', elapmsg)
         else:
