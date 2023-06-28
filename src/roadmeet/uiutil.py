@@ -4,7 +4,7 @@
 import os
 import gi
 import logging
-from importlib_resources import files
+from importlib.resources import files
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
