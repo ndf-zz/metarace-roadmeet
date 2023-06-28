@@ -37,7 +37,7 @@ from roadmeet.rms import rms
 from roadmeet.irtt import irtt
 from roadmeet.trtt import trtt
 
-VERSION = '1.13.0'
+VERSION = '1.13.1'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
