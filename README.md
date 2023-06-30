@@ -18,6 +18,12 @@ ad-hoc time trial events.
 
 ## Installation
 
+Download the debian installer script and run:
+
+	$ sh install_deb.sh
+
+Alternatively perform the steps listed below.
+
 ### Debian 11+
 
 Install system requirements for roadmeet and metarace with apt:
