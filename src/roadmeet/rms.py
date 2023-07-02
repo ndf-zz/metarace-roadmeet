@@ -1517,7 +1517,7 @@ class rms:
                         # only consider laps between stime and ftime
                         stime = self.start
                         if sof is not None:
-                            time += sof
+                            stime += sof
                         ftime = tod.now()
                         if r[COL_RFTIME] is not None:
                             ftime = r[COL_RFTIME]
