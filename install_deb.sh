@@ -54,23 +54,23 @@ DPATH="$HOME/Documents/metarace"
 VDIR="venv"
 VPATH="$DPATH/$VDIR"
 echo -n "Venv: "
-if [ -d $VPATH ] ; then
-  echo $VPATH
+if [ -d "$VPATH" ] ; then
+  echo "$VPATH"
 else
   echo Build new.
-  mkdir -p $DPATH
+  mkdir -p "$DPATH"
 fi
 
 # re-build venv
 echo -n "Updating venv: "
-python3 -m venv --system-site-packages $VPATH
+python3 -m venv --system-site-packages "$VPATH"
 echo Done.
 
 # install packages
 echo -n "Updating roadmeet: "
-if [ -e $VPATH/bin/pip3 ] ; then 
-  $VPATH/bin/pip3 -q install metarace-roadmeet --upgrade
-  echo $VPATH/bin/roadmeet
+if [ -e "$VPATH/bin/pip3" ] ; then 
+  "$VPATH/bin/pip3" -q install metarace-roadmeet --upgrade
+  echo "$VPATH/bin/roadmeet"
 else
   echo Unable to install: Virtual env not setup.
 fi
@@ -78,12 +78,12 @@ fi
 # install desktop shortcut entry
 echo -n "Desktop entry: "
 SPATH="$HOME/.local/share/applications/metarace"
-mkdir -p $SPATH
-if [ -e $SPATH/roadmeet.desktop ] ; then
+mkdir -p "$SPATH"
+if [ -e "$SPATH/roadmeet.desktop" ] ; then
   echo Unchanged.
 else
-  TMPF=`mktemp -p $SPATH`
-  tee $TMPF <<__EOF__ >/dev/null
+  TMPF=`mktemp -p "$SPATH"`
+  tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -95,8 +95,8 @@ Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
 __EOF__
-  mv $TMPF $SPATH/roadmeet.desktop
-  echo $SPATH/roadmeet.desktop
+  mv "$TMPF" "$SPATH/roadmeet.desktop"
+  echo "$SPATH/roadmeet.desktop"
 fi
 echo
 echo Package roadmeet installed.
