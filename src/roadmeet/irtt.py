@@ -404,13 +404,13 @@ class irtt(rms):
             if st is not None:  # still none is error
                 pt = lr[COL_TODPENALTY]
                 # penalties are added into stage result - for consistency
-                ret = (ft - st) + pt
+                ret = ((ft - st) + pt).truncate(self.precision)
         elif runtime:
             st = lr[COL_TODSTART]
             if st is None:  # defer to start time
                 st = lr[COL_WALLSTART]
             if st is not None:  # still none is error
-                ret = tod.now() - st  # runtime increases!
+                ret = (tod.now() - st).truncate(self.precision)
         return ret
 
     def getelapsed(self, iter, runtime=False):
@@ -424,13 +424,13 @@ class irtt(rms):
             if st is not None:  # still none is error
                 pt = self.riders.get_value(iter, COL_TODPENALTY)
                 # penalties are added into stage result - for consistency
-                ret = (ft - st) + pt
+                ret = ((ft - st) + pt).truncate(self.precision)
         elif runtime:
             st = self.riders.get_value(iter, COL_TODSTART)
             if st is None:  # defer to start time
                 st = self.riders.get_value(iter, COL_WALLSTART)
             if st is not None:  # still none is error
-                ret = tod.now() - st  # runtime increases!
+                ret = (tod.now() - st).truncate(self.precision)
         return ret
 
     def checkplaces(self, rlist='', dnf=True):
@@ -553,7 +553,7 @@ class irtt(rms):
                 cr.set_property('style', uiutil.STYLE_NORMAL)
             et = self.getelapsed(iter)
             if et is not None:
-                cr.set_property('text', et.timestr(2))
+                cr.set_property('text', et.timestr(self.precision))
             else:
                 cr.set_property('text', '[ERR]')
         else:
@@ -596,6 +596,7 @@ class irtt(rms):
                 'timelimit': None,
                 'finished': False,
                 'showinter': None,
+                'clubmode': False,
                 'intera': None,
                 'interb': None,
                 'interc': None,
@@ -627,6 +628,8 @@ class irtt(rms):
             self.minlap = STARTFUDGE
         self.timelimit = cr.get('irtt', 'timelimit')  # save as str
 
+        # allow club mode passings
+        self.clubmode = cr.get_bool('irtt', 'clubmode')
         # allow auto export
         self.autoexport = cr.get_bool('irtt', 'autoexport')
         # sloppy start times
@@ -851,6 +854,7 @@ class irtt(rms):
             fp.append(t[0].rawtime(5))
         cw.set('irtt', 'finishpasses', fp)
 
+        cw.set('irtt', 'clubmode', self.clubmode)
         cw.set('irtt', 'strictstart', self.strictstart)
         cw.set('irtt', 'autoimpulse', self.autoimpulse)
         cw.set('irtt', 'autoexport', self.autoexport)
@@ -1815,59 +1819,64 @@ class irtt(rms):
 
         bib = r['no']
         series = r['series']
+        bibstr = strops.bibser2bibstr(bib, series)
         lr = self.getrider(bib, series)
-        if lr is not None:
-            # distinguish a shared finish / start loop
-            okfin = False
+        if lr is None:
+            if self.clubmode and self.timerstat == 'running':
+                ri = self.addrider(bib, series)
+                lr = Gtk.TreeModelRow(self.riders, ri)
+                _log.info('Added new starter: %s:%s@%s/%s', bibstr, e.chan,
+                          e.rawtime(2), e.source)
+            else:
+                _log.info('Non-starter: %s:%s@%s/%s', bibstr, e.chan,
+                          e.rawtime(2), e.source)
+                return False
+
+        # distinguish a shared finish / start loop
+        okfin = False
+        st = lr[COL_WALLSTART]
+        if lr[COL_TODSTART] is not None:
+            st = lr[COL_TODSTART]
+        # is e beyond the start threshold?
+        ## TODO: guard near a recorded start time, handle sloppy
+        ##       start offset properly
+        if st is not None and e > st and e - st > self.minlap:
+            okfin = True
+
+        # switch on loop source mode
+        if okfin and self.finishloop is not None and chan == self.finishloop:
+            # this path also handles lap counting rfid modes
+            return self.finish_by_rfid(lr, e, bibstr)
+        elif self.startloop is not None and chan == self.startloop:
+            return self.start_by_rfid(lr, e, bibstr)
+        elif chan in self.interloops:
+            return self.rfidinttrig(lr, e, bibstr, bib, series)
+        elif self.finishloop is not None and chan == self.finishloop:
+            # handle the case where source matches, but timing is off
+            _log.info('Early arrival at finish: %s:%s@%s/%s', bibstr, e.chan,
+                      e.rawtime(2), e.source)
+            return False
+
+        if lr[COL_TODFINISH] is not None:
+            _log.info('Finished rider: %s:%s@%s/%s', bibstr, e.chan,
+                      e.rawtime(2), e.source)
+            return False
+
+        if self.fl.getstatus() not in ['armfin']:
             st = lr[COL_WALLSTART]
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]
-            # is e beyond the start threshold?
-            ## TODO: guard e near a recorded start time, handle sloppy
-            ##       start offset properly
             if st is not None and e > st and e - st > self.minlap:
-                okfin = True
-
-            bibstr = strops.bibser2bibstr(bib, series)
-
-            # switch on loop source mode
-            if okfin and self.finishloop is not None and chan == self.finishloop:
-                # this path also handles lap counting rfid modes
-                return self.finish_by_rfid(lr, e, bibstr)
-            elif self.startloop is not None and chan == self.startloop:
-                return self.start_by_rfid(lr, e, bibstr)
-            elif chan in self.interloops:
-                return self.rfidinttrig(lr, e, bibstr, bib, series)
-            elif self.finishloop is not None and chan == self.finishloop:
-                # handle the case where source matches, but timing is off
+                self.fl.setrider(lr[COL_BIB], lr[COL_SERIES])
+                self.armfinish()
+                _log.info('Arm finish: %s:%s@%s/%s', bibstr, e.chan,
+                          e.rawtime(2), e.source)
+            else:
                 _log.info('Early arrival at finish: %s:%s@%s/%s', bibstr,
                           e.chan, e.rawtime(2), e.source)
-                return False
-
-            if lr[COL_TODFINISH] is not None:
-                _log.info('Finished rider: %s:%s@%s/%s', bibstr, e.chan,
-                          e.rawtime(2), e.source)
-                return False
-
-            if self.fl.getstatus() not in ['armfin']:
-                st = lr[COL_WALLSTART]
-                if lr[COL_TODSTART] is not None:
-                    st = lr[COL_TODSTART]
-                if st is not None and e > st and e - st > self.minlap:
-                    self.fl.setrider(lr[COL_BIB], lr[COL_SERIES])
-                    self.armfinish()
-                    _log.info('Arm finish: %s:%s@%s/%s', bibstr, e.chan,
-                              e.rawtime(2), e.source)
-                else:
-                    _log.info('Early arrival at finish: %s:%s@%s/%s', bibstr,
-                              e.chan, e.rawtime(2), e.source)
-            else:
-                _log.info('Finish blocked: %s:%s@%s/%s', bibstr, e.chan,
-                          e.rawtime(2), e.source)
         else:
-            _log.info('Non-starter: %s:%s@%s/%s', bibstr, e.chan, e.rawtime(2),
-                      e.source)
-        return False
+            _log.info('Finish blocked: %s:%s@%s/%s', bibstr, e.chan,
+                      e.rawtime(2), e.source)
 
     def int_trig(self, t):
         """Register intermediate trigger."""
@@ -1979,8 +1988,8 @@ class irtt(rms):
         if self.timerstat == 'running':
             nowoft = (tod.now() - self.lstart).truncate(0)
 
-            # auto load/clear start lane if not in sloppy impulse mode
-            if not self.autoimpulse:
+            # auto load/clear start lane if start loop is not set
+            if self.startloop is None:
                 if self.sl.getstatus() in ['idle', 'load']:
                     if nowoft.timeval % 5 == 0:  # every five
                         self.on_start(nowoft)
@@ -1988,8 +1997,8 @@ class irtt(rms):
                     if nowoft == self.start_unload:
                         self.sl.toidle()
 
-            # after manips, then re-set start time
-            self.sl.set_time(nowoft.timestr(0))
+                # after manips, then re-set start time
+                self.sl.set_time(nowoft.timestr(0))
 
             # if finish lane loaded, set the elapsed time
             if self.fl.getstatus() in ['load', 'running', 'armfin']:
@@ -2081,6 +2090,8 @@ class irtt(rms):
         r = self.getrider(bib, series)
         if r is not None:
             r[COL_WALLSTART] = start
+            _log.debug('Set start time for %s: %s',
+                       strops.bibser2bibstr(bib, series), start.rawtime(0))
             #self.unstart(bib, series, wst=start)
 
     def delrider(self, bib='', series=''):
@@ -2093,7 +2104,8 @@ class irtt(rms):
     def addrider(self, bib='', series=''):
         """Add specified rider to race model."""
         if bib and (bib, series) in self.ridernos:
-            _log.warning('Rider %r.%r already in viewmodel', bib)
+            _log.warning('Rider %s already in viewmodel',
+                         strops.bibser2bibstr(bib, series))
             return None
 
         if bib:
