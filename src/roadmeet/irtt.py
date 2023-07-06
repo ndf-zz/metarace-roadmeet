@@ -1802,9 +1802,9 @@ class irtt(rms):
         """Process transponder passing event."""
         chan = strops.chan2id(e.chan)
         if e.refid in ['', '255']:
-            if self.finishloop is not None and chan == self.finishloop:
+            if self.finishloop is not None and chan in (self.finishloop, -1):
                 self.fin_trig(e)
-            elif self.startloop is not None and chan == self.startloop:
+            elif self.startloop is not None and chan in (self.startloop, -1):
                 self.start_trig(e)
             else:
                 _log.info('Spurious trigger: %s@%s/%s', e.chan, e.rawtime(2),
@@ -1844,18 +1844,25 @@ class irtt(rms):
             okfin = True
 
         # switch on loop source mode
-        if okfin and self.finishloop is not None and chan == self.finishloop:
+        if okfin and self.finishloop is not None and chan in (self.finishloop,
+                                                              -1):
             # this path also handles lap counting rfid modes
             return self.finish_by_rfid(lr, e, bibstr)
-        elif self.startloop is not None and chan == self.startloop:
+        elif self.startloop is not None and chan in (self.startloop, -1):
             return self.start_by_rfid(lr, e, bibstr)
         elif chan in self.interloops:
             return self.rfidinttrig(lr, e, bibstr, bib, series)
-        elif self.finishloop is not None and chan == self.finishloop:
+        elif self.finishloop is not None and chan in (self.finishloop, -1):
             # handle the case where source matches, but timing is off
             _log.info('Early arrival at finish: %s:%s@%s/%s', bibstr, e.chan,
                       e.rawtime(2), e.source)
             return False
+        else:
+            # match not found for the passing
+            if self.finishloop is not None or self.startloop is not None:
+                _log.info('No match found for passing: %s:%s@%s/%s', bibstr,
+                          e.chan, e.rawtime(2), e.source)
+                return False
 
         if lr[COL_TODFINISH] is not None:
             _log.info('Finished rider: %s:%s@%s/%s', bibstr, e.chan,
