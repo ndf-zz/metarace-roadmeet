@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# homeslice
+roadmeet.1
+TODO
+
 # Distribution / packaging
 .Python
 build/
