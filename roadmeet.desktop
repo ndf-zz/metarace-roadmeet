@@ -1,11 +1,17 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Exec=roadmeet
+Exec=roadmeet %f
 Icon=metarace_icon.svg
-Terminal=true
+Terminal=false
 StartupNotify=true
+MimeType=inode/directory;application/json;
 Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
-#Categories=Utility;GTK;Sports;X-Xfce-Toplevel;
+Actions=Config;
+
+[Desktop Action Config]
+Exec=roadmeet --edit-default
+Name=Edit Meet Defaults
+Icon=preferences-system

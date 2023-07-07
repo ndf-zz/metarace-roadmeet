@@ -134,16 +134,11 @@ MimeType=inode/directory;application/json;
 Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
-Actions=Create;Config;
-
-[Desktop Action Create]
-Exec=$VPATH/bin/roadmeet --create-new
-Name=Create a new road meet
-Icon=folder-new
+Actions=Config;
 
 [Desktop Action Config]
 Exec=$VPATH/bin/roadmeet --edit-default
-Name=Edit meet defaults
+Name=Edit Meet Defaults
 Icon=preferences-system
 __EOF__
 mv "$TMPF" "$SPATH/roadmeet.desktop"
