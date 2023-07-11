@@ -741,9 +741,11 @@ class option:
         self._defer = False
 
         # import schema
+        if 'type' in schema:
+            self._type = schema['type']
         if obj is not None and 'attr' in schema:
             self._obj = obj
-            if isinstance(self._obj, rider):
+            if isinstance(self._obj, (rider, dict)):
                 self._attr = schema['attr']
             else:
                 if schema['attr'] is not None and hasattr(
@@ -754,11 +756,14 @@ class option:
         if self._attr is not None and self._value is None:
             if isinstance(self._obj, rider):
                 self._value = self._obj[self._attr]
+            elif isinstance(self._obj, dict):
+                if self._attr in self._obj:
+                    valid, value = self.parse_value(self._obj[self._attr])
+                    if valid:
+                        self._value = value
             else:
                 self._value = getattr(self._obj, self._attr)
         self._oldvalue = self._value
-        if 'type' in schema:
-            self._type = schema['type']
         if 'prompt' in schema:
             self._prompt = schema['prompt']
         else:
@@ -775,6 +780,7 @@ class option:
             self._defer = bool(schema['defer'])
         if 'options' in schema:
             if isinstance(schema['options'], dict):
+                self._options[''] = '[Not set]'
                 for kv in schema['options']:
                     k = str(kv)
                     v = schema['options'][kv]
@@ -799,8 +805,8 @@ class option:
         """Check proposed value in control"""
         return self.read_value(self._control.get_text())
 
-    def read_value(self, newtext):
-        """Try to read and update value from newtext"""
+    def parse_value(self, newtext):
+        """Return a value of the correct type for this option"""
         ret = False
         newval = None
         if self._type == 'tod':
@@ -811,7 +817,7 @@ class option:
             else:
                 ret = True
         elif self._type == 'int':
-            if newtext:
+            if newtext is not None and newtext != '':
                 newval = strops.confopt_int(newtext)
                 if newval is not None:
                     ret = True
@@ -835,14 +841,19 @@ class option:
             else:
                 ret = True
         elif self._type == 'str':
-            newval = str(newtext)
-            ret = True
+            if newtext is not None:
+                newval = str(newtext)
+                ret = True
         else:
             _log.warning('Unknown option value type %r=%r', self._type,
                          newtext)
             newval = newtext
             ret = True
+        return ret, newval
 
+    def read_value(self, newtext):
+        """Try to read and update value from newtext"""
+        ret, newval = self.parse_value(newtext)
         if ret:
             self.set_value(newval)
         return ret
@@ -865,6 +876,8 @@ class option:
             if isinstance(self._obj, rider):
                 # Don't trigger notify in this path - leave that to the caller
                 self._obj.set_value(self._attr, self._value)
+            elif isinstance(self._obj, dict):
+                self._obj[self._attr] = self._value
             else:
                 # assume object.attribute
                 setattr(self._obj, self._attr, self._value)
@@ -905,6 +918,7 @@ class option:
         if self._readonly:
             self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 2, 1)
+        return 1
 
 
 class optionShort(option):
@@ -941,6 +955,7 @@ class optionShort(option):
             lbl.set_hexpand(True)
             lbl.show()
             grid.attach(lbl, 2, row, 1, 1)
+        return 1
 
 
 class optionCheck(option):
@@ -977,17 +992,30 @@ class optionCheck(option):
         if self._readonly:
             self._control.set_sensitive(False)
         grid.attach(self._control, 1, row, 2, 1)
+        return 1
+
+
+class optionHidden(option):
+
+    def add_control(self, grid, row):
+        return 0
+
+    def validate(self):
+        return True
 
 
 class optionChoice(option):
 
     def validate(self):
         """Check proposed value in control"""
-        return self.read_value(self._control.get_active_id())
+        newval = self._control.get_active_id()
+        if newval == '':
+            newval = None
+        return self.read_value(newval)
 
     def _updated(self, control):
         """Handle update event on control"""
-        return self.read_value(self._control.get_active_id())
+        return self.validate()
 
     def add_control(self, grid, row):
         """Create a new control and add it to the provided grid"""
@@ -1004,12 +1032,17 @@ class optionChoice(option):
             self._control.append(k, self._options[k])
         if self._value is not None:
             self._control.set_active_id(self.format_value())
+        else:
+            self._control.set_active_id('')
         self._control.show()
         if not self._defer:
             self._control.connect('changed', self._updated)
         if self._readonly:
             self._control.set_sensitive(False)
+        if self._hint is not None:
+            self._control.set_tooltip_text(self._hint)
         grid.attach(self._control, 1, row, 2, 1)
+        return 1
 
 
 class optionSection(option):
@@ -1024,9 +1057,13 @@ class optionSection(option):
         lbl.set_width_chars(42)
         lbl.set_halign(Gtk.Align.FILL)
         lbl.set_xalign(0.0)
+        lbl.set_attributes(Pango.AttrList.from_string('0 -1 style oblique'))
+        if row != 0:
+            lbl.set_margin_top(15)
         lbl.set_hexpand(True)
         lbl.show()
         grid.attach(lbl, 0, row, 3, 1)
+        return 1
 
 
 def options_dlg(window=None, title='Options', schema={}, obj=None):
@@ -1058,6 +1095,7 @@ def options_dlg(window=None, title='Options', schema={}, obj=None):
 
        Control types:
 
+         none: nothing displayed for the config option
          section: section delimiter
          text: standard text input
          short: short text input, extra info displayed right of input
@@ -1085,6 +1123,8 @@ def options_dlg(window=None, title='Options', schema={}, obj=None):
             omap[key] = optionCheck(key, oschema, obj)
         elif otype == 'choice':
             omap[key] = optionChoice(key, oschema, obj)
+        elif otype == 'none':
+            omap[key] = optionHidden(key, oschema, obj)
         else:
             omap[key] = option(key, oschema, obj)
 
@@ -1104,8 +1144,8 @@ def options_dlg(window=None, title='Options', schema={}, obj=None):
     grid.set_row_homogeneous(True)
     row = 0
     for key in omap:
-        omap[key].add_control(grid, row)
-        row += 1
+        rows = omap[key].add_control(grid, row)
+        row += rows
     grid.show()
     scr.add(grid)
     dlg.get_content_area().pack_start(scr, True, True, 0)
