@@ -62,12 +62,17 @@ _HANDLERS = {
     'rru': rru,
 }
 _CONFIG_SCHEMA = {
+    'mtype': {
+        'prompt': 'Meet Information',
+        'control': 'section',
+    },
     'etype': {
         'prompt': 'Type:',
         'control': 'choice',
         'attr': 'etype',
         'defer': True,
         'options': ROADRACE_TYPES,
+        'default': 'road',
     },
     'title': {
         'prompt': 'Title:',
@@ -123,7 +128,8 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'subtext': 'Provisional?',
         'hint': 'Mark startlist reports as provisional',
-        'attr': 'provisionalstart'
+        'attr': 'provisionalstart',
+        'default': True,
     },
     'sectele': {
         'control': 'section',
@@ -133,6 +139,15 @@ _CONFIG_SCHEMA = {
         'prompt': 'Announce:',
         'hint': 'Base topic for announcer messages',
         'attr': 'anntopic'
+    },
+    'announceresult': {
+        'prompt': 'Announce Result:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Publish result to telegraph?',
+        'hint': 'Announce result to telegraph on export',
+        'attr': 'announceresult',
+        'default': False,
     },
     'timertopic': {
         'prompt': 'Timer:',
@@ -145,7 +160,8 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'subtext': 'Receive remote timer messages?',
         'hint': 'Receive remote timer messages from timer topic',
-        'attr': 'remote_enable'
+        'attr': 'remote_enable',
+        'default': False,
     },
     'sechw': {
         'control': 'section',
@@ -169,7 +185,7 @@ _CONFIG_SCHEMA = {
     },
     'mirrorcmd': {
         'prompt': 'Command:',
-        'hint': 'Export command',
+        'hint': 'Command to run if export script is enabled',
         'attr': 'mirrorcmd'
     },
     'mirrorpath': {
@@ -198,15 +214,8 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'subtext': 'Build results on export?',
         'hint': 'Build result files with export',
-        'attr': 'resfiles'
-    },
-    'announceresult': {
-        'prompt': 'Announce Result:',
-        'control': 'check',
-        'type': 'bool',
-        'subtext': 'Publish result to telegraph?',
-        'hint': 'Announce result to telegraph on export',
-        'attr': 'announceresult'
+        'attr': 'resfiles',
+        'default': True,
     },
     'lifexport': {
         'prompt': 'LIF Export:',
@@ -214,7 +223,27 @@ _CONFIG_SCHEMA = {
         'type': 'bool',
         'subtext': 'Build LIF file on export?',
         'hint': 'Export LIF result file with results',
-        'attr': 'lifexport'
+        'attr': 'lifexport',
+        'default': False,
+    },
+    # the following are currently used for html export, but are likely
+    # to be removed in later versions
+    'linkbase': {
+        'attr': 'linkbase',
+        'control': 'none',
+        'default': '.',
+    },
+    'indexlink': {
+        'attr': 'indexlink',
+        'control': 'none',
+    },
+    'prevlink': {
+        'attr': 'prevlink',
+        'control': 'none',
+    },
+    'nextlink': {
+        'attr': 'nextlink',
+        'control': 'none',
     },
 }
 

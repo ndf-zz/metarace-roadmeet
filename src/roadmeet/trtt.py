@@ -54,8 +54,8 @@ NTH_WHEEL = 3
 # Minimum lap/elap time, should be at least the same as start gaps
 MINLAP = tod.tod('2:00')
 
-# Add a gap in the startlist when gap is larger than TEAMGAP
-TEAMGAP = tod.tod('4:00')
+# Add a gap in the startlist when gap is larger than STARTGAP
+STARTGAP = tod.tod('4:00')
 
 # config version string
 EVENT_ID = 'trtt-3.1'
@@ -76,7 +76,8 @@ _CONFIG_SCHEMA = {
         'places': 1,
         'type': 'tod',
         'hint': 'Reject laps shorter than minimum lap time',
-        'attr': 'minlap'
+        'attr': 'minlap',
+        'default': MINLAP,
     },
     'totlaps': {
         'prompt': 'Laps:',
@@ -84,14 +85,15 @@ _CONFIG_SCHEMA = {
         'type': 'int',
         'attr': 'totlaps',
         'subtext': '(Cat laps override)',
-        'hint': 'Default target number of laps for event'
+        'hint': 'Default target number of laps for event',
     },
     'defaultnth': {
         'prompt': 'Nth Wheel:',
         'control': 'short',
         'type': 'int',
         'attr': 'defaultnth',
-        'hint': 'Default wheel to determine team time'
+        'hint': 'Default wheel to determine team time',
+        'default': NTH_WHEEL,
     },
     'owntime': {
         'prompt': 'Own Time:',
@@ -100,6 +102,7 @@ _CONFIG_SCHEMA = {
         'attr': 'owntime',
         'subtext': 'Dropped riders get own time?',
         'hint': 'Award riders finishing behind team their own time',
+        'default': True,
     },
     'showriders': {
         'prompt': 'Show Riders:',
@@ -108,6 +111,16 @@ _CONFIG_SCHEMA = {
         'attr': 'showriders',
         'subtext': 'Display team member names on reports?',
         'hint': 'Include rider names on startlists and results',
+        'default': True,
+    },
+    'startgap': {
+        'prompt': 'Start Gap:',
+        'control': 'short',
+        'type': 'tod',
+        'places': 0,
+        'attr': 'startgap',
+        'hint': 'Time gap between team start times',
+        'default': STARTGAP,
     },
     'relativestart': {
         'prompt': 'Relative:',
@@ -116,6 +129,7 @@ _CONFIG_SCHEMA = {
         'attr': 'relativestart',
         'subtext': 'Team start times are relative?',
         'hint': 'Team start times are relative to event start',
+        'default': False,
     },
     'autofinish': {
         'prompt': 'Finish:',
@@ -124,6 +138,7 @@ _CONFIG_SCHEMA = {
         'attr': 'targetlaps',
         'subtext': 'Automatically Finish?',
         'hint': 'Automatically finish riders on target lap',
+        'default': True,
     },
     'autoexport': {
         'prompt': 'Export:',
@@ -132,6 +147,7 @@ _CONFIG_SCHEMA = {
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
         'hint': 'Export result automatically',
+        'default': False,
     },
     # Note: on trtt, time limit usually requires manual intervention
     'timelimit': {
@@ -147,7 +163,8 @@ _CONFIG_SCHEMA = {
         'type': 'tod',
         'places': 2,
         'hint': 'Threshold for automatic time gap insertion',
-        'attr': 'gapthresh'
+        'attr': 'gapthresh',
+        'default': GAPTHRESH,
     },
     # Clubmode may trigger problems with team data, todo: fix addrider
     'clubmode': {
@@ -158,6 +175,7 @@ _CONFIG_SCHEMA = {
         'readonly': True,
         'subtext': 'Add starters by transponder passing?',
         'hint': 'Add riders to event on passing',
+        'default': False,
     },
     'allowspares': {
         'prompt': 'Spares:',
@@ -166,6 +184,7 @@ _CONFIG_SCHEMA = {
         'attr': 'allowspares',
         'subtext': 'Record spare bike passings?',
         'hint': 'Add spare bike passings to event as placeholders',
+        'default': False,
     },
 }
 
@@ -559,7 +578,7 @@ class trtt(rms):
                 tname = rteam  # use key and only replace if avail
                 if rteam in self.teamnames:
                     tname = self.teamnames[rteam]
-                if ltod is not None and rstart - ltod > TEAMGAP:
+                if ltod is not None and rstart - ltod > STARTGAP:
                     sec.lines.append([])
                 ltod = rstart
                 cstr = ''

@@ -49,6 +49,7 @@ RIDER_COMMANDS = {
 
 DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
 STARTFUDGE = tod.tod(30)
+STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
 
 # startlist model columns
@@ -109,7 +110,8 @@ _CONFIG_SCHEMA = {
         'places': 1,
         'type': 'tod',
         'hint': 'Reject laps shorter than minimum lap time',
-        'attr': 'minlap'
+        'attr': 'minlap',
+        'default': STARTFUDGE,
     },
     'totlaps': {
         'prompt': 'Laps:',
@@ -125,7 +127,8 @@ _CONFIG_SCHEMA = {
         'type': 'tod',
         'places': 0,
         'attr': 'startgap',
-        'hint': 'Time gap between rider start times'
+        'hint': 'Time gap between rider start times',
+        'default': STARTGAP,
     },
     'autoimpulse': {
         'prompt': 'Autotime:',
@@ -135,6 +138,7 @@ _CONFIG_SCHEMA = {
         'attr': 'autoimpulse',
         'subtext': 'Match impulses to transponder?',
         'hint': 'Impulses automatically matched to transponder readings',
+        'default': False,
     },
     'startloop': {
         'prompt': 'Start Loop:',
@@ -142,7 +146,7 @@ _CONFIG_SCHEMA = {
         'type': 'chan',
         'defer': True,
         'attr': 'startloop',
-        'hint': 'Transponder loop/channel ID at start line'
+        'hint': 'Transponder loop/channel ID at start line',
     },
     'finishloop': {
         'prompt': 'Finish Loop:',
@@ -150,7 +154,7 @@ _CONFIG_SCHEMA = {
         'type': 'chan',
         'defer': True,
         'attr': 'finishloop',
-        'hint': 'Transponder loop/channel ID at finish line'
+        'hint': 'Transponder loop/channel ID at finish line',
     },
     'strictstart': {
         'prompt': 'Start:',
@@ -160,6 +164,7 @@ _CONFIG_SCHEMA = {
         'attr': 'strictstart',
         'subtext': 'Start times are strict?',
         'hint': 'Check rider start times against schedule',
+        'default': True,
     },
     'arrivaltimeout': {
         'prompt': 'Arvl Timeout:',
@@ -167,7 +172,8 @@ _CONFIG_SCHEMA = {
         'type': 'tod',
         'places': 0,
         'attr': 'arrivaltimeout',
-        'hint': 'Clear arrivals off report after this long'
+        'hint': 'Clear arrivals off report after this long',
+        'default': ARRIVALTIMEOUT,
     },
     'onestartlist': {
         'prompt': 'Startlist:',
@@ -176,6 +182,7 @@ _CONFIG_SCHEMA = {
         'attr': 'onestartlist',
         'subtext': 'Combine categories?',
         'hint': 'Report all categories in a single startlist',
+        'default': True,
     },
     'autoexport': {
         'prompt': 'Export:',
@@ -184,6 +191,7 @@ _CONFIG_SCHEMA = {
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
         'hint': 'Export result automatically',
+        'default': False,
     },
     'timelimit': {
         'prompt': 'Time Limit:',
@@ -191,7 +199,6 @@ _CONFIG_SCHEMA = {
         'attr': 'timelimit',
         'hint': 'Time limit eg: 12%  +1:23  4h00:00',
     },
-    # Clubmode does not function well with irtt
     'clubmode': {
         'prompt': 'Club Mode:',
         'control': 'check',
@@ -199,6 +206,7 @@ _CONFIG_SCHEMA = {
         'attr': 'clubmode',
         'subtext': 'Add starters by transponder passing?',
         'hint': 'Add riders to event on passing',
+        'default': False,
     },
     # Spare bikes should be handled manually on irtt
     'allowspares': {
@@ -209,6 +217,7 @@ _CONFIG_SCHEMA = {
         'subtext': 'Record spare bike passings?',
         'readonly': True,
         'hint': 'Add spare bike passings to event as placeholders',
+        'default': False,
     },
 }
 

@@ -122,7 +122,7 @@ EVENT_ID = 'roadrace-4.1'
 
 _CONFIG_SCHEMA = {
     'etype': {
-        'prompt': '',
+        'prompt': 'Roadrace/Criterium/Cyclocross',
         'control': 'section'
     },
     'categories': {
@@ -136,7 +136,8 @@ _CONFIG_SCHEMA = {
         'places': 1,
         'type': 'tod',
         'hint': 'Reject laps shorter than minimum lap time',
-        'attr': 'minlap'
+        'attr': 'minlap',
+        'default': MINPASSTIME,
     },
     'totlaps': {
         'prompt': 'Laps:',
@@ -153,6 +154,7 @@ _CONFIG_SCHEMA = {
         'attr': 'targetlaps',
         'subtext': 'Automatically Finish?',
         'hint': 'Automatically finish riders on target lap',
+        'default': True,
     },
     'autoexport': {
         'prompt': 'Export:',
@@ -161,6 +163,7 @@ _CONFIG_SCHEMA = {
         'attr': 'autoexport',
         'subtext': 'Automatically export?',
         'hint': 'Export result automatically',
+        'default': False,
     },
     'showdowntimes': {
         'prompt': 'Down Times:',
@@ -169,6 +172,7 @@ _CONFIG_SCHEMA = {
         'attr': 'showdowntimes',
         'subtext': 'Show on result?',
         'hint': 'Display down times on result',
+        'default': True,
     },
     'dofastestlap': {
         'prompt': 'Fastest Lap:',
@@ -177,6 +181,7 @@ _CONFIG_SCHEMA = {
         'attr': 'dofastestlap',
         'subtext': 'Report with result?',
         'hint': 'Report fastest lap time with categorised result',
+        'default': False,
     },
     'timelimit': {
         'prompt': 'Time Limit:',
@@ -190,7 +195,8 @@ _CONFIG_SCHEMA = {
         'type': 'tod',
         'places': 2,
         'hint': 'Threshold for automatic time gap insertion',
-        'attr': 'gapthresh'
+        'attr': 'gapthresh',
+        'default': GAPTHRESH,
     },
     'clubmode': {
         'prompt': 'Club Mode:',
@@ -199,6 +205,7 @@ _CONFIG_SCHEMA = {
         'attr': 'clubmode',
         'subtext': 'Add starters by transponder passing?',
         'hint': 'Add riders to event on passing',
+        'default': False,
     },
     'allowspares': {
         'prompt': 'Spares:',
@@ -207,6 +214,7 @@ _CONFIG_SCHEMA = {
         'attr': 'allowspares',
         'subtext': 'Record spare bike passings?',
         'hint': 'Add spare bike passings to event as placeholders',
+        'default': False,
     },
 }
 
