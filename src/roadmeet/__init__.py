@@ -22,7 +22,7 @@ from metarace import jsonconfig
 from metarace import tod
 from metarace import riderdb
 from metarace.telegraph import telegraph
-from metarace import export
+from metarace.export import mirror
 from metarace.decoder import decoder
 from metarace.decoder.rru import rru
 from metarace.decoder.rrs import rrs
@@ -1232,9 +1232,9 @@ class roadmeet:
     def mirror_start(self):
         """Create a new mirror thread unless already in progress."""
         if self.mirrorpath and self.mirror is None:
-            self.mirror = export.mirror(localpath=os.path.join('export', ''),
-                                        remotepath=self.mirrorpath,
-                                        mirrorcmd=self.mirrorcmd)
+            self.mirror = mirror(localpath=os.path.join(EXPORTPATH, ''),
+                                 remotepath=self.mirrorpath,
+                                 mirrorcmd=self.mirrorcmd)
             self.mirror.start()
         return False  # for idle_add
 
