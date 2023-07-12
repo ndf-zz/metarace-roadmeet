@@ -1503,7 +1503,7 @@ class trtt(rms):
             if len(tlist) >= nth_wheel:
                 ct = (tlist[nth_wheel - 1][COL_RFTIME] - self.start -
                       tlist[nth_wheel - 1][COL_STOFT])
-                thetime = ct.truncate(1)
+                thetime = ct.round(1)
                 self.teamtimes[t] = thetime  # save to times map
                 if (t not in self.announced_teams and
                     (self.announce_team is None or self.announce_team == t)):
@@ -1519,7 +1519,7 @@ class trtt(rms):
                     if self.owntime and (et > ct and
                                          (et - ct) > self.gapthresh):
                         # TIME GAP!
-                        thetime = et.truncate(1)
+                        thetime = et.round(1)
                     r[COL_CBUNCH] = thetime
                     ct = et
 
