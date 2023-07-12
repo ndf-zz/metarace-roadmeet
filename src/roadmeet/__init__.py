@@ -21,7 +21,6 @@ from gi.repository import Gdk
 from metarace import jsonconfig
 from metarace import tod
 from metarace import riderdb
-from metarace import eventdb
 from metarace.telegraph import telegraph
 from metarace import export
 from metarace.decoder import decoder
@@ -356,10 +355,8 @@ class roadmeet:
                 except Exception as e:
                     _log.warning('%s saving event backup: %s',
                                  e.__class__.__name__, e)
-            eh = self.edb.getfirst()
-            eh['type'] = self.etype
             if reopen:
-                self.open_event(eh)
+                self.open_event()
         self.set_title()
 
     def report_strings(self, rep):
@@ -437,10 +434,8 @@ class roadmeet:
     ## Race Menu Callbacks
     def menu_race_run_activate_cb(self, menuitem=None, data=None):
         """Open the event handler."""
-        eh = self.edb.getfirst()
-        if eh is not None:
-            self.open_event(eh)
-            self.set_title()
+        self.open_event()
+        self.set_title()
         return False
 
     def menu_race_close_activate_cb(self, menuitem, data=None):
@@ -485,38 +480,33 @@ class roadmeet:
         except Exception as e:
             _log.error('Set finished %s: %s', e.__class__.__name__, e)
 
-    def open_event(self, eventhdl=None):
+    def open_event(self):
         """Open provided event handle."""
-        if eventhdl is not None:
-            self.close_event()
-            if self.etype not in ROADRACE_TYPES:
-                _log.warning('Unknown event type %r', self.etype)
-            if self.etype == 'irtt':
-                self.curevent = irtt(self, eventhdl, True)
-            elif self.etype == 'trtt':
-                self.curevent = trtt(self, eventhdl, True)
-            else:
-                self.curevent = rms(self, eventhdl, True)
+        self.close_event()
+        if self.etype not in ROADRACE_TYPES:
+            _log.warning('Unknown event type %r', self.etype)
+        if self.etype == 'irtt':
+            self.curevent = irtt(self, self.etype, True)
+        elif self.etype == 'trtt':
+            self.curevent = trtt(self, self.etype, True)
+        else:
+            self.curevent = rms(self, self.etype, True)
 
-            self.curevent.loadconfig()
-            self.race_box.add(self.curevent.frame)
+        self.curevent.loadconfig()
+        self.race_box.add(self.curevent.frame)
 
-            # re-populate the rider command model.
-            cmdo = self.curevent.get_ridercmdorder()
-            cmds = self.curevent.get_ridercmds()
-            if cmds is not None:
-                self.action_model.clear()
-                for cmd in cmdo:
-                    self.action_model.append([cmd, cmds[cmd]])
-                self.action_combo.set_active(0)
+        # re-populate the rider command model.
+        cmdo = self.curevent.get_ridercmdorder()
+        cmds = self.curevent.get_ridercmds()
+        if cmds is not None:
+            self.action_model.clear()
+            for cmd in cmdo:
+                self.action_model.append([cmd, cmds[cmd]])
+            self.action_combo.set_active(0)
 
-            self.menu_race_close.set_sensitive(True)
-            self.menu_race_abort.set_sensitive(True)
-            starters = eventhdl['star']
-            if starters is not None and starters != '':
-                self.curevent.race_ctrl('add', starters)
-                eventhdl['star'] = ''  # and clear
-            self.curevent.show()
+        self.menu_race_close.set_sensitive(True)
+        self.menu_race_abort.set_sensitive(True)
+        self.curevent.show()
 
     def close_event(self):
         """Close the currently opened race."""
@@ -869,11 +859,6 @@ class roadmeet:
             self.export_result_maker()
         GLib.idle_add(self.mirror_start)
 
-    ## Directory utilities
-    def event_configfile(self, evno):
-        """Return a config filename for the given event no."""
-        return 'event_{}.json'.format(str(evno))
-
     ## Timing menu callbacks
     def menu_timing_status_cb(self, menuitem, data=None):
         if self.timer:
@@ -1122,6 +1107,7 @@ class roadmeet:
         cw = jsonconfig.config()
         cw.add_section('roadmeet')
         cw.set('roadmeet', 'id', ROADMEET_ID)
+        cw.set('roadmeet', 'etype', self.etype)
         cw.set('roadmeet', 'anntopic', self.anntopic)
         cw.set('roadmeet', 'timertopic', self.timertopic)
         cw.set('roadmeet', 'remoteenable', self.remoteenable)
@@ -1153,7 +1139,6 @@ class roadmeet:
         with metarace.savefile(CONFIGFILE) as f:
             cw.write(f)
         self.rdb.save('riders.csv')
-        self.edb.save('events.csv')
         _log.info('Meet configuration saved')
 
     def set_timer(self, newdevice='', force=False):
@@ -1169,6 +1154,7 @@ class roadmeet:
         """Load meet config from disk."""
         cr = jsonconfig.config({
             'roadmeet': {
+                'etype': 'road',
                 'shortname': None,
                 'title': '',
                 'host': '',
@@ -1238,6 +1224,7 @@ class roadmeet:
         self.remote_reset()
 
         # set meet meta, and then copy into text entries
+        self.etype = cr.get('roadmeet', 'etype')
         self.shortname = cr.get('roadmeet', 'shortname')
         self.title = cr.get('roadmeet', 'title')
         self.host = cr.get('roadmeet', 'host')
@@ -1265,16 +1252,9 @@ class roadmeet:
         self.rdb.clear(notify=False)
         _log.debug('meet load riders from riders.csv')
         self.rdb.load('riders.csv')
-        self.edb.clear()
-        self.edb.load('events.csv')
-        event = self.edb.getfirst()
-        if event is None:  # add a new event of the right type
-            event = self.edb.add_empty(evno='0')
-            event['type'] = self.etype
-        else:
-            self.etype = event['type']
-            _log.debug('Existing event in db: %r', self.etype)
-        self.open_event(event)  # always open on load if posible
+
+        # Open the event
+        self.open_event()
         self.set_title()
 
         # Adjust alttimer config post event load
@@ -1947,14 +1927,11 @@ class roadmeet:
         b.get_object('cat_box').add(t)
 
         # get rider db
-        _log.debug('Add riderdb and eventdb')
+        _log.debug('Add riderdb')
         self.rdb = riderdb.riderdb()
         self.rdb.set_notify(self._rcb)
         self._tagmap = {}
         self._maptag = {}
-
-        ## get event db -> loadconfig adds empty event if one not present
-        self.edb = eventdb.eventdb([])
 
         # select event page in notebook.
         b.get_object('meet_nb').set_current_page(0)
@@ -1966,8 +1943,8 @@ class roadmeet:
 class fakemeet(roadmeet):
     """Non-interactive meet wrapper"""
 
-    def __init__(self, edb, rdb):
-        self.edb = edb
+    def __init__(self, rdb):
+        self.etype = 'road'
         self.rdb = rdb
         self._timer = decoder()
         self._alttimer = timy()

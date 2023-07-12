@@ -403,7 +403,7 @@ class rms:
         self.resettimer()
         self.cats = []
         DEFDOWNTIMES = True
-        if self.event['type'] == 'criterium':
+        if self.etype == 'criterium':
             DEFDOWNTIMES = False
         cr = jsonconfig.config({
             'rms': {
@@ -548,7 +548,7 @@ class rms:
 
         # load starts and targets and then handle lap situation
         self.load_cat_data()
-        if self.event['type'] != 'handicap':
+        if self.etype != 'handicap':
             for c in self.catstarts:
                 if self.catstarts[c] is not None:
                     onestoft = True
@@ -784,9 +784,8 @@ class rms:
     def set_titlestr(self, titlestr=None):
         """Update the title string label."""
         if titlestr is None or titlestr == '':
-            etype = self.event['type']
-            if etype in ROADRACE_TYPES:
-                titlestr = '[' + ROADRACE_TYPES[etype] + ']'
+            if self.etype in ROADRACE_TYPES:
+                titlestr = '[' + ROADRACE_TYPES[self.etype] + ']'
             else:
                 titlestr = '[Road Event]'
         self.title_namestr.set_text(titlestr)
@@ -1122,7 +1121,7 @@ class rms:
         if self.timerstat != 'idle':
             sec = report.judgerep('judging')
             sec.heading = 'Judges Report'
-            if self.event['type'] == 'cross':
+            if self.etype == 'cross':
                 sec.colheader = [
                     '', 'no', 'rider', 'lap', 'finish', 'lap avg', 'passings'
                 ]
@@ -1154,7 +1153,7 @@ class rms:
                 rcat = r[COL_CAT]
                 ecat = self.ridercat(riderdb.primary_cat(rcat))
                 catstart = None
-                if ecat in self.catstarts and self.event['type'] != 'cross':
+                if ecat in self.catstarts and self.etype != 'cross':
                     catstart = self.catstarts[ecat]
                 laplist = []
                 if r[COL_RFTIME] is not None:
@@ -1184,7 +1183,7 @@ class rms:
                                         sec.lines[-1][8] = True
                             if self.start is not None:
                                 et = r[COL_RFTIME] - self.start
-                                if self.event['type'] == 'cross':
+                                if self.etype == 'cross':
                                     if r[COL_LAPS] > 0:
                                         al = tod.mktod(et.timeval /
                                                        r[COL_LAPS])
@@ -1397,7 +1396,7 @@ class rms:
                         pstr = lp + '.'
                         jcnt += 1
                     bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
-                    if self.event['type'] == 'cross':
+                    if self.etype == 'cross':
                         ronlap = True
                         risleader = False
                         dtlap = rlap
@@ -1629,8 +1628,8 @@ class rms:
         self.recalculate()
 
         # check if a categorised report is required
-        if (self.event['type'] == 'cross'
-                or (self.event['type'] != 'handicap' and len(self.cats) > 1)):
+        if (self.etype == 'cross'
+                or (self.etype != 'handicap' and len(self.cats) > 1)):
             ret.extend(self.catresult_report())
         else:
             ret.extend(self.handicap_report())
@@ -1679,7 +1678,7 @@ class rms:
         lt = None
         if self.places or self.timerstat != 'idle':
             sec = report.section('result')
-            if self.event['type'] == 'handicap':
+            if self.etype == 'handicap':
                 sec.colheader = [None, None, None, None, 'Elapsed', 'Time/Gap']
             if self.racestat == 'final':
                 sec.heading = 'Result'
@@ -1728,7 +1727,7 @@ class rms:
                                 dstr = '+' + (bt - wt).rawtime(0)
 
                         # compute elapsed, or corrected time
-                        if self.event['type'] == 'handicap':
+                        if self.etype == 'handicap':
                             # always show elap for hcp, even if no stof*
                             tstr = bt.rawtime(0)
                         et = bt
@@ -1806,7 +1805,7 @@ class rms:
                         None, 'Average speed of the winner: ' +
                         we.speedstr(1000.0 * dval)
                     ])
-            if self.event['type'] == 'handicap' and dofastest:
+            if self.etype == 'handicap' and dofastest:
                 if vfastest and vfastest < fastest:
                     _log.info('Fastest time not yet available')
                 else:
@@ -2090,7 +2089,7 @@ class rms:
                     elif rcat in self.catstarts:
                         sof = self.catstarts[rcat]
                     if sof is not None and bt is not None:
-                        if self.event['type'] == 'cross':
+                        if self.etype == 'cross':
                             if lavg is None:
                                 llaps = r[COL_LAPS]
                                 lpass = r[COL_RFSEEN]
@@ -2116,7 +2115,7 @@ class rms:
                                             bib, ft.rawtime(0), lbib,
                                             lft.rawtime(0))
                                 ft = bt + lxtra - sof
-                        elif self.event['type'] == 'handicap':
+                        elif self.etype == 'handicap':
                             # for handicap, time is stage time, bonus
                             # carries the start offset, elapsed is:
                             # stage - bonus
@@ -2135,8 +2134,8 @@ class rms:
                     lrank = rank
                 else:
                     crank = r[COL_COMMENT]
-                if self.event['type'] != 'handicap' and (
-                        bib in self.bonuses or r[COL_BONUS] is not None):
+                if self.etype != 'handicap' and (bib in self.bonuses
+                                                 or r[COL_BONUS] is not None):
                     bonus = tod.ZERO
                     if bib in self.bonuses:
                         bonus += self.bonuses[bib]
@@ -2267,7 +2266,7 @@ class rms:
             self.armlap()
             if self.live_announce:
                 self.meet.cmd_announce('clear', 'all')
-                if self.event['type'] in ('criterium', 'circuit', 'cross'):
+                if self.etype in ('criterium', 'circuit', 'cross'):
                     self.armlap()
 
         elif self.timerstat == 'armstart':
@@ -2658,7 +2657,7 @@ class rms:
             _log.info('Start trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
             self.set_start(e)
             self.resetcatonlaps()
-            if self.event['type'] in ('criterium', 'circuit', 'cross'):
+            if self.etype in ('criterium', 'circuit', 'cross'):
                 GLib.idle_add(self.armlap)
         else:
             _log.info('Trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
@@ -2866,7 +2865,7 @@ class rms:
                 targetlap = self.totlaps
             if targetlap and lr[COL_LAPS] >= targetlap - 1:
                 lapfinish = True  # arm just this rider
-                if self.event['type'] == 'cross':
+                if self.etype == 'cross':
                     doarm = True
 
         # for cross races when targets apply, armfinish is set automatically
@@ -2957,7 +2956,7 @@ class rms:
                             if lr[COL_LAPS] == self.curlap:
                                 onlap = True
                             elif lr[COL_LAPS] < self.curlap:
-                                if self.event['type'] == 'criterium':
+                                if self.etype == 'criterium':
                                     # push them on to the current lap
                                     lr[COL_LAPS] = self.curlap
                                     onlap = True
@@ -2967,7 +2966,7 @@ class rms:
                             else:
                                 if e < curlapstart + self.minlap:
                                     # passing cannot be for a new lap yet
-                                    if self.event['type'] == 'criterium':
+                                    if self.etype == 'criterium':
                                         # push them back to the current lap
                                         lr[COL_LAPS] = self.curlap
                                         onlap = True
@@ -3014,7 +3013,7 @@ class rms:
             _log.debug('Invalid lap count %r', reqlap)
 
         if newlap is not None and newlap > 0:
-            if self.event['type'] == 'criterium':
+            if self.etype == 'criterium':
                 # force all in riders onto the desired lap
                 for r in self.riders:
                     if r[COL_INRACE]:
@@ -3046,7 +3045,7 @@ class rms:
                     r[COL_LAPS] = len(r[COL_RFSEEN])
                     maxlap = max(r[COL_LAPS] + 1, maxlap)
             self.onlap = maxlap
-            if self.event['type'] in ('criterium', 'circuit', 'cross'):
+            if self.etype in ('criterium', 'circuit', 'cross'):
                 self.armlap()
 
     def totlapentry_activate_cb(self, entry, data=None):
@@ -3408,7 +3407,7 @@ class rms:
                 self._dorecalc = True
             else:
                 self.resetcatonlaps()
-                if self.event['type'] in ('criterium', 'circuit', 'cross'):
+                if self.etype in ('criterium', 'circuit', 'cross'):
                     GLib.idle_add(self.armlap)
             _log.info('Adjusted event times')
 
@@ -3492,7 +3491,7 @@ class rms:
     def edit_event_properties(self, window, data=None):
         """Edit event specifics."""
         # set current event type label
-        _CONFIG_SCHEMA['etype']['prompt'] = ROADRACE_TYPES[self.event['type']]
+        _CONFIG_SCHEMA['etype']['prompt'] = ROADRACE_TYPES[self.etype]
 
         # flatten current cat list
         _CONFIG_SCHEMA['categories']['value'] = ' '.join(
@@ -3887,7 +3886,7 @@ class rms:
             if len(r[COL_RFSEEN]) > 0:
                 lastpass = r[COL_RFSEEN][-1]
                 # in cross scoring, rftime is same as last passing
-                if self.event['type'] == 'cross':
+                if self.etype == 'cross':
                     rftime = lastpass
             if not rplace or not r[COL_INRACE]:
                 rplace = r[COL_COMMENT]
@@ -3895,7 +3894,7 @@ class rms:
                 rlaps = 0
                 rftime = tod.MAX
                 lastpass = tod.MAX
-            if self.event['type'] in ('road', 'criterium'):
+            if self.etype in ('road', 'criterium'):
                 # partition into seen and not seen
                 if r[COL_INRACE]:
                     if rftime < tod.MAX or lastpass < tod.MAX:
@@ -3923,7 +3922,7 @@ class rms:
                 rcomment = r[COL_COMMENT]
                 if r[COL_INRACE] or rcomment == 'otl':
                     rtime = r[COL_RFTIME]
-                    if self.event['type'] in ('cross', 'circuit'):
+                    if self.etype in ('cross', 'circuit'):
                         if ll is None or ll != r[COL_LAPS]:
                             # invalidate last passing since on a different lap
                             lt = None
@@ -3976,7 +3975,7 @@ class rms:
 
         # re-sort on in,vbunch (not valid for cross scoring)
         # at this point all finished riders will have valid bunch time
-        if self.event['type'] != 'cross':
+        if self.etype != 'cross':
             auxtbl = []
             idx = 0
             for r in self.riders:
@@ -3991,7 +3990,7 @@ class rms:
                     rplace = r[COL_COMMENT]
                 if not r[COL_INRACE]:
                     rlaps = 0
-                elif self.event['type'] in ('road', 'criterium'):
+                elif self.etype in ('road', 'criterium'):
                     # group all finished riders
                     if rbunch < tod.MAX or r[COL_RFTIME] is not None:
                         rlaps = 999
@@ -4071,7 +4070,7 @@ class rms:
                     self._dorecalc = True
                 else:
                     self.resetcatonlaps()
-                    if self.event['type'] in ('criterium', 'circuit', 'cross'):
+                    if self.etype in ('criterium', 'circuit', 'cross'):
                         GLib.idle_add(self.armlap)
                 dlg.response(1)
             else:
@@ -4363,17 +4362,17 @@ class rms:
             else:
                 _log.info('Unknown rider change %r ignored', change)
 
-    def __init__(self, meet, event, ui=True):
+    def __init__(self, meet, etype, ui=True):
         self.meet = meet
-        self.event = event
-        self.evno = event['evid']
-        self.series = event['seri']
-        self.configfile = meet.event_configfile(self.evno)
+        self.etype = etype
+        # todo: series removal
+        self.series = ''
+        self.configfile = 'event.json'
         self.readonly = not ui
         rstr = ''
         if self.readonly:
             rstr = 'readonly '
-        _log.debug('Init %r event %r', rstr, self.evno)
+        _log.debug('Init %r event', rstr)
 
         self.recalclock = threading.Lock()
         self._dorecalc = False

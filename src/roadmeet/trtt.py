@@ -1535,17 +1535,17 @@ class trtt(rms):
         self.calcset = True
         return False  # allow idle add
 
-    def __init__(self, meet, event, ui=True):
+    def __init__(self, meet, etype, ui=True):
         self.meet = meet
-        self.event = event
-        self.evno = event['evid']
-        self.series = event['seri']
-        self.configfile = meet.event_configfile(self.evno)
+        self.etype = etype
+        # todo: series removal
+        self.series = ''
+        self.configfile = 'event.json'
         self.readonly = not ui
         rstr = ''
         if self.readonly:
             rstr = 'readonly '
-        _log.debug('Init %r event %r', rstr, self.evno)
+        _log.debug('Init %r event', rstr)
 
         self.recalclock = threading.Lock()
         self._dorecalc = False

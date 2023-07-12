@@ -2671,18 +2671,17 @@ class irtt(rms):
             titlestr = 'Individual Road Time Trial'
         self.title_namestr.set_text(titlestr)
 
-    def __init__(self, meet, event, ui=True):
+    def __init__(self, meet, etype, ui=True):
         self.meet = meet
-        self.event = event
-        self.evno = event['evid']
+        self.etype = etype
         # series is specified per-rider
         self.series = ''
-        self.configfile = meet.event_configfile(self.evno)
+        self.configfile = 'event.json'
         self.readonly = not ui
         rstr = ''
         if self.readonly:
             rstr = 'readonly '
-        _log.debug('Init %r event %r', rstr, self.evno)
+        _log.debug('Init %r event', rstr)
 
         self.recalclock = threading.Lock()
         self._dorecalc = False
