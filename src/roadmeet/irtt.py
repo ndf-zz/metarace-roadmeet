@@ -92,7 +92,7 @@ key_announce = 'F4'  # clear scratch
 # IRTT does not use confirm keys
 
 # config version string
-EVENT_ID = 'roadtt-3.2'
+EVENT_ID = 'roadtt-3.3'
 
 _CONFIG_SCHEMA = {
     'etype': {
@@ -401,26 +401,6 @@ class irtt(rms):
                             break
         return ret
 
-    def lrgetelapsed(self, lr, runtime=False):
-        """Return a tod elapsed for a tree row"""
-        ret = None
-        ft = lr[COL_TODFINISH]
-        if ft is not None:
-            st = lr[COL_TODSTART]
-            if st is None:  # defer to start time
-                st = lr[COL_WALLSTART]
-            if st is not None:  # still none is error
-                pt = lr[COL_TODPENALTY]
-                # penalties are added into stage result - for consistency
-                ret = ((ft - st) + pt).truncate(self.precision)
-        elif runtime:
-            st = lr[COL_TODSTART]
-            if st is None:  # defer to start time
-                st = lr[COL_WALLSTART]
-            if st is not None:  # still none is error
-                ret = (tod.now() - st).truncate(self.precision)
-        return ret
-
     def getelapsed(self, iter, runtime=False):
         """Return a tod elapsed time for an iter"""
         ret = None
@@ -432,12 +412,13 @@ class irtt(rms):
             if st is not None:  # still none is error
                 pt = self.riders.get_value(iter, COL_TODPENALTY)
                 # penalties are added into stage result - for consistency
-                ret = ((ft - st) + pt).truncate(self.precision)
+                ret = ((ft - st) + pt).round(self.precision)
         elif runtime:
             st = self.riders.get_value(iter, COL_TODSTART)
             if st is None:  # defer to start time
                 st = self.riders.get_value(iter, COL_WALLSTART)
             if st is not None:  # still none is error
+                # truncate rolling time
                 ret = (tod.now() - st).truncate(self.precision)
         return ret
 
@@ -561,7 +542,7 @@ class irtt(rms):
                 cr.set_property('style', uiutil.STYLE_NORMAL)
             et = self.getelapsed(iter)
             if et is not None:
-                cr.set_property('text', et.timestr(self.precision))
+                cr.set_property('text', et.rawtime(self.precision))
             else:
                 cr.set_property('text', '[ERR]')
         else:
@@ -584,7 +565,6 @@ class irtt(rms):
                 'arrivaltimeout': ARRIVALTIMEOUT,
                 'lstart': '0',
                 'startgap': STARTGAP,
-                'precision': 2,
                 'autoexport': False,
                 'intermeds': [],
                 'contests': [],
@@ -624,11 +604,6 @@ class irtt(rms):
         self.startgap = tod.mktod(cr.get('irtt', 'startgap'))
         if self.startgap is None:
             self.startgap = STARTGAP
-
-        # load result precision - allow manual downgrade
-        self.precision = cr.get_posint('irtt', 'precision', 1)
-        if self.precision > 2:  # posint forbids negatives
-            self.precision = 2
 
         # load minimum elapsed time
         self.minlap = tod.mktod(cr.get('irtt', 'minlap'))
@@ -786,7 +761,7 @@ class irtt(rms):
             for p in fp:
                 t = tod.mktod(p)
                 if t is not None:
-                    self.startpasses.insert(t, prec=4)
+                    self.startpasses.insert(t)
 
         self.finishpasses.clear()
         fp = cr.get('irtt', 'finishpasses')
@@ -794,7 +769,7 @@ class irtt(rms):
             for p in fp:
                 t = tod.mktod(p)
                 if t is not None:
-                    self.finishpasses.insert(t, prec=4)
+                    self.finishpasses.insert(t)
 
         # display config
         startmode = 'Relaxed'
@@ -870,7 +845,6 @@ class irtt(rms):
         cw.set('irtt', 'finishloop', self.finishloop)
         cw.set('irtt', 'totlaps', self.totlaps)
         cw.set('irtt', 'onestartlist', self.onestartlist)
-        cw.set('irtt', 'precision', self.precision)
         cw.set('irtt', 'timelimit', self.timelimit)
         cw.set('irtt', 'hidetimers', self.hidetimers)
         cw.set('irtt', 'interloops', self.interloops)
@@ -1126,7 +1100,7 @@ class irtt(rms):
                 until = r[COL_TODFINISH] + to
                 if nowtime < until:
                     rarr = r[COL_TODFINISH]
-                    et = self.lrgetelapsed(r)
+                    et = self.getelapsed(r.iter)
                     reta = et
                     ets = et.rawtime(self.precision)
                     rankstr = '(' + plstr + '.)'
@@ -1239,7 +1213,7 @@ class irtt(rms):
                     ft = r[COL_TODFINISH]
                     fts = r[COL_TODFINISH].rawtime(2)
 
-                et = self.lrgetelapsed(r)
+                et = self.getelapsed(r.iter)
                 ets = '-'
                 unplaced = False
                 if et is not None:
@@ -1324,7 +1298,7 @@ class irtt(rms):
                     rcat = rcats[0]  # (work-around mis-categorised rider)
                 placed = False
                 totcount += 1
-                ft = self.lrgetelapsed(r)
+                ft = self.getelapsed(r.iter)
                 bstr = r[COL_BIB]
                 nstr = r[COL_NAMESTR]
                 cstr = ''
@@ -1503,9 +1477,9 @@ class irtt(rms):
                 bib = r[COL_BIB]
                 ser = r[COL_SERIES]
                 bs = strops.bibser2bibstr(bib, ser)
-                ft = self.lrgetelapsed(r)
+                ft = self.getelapsed(r.iter)
                 if ft is not None:
-                    ft = ft.truncate(self.precision)
+                    ft = ft.round(self.precision)
                 crank = None
                 rank = None
                 if r[COL_PLACE].isdigit():
@@ -1935,7 +1909,7 @@ class irtt(rms):
                 # flag announce
                 self._doannounce = True
             # save passing to start passing store
-            self.finishpasses.insert(t, prec=4)
+            self.finishpasses.insert(t)
         elif self.timerstat == 'armstart':
             self.set_syncstart(t)
 
@@ -1954,7 +1928,7 @@ class irtt(rms):
                     _log.error('Missing rider at start')
                     self.sl.toidle()
             # save passing to start passing store
-            self.startpasses.insert(t, prec=4)
+            self.startpasses.insert(t)
         elif self.timerstat == 'armstart':
             self.set_syncstart(t, tod.now())
 
@@ -2431,14 +2405,14 @@ class irtt(rms):
         tst = self.riders.get_value(iter, COL_TODSTART)
         wst = self.riders.get_value(iter, COL_WALLSTART)
 
-        # determine start time
+        # if started, return rank at inter
         if imed is not None:
-            if tst is not None:  # got a start trigger
-                res.insert(imed - tst, None, bib, series)
-                ret = res.rank(bib, series)
-            elif wst is not None:  # start on wall time
-                res.insert(imed - wst, None, bib, series)
-                ret = res.rank(bib, series)
+            if tst is not None:
+                ret = res.insert((imed - tst).round(self.precision), None, bib,
+                                 series)
+            elif wst is not None:
+                ret = res.insert((imed - wst).round(self.precision), None, bib,
+                                 series)
             else:
                 _log.error('No start time for intermediate ' +
                            strops.bibser2bibstr(bib, series))
@@ -2485,19 +2459,17 @@ class irtt(rms):
         # save result
         if tft is not None:
             self.onestart = True
-            if tst is not None:  # got a start trigger
+            if tst is not None:
                 self.results[cat].insert(
-                    (tft - tst).truncate(self.precision) + pt, None, bib,
-                    series)
-            elif wst is not None:  # start on wall time
+                    (tft - tst).round(self.precision) + pt, None, bib, series)
+            elif wst is not None:
                 self.results[cat].insert(
-                    (tft - wst).truncate(self.precision) + pt, None, bib,
-                    series)
+                    (tft - wst).round(self.precision) + pt, None, bib, series)
             else:
                 _log.error('No start time for rider ' +
                            strops.bibser2bibstr(bib, series))
         elif tst is not None:
-            #self.oncourse(bib, series)	# started but not finished
+            # started but not finished
             pass
 
         # if reqd, do places
