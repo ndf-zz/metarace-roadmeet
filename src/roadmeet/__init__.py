@@ -2106,8 +2106,6 @@ def main():
     ch.setFormatter(fh)
     logging.getLogger().addHandler(ch)
 
-    metarace.init()
-
     # try to set the menubar accel and logo
     try:
         lfile = metarace.default_file(metarace.LOGO)
@@ -2157,6 +2155,7 @@ def runapp(configpath, etype=None):
         sys.exit(-1)
     _log.debug('Entering meet folder %r', configpath)
     os.chdir(configpath)
+    metarace.init()
     app = roadmeet(etype, lf)
     app.loadconfig()
     app.window.show()
