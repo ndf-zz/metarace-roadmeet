@@ -2092,6 +2092,12 @@ class fakemeet(roadmeet):
         self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
 
 
+def createmeet():
+    """Prompt the user to create a new meet"""
+    _log.warning('TODO: Create meet dialog')
+    return None
+
+
 def main():
     """Run the road meet application as a console script."""
     chk = Gtk.init_check()
@@ -2115,31 +2121,35 @@ def main():
     except Exception as e:
         _log.debug('%s setting property: %s', e.__class__.__name__, e)
 
-    configpath = metarace.DATA_PATH
+    doconfig = False
+    configpath = None
     if len(sys.argv) > 2:
-        _log.error('Usage: roadmeet [configdir]')
+        _log.error('Usage: roadmeet [PATH]')
         sys.exit(1)
     elif len(sys.argv) == 2:
-        configpath = sys.argv[1]
+        if sys.argv[1] == '--edit-default':
+            doconfig = True
+            configpath = metarace.DEFAULTS_PATH
+            _log.debug('Edit defaults, configpath: %r', configpath)
+        else:
+            configpath = sys.argv[1]
+    else:
+        configpath = createmeet()
     configpath = metarace.config_path(configpath)
     if configpath is None:
-        _log.error('Unable to open meet config %r', sys.argv[1])
+        _log.debug('Missing path, command: %r', sys.argv)
+        _log.error('Error opening meet')
         if not os.isatty(sys.stdout.fileno()):
             err = Gtk.MessageDialog(None, Gtk.DialogFlags.MODAL,
                                     Gtk.MessageType.ERROR,
                                     Gtk.ButtonsType.CLOSE,
-                                    'Error reading meet config.')
+                                    'Error opening meet.')
             err.set_title('roadmeet: Error')
             err.format_secondary_text(
-                'Check config file and event log for error messages')
+                'Roadmeet was unable to open a meet folder.')
             err.run()
         sys.exit(-1)
-    app = runapp(configpath)
-    return Gtk.main()
 
-
-def runapp(configpath, etype=None):
-    """Create the roadmeet object, start in configpath and return a handle."""
     lf = metarace.lockpath(configpath)
     if lf is None:
         _log.error('Unable to lock meet config, already in use')
@@ -2156,11 +2166,15 @@ def runapp(configpath, etype=None):
     _log.debug('Entering meet folder %r', configpath)
     os.chdir(configpath)
     metarace.init()
-    app = roadmeet(etype, lf)
-    app.loadconfig()
-    app.window.show()
-    app.start()
-    return app
+    if doconfig:
+        _log.warning('TODO: init config editor')
+        sys.exit(-1)
+    else:
+        app = roadmeet(None, lf)
+        app.loadconfig()
+        app.window.show()
+        app.start()
+    return Gtk.main()
 
 
 if __name__ == '__main__':
