@@ -98,8 +98,7 @@ RESERVED_SOURCES = [
 
 DNFCODES = ['otl', 'wd', 'dsq', 'dnf', 'dns']
 GAPTHRESH = tod.tod('1.12')
-MINPASSSTR = '20.0'
-MINPASSTIME = tod.tod(MINPASSSTR)
+MINPASSTIME = tod.tod(20)
 MAXELAPSTR = '12h00:00'
 MAXELAP = tod.tod(MAXELAPSTR)
 
@@ -151,7 +150,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Finish:',
         'control': 'check',
         'type': 'bool',
-        'attr': 'targetlaps',
+        'attr': 'autofinish',
         'subtext': 'Automatically Finish?',
         'hint': 'Automatically finish riders on target lap',
         'default': True,
@@ -241,7 +240,7 @@ class rms:
             for cat in cats:
                 if cat != '':
                     cat = cat.upper()
-                    if cat not in ['CAT', 'SPARE', 'TEAM', 'DS']:
+                    if cat not in ('CAT', 'SPARE', 'TEAM', 'DS'):
                         self.cats.append(cat)
                     else:
                         _log.warning('Invalid result category: %r', cat)
@@ -423,12 +422,12 @@ class rms:
                 'tallys': [],
                 'lapstart': None,
                 'dofastestlap': False,
-                'minlap': MINPASSSTR,
+                'minlap': MINPASSTIME,
                 'lapfin': None,
                 'curlap': -1,
                 'passlabels': {},
                 'catonlap': {},
-                'gapthresh': None,
+                'gapthresh': GAPTHRESH,
                 'totlaps': None,
                 'autofinish': DEFDOWNTIMES,
                 'passingsource': [],
@@ -565,7 +564,7 @@ class rms:
         if not oneseed:
             self.hidecolumn(SEEDCOLUMN)
 
-        if self.targetlaps:
+        if self.autofinish:
             self.curlap = -1
             self.lapentry.set_text('')
             self.lapentry.set_sensitive(False)
@@ -580,8 +579,8 @@ class rms:
             self.totlapentry.set_text(str(self.totlaps))
 
         if cr.get_bool('rms', 'autofinish'):
-            # then override targetlaps if autofinish was set
-            self.targetlaps = True
+            # override if autofinish was set
+            self.autofinish = True
 
         # After load complete - check config and report.
         eid = cr.get('rms', 'id')
@@ -714,7 +713,7 @@ class rms:
         cw.set('rms', 'autoexport', self.autoexport)
         cw.set('rms', 'passingsource', self.passingsource)
         cw.set('rms', 'clubmode', self.clubmode)
-        cw.set('rms', 'autofinish', self.targetlaps)
+        cw.set('rms', 'autofinish', self.autofinish)
         ltout = []
         for lt in self.laptimes:
             ltout.append(lt.rawtime())
@@ -1004,7 +1003,7 @@ class rms:
             self.catstarts[c] = cs
             self.catlaps[c] = ls
         if onetarget:
-            self.targetlaps = True
+            self.autofinish = True
             if onemissing:
                 # There's one or more cats without a target, issue warning
                 missing = []
@@ -1077,7 +1076,7 @@ class rms:
                 riderno = r[COL_BIB].translate(strops.INTEGER_UTRANS)
                 sec.lines.append([comment, riderno, name, ucicode])
                 # Look up pilots
-                if cat in ['MB', 'WB']:
+                if cat in ('MB', 'WB'):
                     # lookup pilot
                     dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
                     if dbr is not None:
@@ -1113,7 +1112,7 @@ class rms:
         # Note: camera report treats all riders as a single blob
         ret = []
         self.recalculate()  # fill places and bunch info
-        pthresh = self.meet.timer.photothresh()
+        pthresh = self.meet._timer.photothresh()
         totcount = 0
         dnscount = 0
         dnfcount = 0
@@ -1512,7 +1511,7 @@ class rms:
                 if placed or timed or virtual:
                     sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
                     ## and look up pilots?
-                    if cat in ['MB', 'WB']:
+                    if cat in ('MB', 'WB'):
                         sec.even = True  # twocol result
                         # lookup pilot
                         dbr = self.meet.rdb.get_rider(bstr, 'pilot')
@@ -1555,9 +1554,9 @@ class rms:
                 pass
         if self.timerstat == 'finished':
             sec.heading = 'Result'
-        elif self.timerstat in ['idle', 'armstart']:
+        elif self.timerstat in ('idle', 'armstart'):
             sec.heading = ''
-        elif self.timerstat in ['running', 'armfinish']:
+        elif self.timerstat in ('running', 'armfinish'):
             # set status if number of judged riders greater than jtgt
             jtgt = 10
             javail = totcount - (dnfcount + dnscount + hdcount)
@@ -2013,8 +2012,7 @@ class rms:
             sno = self.meet.mirrorfile
         rdx = 1
         odat = [[
-            sno, '1', '1', self.meet.subtitle_str, '', '', '', '', '', '', '',
-            ''
+            sno, '1', '1', self.meet.subtitle, '', '', '', '', '', '', '', ''
         ]]
 
         for r in self.riders:
@@ -2244,7 +2242,7 @@ class rms:
     def resettimer(self):
         """Reset event timer."""
         _log.info('Reset event to idle')
-        self.meet.alttimer.dearm(1)
+        self.meet._alttimer.dearm(1)
         self.set_finish()
         self.set_start()
         self.clear_results()
@@ -2269,7 +2267,7 @@ class rms:
             self.armlap()
             if self.live_announce:
                 self.meet.cmd_announce('clear', 'all')
-                if self.event['type'] in ['criterium', 'circuit', 'cross']:
+                if self.event['type'] in ('criterium', 'circuit', 'cross'):
                     self.armlap()
 
         elif self.timerstat == 'armstart':
@@ -2289,7 +2287,7 @@ class rms:
 
     def armfinish(self):
         """Process an armfinish request."""
-        if self.timerstat in ['running', 'finished']:
+        if self.timerstat in ('running', 'finished'):
             if self.finish is None and self.curlap:
                 # No finish passing yet
                 self.armlap()
@@ -2300,10 +2298,10 @@ class rms:
             self.meet.cmd_announce('timerstat', 'armfinish')
             self.meet.stat_but.update('error', 'Arm Finish')
             self.meet.stat_but.set_sensitive(True)
-            self.meet.alttimer.armlock(True)
-            self.meet.alttimer.arm(1)
+            self.meet._alttimer.armlock(True)
+            self.meet._alttimer.arm(1)
         elif self.timerstat == 'armfinish':
-            self.meet.alttimer.dearm(1)
+            self.meet._alttimer.dearm(1)
             self.timerstat = 'running'
             self.meet.cmd_announce('timerstat', 'running')
             self.meet.stat_but.update('ok', 'Running')
@@ -2325,9 +2323,9 @@ class rms:
         titlestr = self.title_namestr.get_text()
         if self.live_announce:
             self.meet.cmd_announce('clear', 'all')
-        if self.timerstat in ['idle', 'armstart', 'armfinish']:
+        if self.timerstat in ('idle', 'armstart', 'armfinish'):
             self.meet.cmd_announce('finstr', self.meet.get_short_name())
-            if self.timerstat in ['idle', 'armstart']:
+            if self.timerstat in ('idle', 'armstart'):
                 self.reannounce_times()  # otherwise not called
                 self.meet.cmd_announce('title', titlestr)  # enforce
                 return False  # no arm till event underway
@@ -2358,7 +2356,7 @@ class rms:
 
         # Write lap time fields
         lapstr = None
-        if self.timerstat not in ['armfinish', 'finished']:
+        if self.timerstat not in ('armfinish', 'finished'):
             self.meet.cmd_announce('bunches', 'laps')
             self.meet.cmd_announce('finstr', None)
             ## Step 1: lap time handling
@@ -2660,7 +2658,7 @@ class rms:
             _log.info('Start trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
             self.set_start(e)
             self.resetcatonlaps()
-            if self.event['type'] in ['criterium', 'circuit', 'cross']:
+            if self.event['type'] in ('criterium', 'circuit', 'cross'):
                 GLib.idle_add(self.armlap)
         else:
             _log.info('Trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
@@ -2749,7 +2747,7 @@ class rms:
         """Process transponder passing event."""
 
         # all impulses from transponder timer are considered start triggers
-        if e.refid in ['', '255']:
+        if e.refid in ('', '255'):
             return self.starttrig(e)
 
         # fetch rider data from riderdb using refid lookup
@@ -2775,18 +2773,16 @@ class rms:
 
         # check for a spare bike in riderdb cat, before clubmode additions
         spcat = r.primary_cat()
-        if self.allowspares and spcat == 'SPARE' and self.timerstat in [
-                'running', 'armfinish'
-        ]:
+        if self.allowspares and spcat == 'SPARE' and self.timerstat in (
+                'running', 'armfinish'):
             _log.warning('Adding spare bike: %r', bib)
             self.addrider(bib)
 
         # fetch event info for rider
         lr = self.getrider(bib)
         if lr is None:
-            if self.clubmode and self.timerstat in [
-                    'armstart', 'running', 'armfinish'
-            ]:
+            if self.clubmode and self.timerstat in ('armstart', 'running',
+                                                    'armfinish'):
                 ri = self.addrider(bib)
                 lr = Gtk.TreeModelRow(self.riders, ri)
                 _log.info('Added new starter: %s:%s@%s/%s', bib, e.chan,
@@ -2805,7 +2801,7 @@ class rms:
             _log.info('Saw: %s:%s@%s/%s', bib, e.chan, e.rawtime(2), e.source)
 
         # check run state
-        if self.timerstat in ['idle', 'armstart', 'finished']:
+        if self.timerstat in ('idle', 'armstart', 'finished'):
             return False
 
         # fetch primary category IN event
@@ -2862,7 +2858,7 @@ class rms:
         lapfinish = False
         doarm = False
         targetlap = None
-        if self.targetlaps:
+        if self.autofinish:
             # category laps override event laps
             if rcat in self.catlaps and self.catlaps[rcat]:
                 targetlap = self.catlaps[rcat]
@@ -2914,7 +2910,7 @@ class rms:
         # end finishing rider path
 
         # lapping rider path
-        elif self.timerstat in ['running']:  # not finished, not armed
+        elif self.timerstat == 'running':
             self._dorecalc = True
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
                 # rider in the race, not yet finished: increment own lap count
@@ -2922,7 +2918,7 @@ class rms:
                 onlap = False
 
                 # category and target lap counting
-                if self.targetlaps:
+                if self.autofinish:
                     catlap = 0
                     if rcat in self.catonlap:
                         catlap = self.catonlap[rcat]
@@ -3044,13 +3040,13 @@ class rms:
             self.lapfin = None
             maxlap = 1
             entry.set_text('')
-            if self.timerstat not in ['idle', 'armstart', 'finished']:
+            if self.timerstat not in ('idle', 'armstart', 'finished'):
                 maxlap = 0
                 for r in self.riders:
                     r[COL_LAPS] = len(r[COL_RFSEEN])
                     maxlap = max(r[COL_LAPS] + 1, maxlap)
             self.onlap = maxlap
-            if self.event['type'] in ['criterium', 'circuit', 'cross']:
+            if self.event['type'] in ('criterium', 'circuit', 'cross'):
                 self.armlap()
 
     def totlapentry_activate_cb(self, entry, data=None):
@@ -3244,7 +3240,7 @@ class rms:
         self.meet.cmd_announce('totlaps', totlaps)
         # Write lap time fields
         lapstr = None
-        if self.timerstat not in ['armfinish', 'finished']:
+        if self.timerstat not in ('armfinish', 'finished'):
             self.meet.cmd_announce('finstr', None)
             if self.onlap is not None:
                 if self.totlaps is not None and self.totlaps > 0:
@@ -3404,7 +3400,7 @@ class rms:
             ft = self.finish.rawtime(2)
         ret = uiutil.edit_times_dlg(self.meet.window, stxt=st, ftxt=ft)
         if ret[0] == 1:
-            wasrunning = self.timerstat in ['running', 'armfinish']
+            wasrunning = self.timerstat in ('running', 'armfinish')
             self.set_finish(ret[2])
             self.set_start(ret[1])
             if wasrunning:
@@ -3412,7 +3408,7 @@ class rms:
                 self._dorecalc = True
             else:
                 self.resetcatonlaps()
-                if self.event['type'] in ['criterium', 'circuit', 'cross']:
+                if self.event['type'] in ('criterium', 'circuit', 'cross'):
                     GLib.idle_add(self.armlap)
             _log.info('Adjusted event times')
 
@@ -3754,7 +3750,7 @@ class rms:
         placestr = ''
         if src == 'fin':
             placestr = self.places
-            if tally in ['sprint', 'crit']:  # really only for sprints/crits
+            if tally in ('sprint', 'crit'):  # really only for sprints/crits
                 countbackwinner = True
         elif src == 'reg':
             placestr = self.get_startlist()
@@ -3899,7 +3895,7 @@ class rms:
                 rlaps = 0
                 rftime = tod.MAX
                 lastpass = tod.MAX
-            if self.event['type'] in ['road', 'criterium']:
+            if self.event['type'] in ('road', 'criterium'):
                 # partition into seen and not seen
                 if r[COL_INRACE]:
                     if rftime < tod.MAX or lastpass < tod.MAX:
@@ -3927,7 +3923,7 @@ class rms:
                 rcomment = r[COL_COMMENT]
                 if r[COL_INRACE] or rcomment == 'otl':
                     rtime = r[COL_RFTIME]
-                    if self.event['type'] in ['cross', 'circuit']:
+                    if self.event['type'] in ('cross', 'circuit'):
                         if ll is None or ll != r[COL_LAPS]:
                             # invalidate last passing since on a different lap
                             lt = None
@@ -3995,7 +3991,7 @@ class rms:
                     rplace = r[COL_COMMENT]
                 if not r[COL_INRACE]:
                     rlaps = 0
-                elif self.event['type'] in ['road', 'criterium']:
+                elif self.event['type'] in ('road', 'criterium'):
                     # group all finished riders
                     if rbunch < tod.MAX or r[COL_RFTIME] is not None:
                         rlaps = 999
@@ -4067,7 +4063,7 @@ class rms:
             if et is not None:
                 dlg = self.newstartdlg
                 self.newstartdlg = None
-                wasrunning = self.timerstat in ['running', 'armfinish']
+                wasrunning = self.timerstat in ('running', 'armfinish')
                 st = rfid - et
                 self.set_start(st)
                 if wasrunning:
@@ -4075,7 +4071,7 @@ class rms:
                     self._dorecalc = True
                 else:
                     self.resetcatonlaps()
-                    if self.event['type'] in ['criterium', 'circuit', 'cross']:
+                    if self.event['type'] in ('criterium', 'circuit', 'cross'):
                         GLib.idle_add(self.armlap)
                 dlg.response(1)
             else:
@@ -4127,7 +4123,7 @@ class rms:
     #def treerow_selected(self, treeview, path, view_column, data=None):
     #"""Select row, confirm only selected place"""
     ## filter on running/armfinish
-    #if self.timerstat not in ['idle', 'armstart', 'finished']:
+    #if self.timerstat not in ('idle', 'armstart', 'finished'):
     #if self.finish is not None:
     #rbib = self.riders[path][COL_BIB]
     #_log.info('Confirmed next place by tree selection: %r/%r',
@@ -4269,10 +4265,9 @@ class rms:
                 if dr is not None:
                     self.placeswap(dstbib, srcbib)
                     sr = self.getrider(srcbib)
-                    for col in [
-                            COL_COMMENT, COL_INRACE, COL_PLACE, COL_LAPS,
-                            COL_RFTIME, COL_CBUNCH, COL_MBUNCH, COL_RFSEEN
-                    ]:
+                    for col in (COL_COMMENT, COL_INRACE, COL_PLACE, COL_LAPS,
+                                COL_RFTIME, COL_CBUNCH, COL_MBUNCH,
+                                COL_RFSEEN):
                         tv = dr[col]
                         dr[col] = sr[col]
                         sr[col] = tv
@@ -4359,7 +4354,7 @@ class rms:
                         selbib, nf.rawtime(2))
                     self.riders.set_value(i, COL_RFTIME, nf)
                     self.recalculate()
-            elif change in ['dns', 'dnf', 'wd', 'otl', 'dsq']:
+            elif change in ('dns', 'dnf', 'wd', 'otl', 'dsq'):
                 self.dnfriders(selbib, change)
             elif change == 'return':
                 self.retriders(selbib)
@@ -4400,7 +4395,7 @@ class rms:
         self.hidecols = []
         self.cats = []
         self.passingsource = []  # list of decoders we accept passings from
-        self.targetlaps = False  # true if finish is det by target
+        self.autofinish = False  # true if finish is det by target
         self.catlaps = {}  # cache of cat lap counts
         self.catstarts = {}  # cache of cat start times
         self.catplaces = {}

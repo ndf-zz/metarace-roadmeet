@@ -77,37 +77,37 @@ _CONFIG_SCHEMA = {
     'title': {
         'prompt': 'Title:',
         'hint': 'Meet title',
-        'attr': 'title_str'
+        'attr': 'title'
     },
     'subtitle': {
         'prompt': 'Subtitle:',
         'hint': 'Meet subtitle',
-        'attr': 'subtitle_str'
+        'attr': 'subtitle'
     },
     'host': {
         'prompt': 'Host:',
         'hint': 'Text for the meet host / sponsor line',
-        'attr': 'host_str'
+        'attr': 'host'
     },
     'document': {
         'prompt': 'Location:',
         'hint': 'Text for the meet location / document line',
-        'attr': 'document_str'
+        'attr': 'document'
     },
     'date': {
         'prompt': 'Date:',
         'hint': 'Date of the meet as human-readable text',
-        'attr': 'date_str'
+        'attr': 'date'
     },
-    'commissaire': {
+    'pcp': {
         'prompt': 'PCP:',
         'hint': 'Name of the president of the commissaires panel',
-        'attr': 'commissaire_str'
+        'attr': 'pcp'
     },
     'organiser': {
         'prompt': 'Organiser:',
         'hint': 'Name of the meet organiser',
-        'attr': 'organiser_str'
+        'attr': 'organiser'
     },
     'distance': {
         'prompt': 'Distance:',
@@ -154,13 +154,13 @@ _CONFIG_SCHEMA = {
         'hint': 'Full topic for timer messages',
         'attr': 'timertopic'
     },
-    'remote_enable': {
+    'remoteenable': {
         'prompt': 'Option:',
         'control': 'check',
         'type': 'bool',
         'subtext': 'Receive remote timer messages?',
         'hint': 'Receive remote timer messages from timer topic',
-        'attr': 'remote_enable',
+        'attr': 'remoteenable',
         'default': False,
     },
     'sechw': {
@@ -171,13 +171,13 @@ _CONFIG_SCHEMA = {
         'prompt': 'Transponders:',
         'hint': 'Transponder decoder spec TYPE:ADDR, eg: rrs:10.1.2.3',
         'defer': True,
-        'attr': 'timer_port'
+        'attr': 'timer'
     },
     'alttimer': {
         'prompt': 'Impulse:',
         'hint': 'Impulse timer port eg: /dev/ttyS0',
         'defer': True,
-        'attr': 'alttimer_port'
+        'attr': 'alttimer'
     },
     'secexp': {
         'control': 'section',
@@ -332,7 +332,7 @@ class roadmeet:
                 self.announce.unsubscribe(otopic)
 
         # reset remote option
-        if res['timertopic'][0] or res['remote_enable'][0]:
+        if res['timertopic'][0] or res['remoteenable'][0]:
             self.remote_reset()
 
         # reset timer ports
@@ -362,26 +362,21 @@ class roadmeet:
                 self.open_event(eh)
         self.set_title()
 
-    def print_report(self, sections=[], provisional=False):
-        """Print the pre-formatted sections in a standard report."""
-        rep = report.report()
-        rep.provisional = provisional
-        rep.strings['title'] = self.title_str
-        rep.strings['subtitle'] = self.subtitle_str
-        rep.strings['host'] = self.host_str
-        rep.strings['docstr'] = self.document_str
-        rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
-        rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
-                                                  self.commissaire_str)
-        rep.strings['orgstr'] = strops.promptstr('Organiser:',
-                                                 self.organiser_str)
+    def report_strings(self, rep):
+        """Copy meet information into the supplied report."""
+        rep.strings['title'] = self.title
+        rep.strings['subtitle'] = self.subtitle
+        rep.strings['host'] = self.host
+        rep.strings['docstr'] = self.document
+        rep.strings['datestr'] = strops.promptstr('Date:', self.date)
+        rep.strings['commstr'] = strops.promptstr('PCP:', self.pcp)
+        rep.strings['orgstr'] = strops.promptstr('Organiser:', self.organiser)
         if self.distance:
             rep.strings['diststr'] = strops.promptstr(
                 'Distance:',
                 str(self.distance) + '\u2006km')
         else:
             rep.strings['diststr'] = self.diststr
-
         if self.eventcode:
             rep.eventid = self.eventcode
         if self.prevlink:
@@ -392,6 +387,12 @@ class roadmeet:
             rep.indexlink = self.indexlink
         if self.shortname:
             rep.shortname = self.shortname
+
+    def print_report(self, sections=[], provisional=False):
+        """Print the pre-formatted sections in a standard report."""
+        rep = report.report()
+        rep.provisional = provisional
+        self.report_strings(rep)
         for sec in sections:
             rep.add_section(sec)
 
@@ -655,9 +656,8 @@ class roadmeet:
             with open(sfile, encoding='utf-8', errors='replace') as f:
                 cr = csv.reader(f)
                 for r in cr:
-                    if len(r) > 1 and r[1].isalnum() and r[1].lower() not in [
-                            'no', 'no.'
-                    ]:
+                    if len(r) > 1 and r[1].isalnum() and r[1].lower() not in (
+                            'no', 'no.'):
                         bib = r[1].strip().lower()
                         series = ''
                         if len(r) > 2:
@@ -766,7 +766,7 @@ class roadmeet:
             filebase = self.mirrorfile
         else:
             filebase = '.'
-        if filebase in ['', '.']:
+        if filebase in ('', '.'):
             filebase = ''
             if self.resfiles:
                 _log.warn('Using default filenames for export')
@@ -782,37 +782,16 @@ class roadmeet:
         ffile = '_'.join(fnv)
 
         # Write out a startlist unless event finished
-        if self.resfiles and self.curevent.timerstat not in ['finished']:
+        if self.resfiles and self.curevent.timerstat != 'finished':
             filename = sfile
             rep = report.report()
-            rep.strings['title'] = self.title_str
-            rep.strings['subtitle'] = self.subtitle_str
-            rep.strings['host'] = self.host_str
-            rep.strings['docstr'] = self.document_str
-            rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
-            rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
-                                                      self.commissaire_str)
-            rep.strings['orgstr'] = strops.promptstr('Organiser:',
-                                                     self.organiser_str)
-            if self.distance:
-                rep.strings['diststr'] = strops.promptstr(
-                    'Distance:',
-                    str(self.distance) + '\u2006km')
-            else:
-                rep.strings['diststr'] = self.diststr
+            self.report_strings(rep)
             if self.provisionalstart:
                 rep.set_provisional(True)
-            rep.indexlink = 'index'
-            if self.eventcode:
-                rep.eventid = self.eventcode
             if self.prevlink:
                 rep.prevlink = '_'.join((self.prevlink, 'startlist'))
             if self.nextlink:
                 rep.nextlink = '_'.join((self.nextlink, 'startlist'))
-            if self.indexlink:
-                rep.indexlink = self.indexlink
-            if self.shortname:
-                rep.shortname = self.shortname
             rep.resultlink = ffile
             for sec in self.curevent.startlist_report():
                 rep.add_section(sec)
@@ -835,21 +814,7 @@ class roadmeet:
 
         # Then export a result
         rep = report.report()
-        rep.strings['title'] = self.title_str
-        rep.strings['subtitle'] = self.subtitle_str
-        rep.strings['host'] = self.host_str
-        rep.strings['docstr'] = self.document_str
-        rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
-        rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
-                                                  self.commissaire_str)
-        rep.strings['orgstr'] = strops.promptstr('Organiser:',
-                                                 self.organiser_str)
-        if self.distance:
-            rep.strings['diststr'] = strops.promptstr(
-                'Distance:',
-                str(self.distance) + '\u2006km')
-        else:
-            rep.strings['diststr'] = self.diststr
+        self.report_strings(rep)
 
         # Set provisional status	# TODO: other tests for prov flag?
         if self.curevent.timerstat != 'finished':
@@ -858,20 +823,12 @@ class roadmeet:
             rep.reportstatus = 'final'  # TODO: write in other phases
         for sec in self.curevent.result_report():
             rep.add_section(sec)
-
         filename = ffile
-        rep.indexlink = 'index'
-        if self.eventcode:
-            rep.eventid = self.eventcode
+        rep.startlink = sfile
         if self.prevlink:
             rep.prevlink = '_'.join((self.prevlink, 'result'))
         if self.nextlink:
             rep.nextlink = '_'.join((self.nextlink, 'result'))
-        if self.indexlink:
-            rep.indexlink = self.indexlink
-        if self.shortname:
-            rep.shortname = self.shortname
-        rep.startlink = sfile
         lb = os.path.join(self.linkbase, filename)
         lt = ['pdf', 'xls']
         rep.canonical = '.'.join([lb, 'json'])
@@ -919,16 +876,16 @@ class roadmeet:
 
     ## Timing menu callbacks
     def menu_timing_status_cb(self, menuitem, data=None):
-        if self.timer_port:
-            if self.timer.connected():
+        if self.timer:
+            if self._timer.connected():
                 _log.info('Request timer status')
-                self.timer.status()
+                self._timer.status()
             else:
                 _log.info('Decoder disconnected')
         else:
             _log.info('No decoder configured')
         # always call into alt timer
-        self.alttimer.status()
+        self._alttimer.status()
 
     def menu_timing_start_activate_cb(self, menuitem, data=None):
         """Manually set race elapsed time via trigger."""
@@ -956,43 +913,43 @@ class roadmeet:
         # Note: clear will perform reset, stop_session, clear,
         # sync, and start_session in whatever order is appropriate
         # for the decoder type
-        self.timer.clear()
-        self.alttimer.clrmem()
+        self._timer.clear()
+        self._alttimer.clrmem()
 
     def menu_timing_reconnect_activate_cb(self, menuitem, data=None):
         """Drop current timer connection and re-connect"""
-        self.set_timer(self.timer_port, force=True)
-        self.alttimer.setport(self.alttimer_port)
-        self.alttimer.sane()
+        self.set_timer(self.timer, force=True)
+        self._alttimer.setport(self.alttimer)
+        self._alttimer.sane()
         if self.etype == 'irtt':
-            self.alttimer.write('DTS05.00')
-            self.alttimer.write('DTF00.01')
+            self._alttimer.write('DTS05.00')
+            self._alttimer.write('DTF00.01')
         else:
             # assume 1 second gaps at finish
-            self.alttimer.write('DTF01.00')
+            self._alttimer.write('DTF01.00')
         _log.info('Re-connect/re-start attached timers')
 
     def restart_decoder(self, data=None):
         """Request re-start of decoder."""
-        self.timer.start_session()
+        self._timer.start_session()
         return None
 
     def menu_timing_configure_activate_cb(self, menuitem, data=None):
         """Attempt to re-configure the attached decoder from saved config."""
-        if self.timer.__class__.__name__ == 'thbc':
-            if not timer.connected():
+        if self._timer.__class__.__name__ == 'thbc':
+            if not self._timer.connected():
                 _log.info('Timer not connected, config not possible')
                 return False
             if not uiutil.questiondlg(
-                    self.window, 'Re-configure THBC Decoder Settings?',
+                    self.window, 'Re-configure THBC Decoder IP Settings?',
                     'Note: Passings will not be captured while decoder is updating.'
             ):
                 _log.debug('Config aborted')
                 return False
-            self.timer.stop_session()
-            self.timer.sane()
+            self._timer.stop_session()
+            self._timer.sane()
             GLib.timeout_add_seconds(60, self.restart_decoder)
-            self.timer.ipconfig()
+            self._timer.ipconfig()
         else:
             _log.info('Decoder config not available')
         return None
@@ -1048,8 +1005,8 @@ class roadmeet:
                 if self.rfuact:
                     self.rfustat.update('activity', nt)
                 else:
-                    if self.timer_port:
-                        if self.timer.connected():
+                    if self.timer:
+                        if self._timer.connected():
                             self.rfustat.update('ok', nt)
                         else:
                             self.rfustat.update('error', nt)
@@ -1058,15 +1015,15 @@ class roadmeet:
                 self.rfuact = False
 
                 # attempt to heal a broken link
-                if self.timer_port:
-                    if self.timer.connected():
+                if self.timer:
+                    if self._timer.connected():
                         self.rfufail = 0
                     else:
                         self.rfufail += 1
-                        if self.rfufail > 10:
+                        if self.rfufail > 20:
                             self.rfufail = 0
-                            eport = self.timer_port.split(':', 1)[-1]
-                            self.timer.setport(eport)
+                            eport = self.timer.split(':', 1)[-1]
+                            self._timer.setport(eport)
                 else:
                     self.rfufail = 0
             else:
@@ -1082,10 +1039,10 @@ class roadmeet:
         if self.etype in ROADRACE_TYPES:
             tv.append(ROADRACE_TYPES[self.etype] + ':')
 
-        title = self.title_str.strip()
+        title = self.title.strip()
         if title:
             tv.append(title)
-        subtitle = self.subtitle_str.strip()
+        subtitle = self.subtitle.strip()
         if subtitle:
             tv.append(subtitle)
         self.window.set_title(' '.join(tv))
@@ -1120,13 +1077,13 @@ class roadmeet:
             if event.state & Gdk.ModifierType.CONTROL_MASK:
                 key = key.lower()
                 t = tod.now(chan='MAN', refid=str(key))
-                if key in ['0', '1']:
+                if key in ('0', '1'):
                     # trigger
                     t.refid = ''
                     t.chan = strops.id2chan(strops.chan2id(key))
                     self._alttimercb(t)
                     return True
-                elif key in ['2', '3', '4', '5', '6', '7', '8', '9']:
+                elif key in ('2', '3', '4', '5', '6', '7', '8', '9'):
                     # passing
                     self._timercb(t)
                     return True
@@ -1138,8 +1095,8 @@ class roadmeet:
         """Shutdown worker threads and close application."""
         self.started = False
         self.announce.exit(msg)
-        self.timer.exit(msg)
-        self.alttimer.exit(msg)
+        self._timer.exit(msg)
+        self._alttimer.exit(msg)
         _log.info('Waiting for workers')
         if self.mirror is not None:
             _log.debug('Result export')
@@ -1153,8 +1110,8 @@ class roadmeet:
         if not self.started:
             _log.debug('Meet startup')
             self.announce.start()
-            self.timer.start()
-            self.alttimer.start()
+            self._timer.start()
+            self._alttimer.start()
             self.started = True
 
     ## Roadmeet functions
@@ -1167,21 +1124,21 @@ class roadmeet:
         cw.set('roadmeet', 'id', ROADMEET_ID)
         cw.set('roadmeet', 'anntopic', self.anntopic)
         cw.set('roadmeet', 'timertopic', self.timertopic)
-        cw.set('roadmeet', 'remote_enable', self.remote_enable)
-        cw.set('roadmeet', 'timer', self.timer_port)
-        cw.set('roadmeet', 'alttimer', self.alttimer_port)
+        cw.set('roadmeet', 'remoteenable', self.remoteenable)
+        cw.set('roadmeet', 'timer', self.timer)
+        cw.set('roadmeet', 'alttimer', self.alttimer)
         cw.set('roadmeet', 'shortname', self.shortname)
         cw.set('roadmeet', 'linkbase', self.linkbase)
         cw.set('roadmeet', 'indexlink', self.indexlink)
         cw.set('roadmeet', 'nextlink', self.nextlink)
         cw.set('roadmeet', 'prevlink', self.prevlink)
-        cw.set('roadmeet', 'title', self.title_str)
-        cw.set('roadmeet', 'host', self.host_str)
-        cw.set('roadmeet', 'subtitle', self.subtitle_str)
-        cw.set('roadmeet', 'document', self.document_str)
-        cw.set('roadmeet', 'date', self.date_str)
-        cw.set('roadmeet', 'organiser', self.organiser_str)
-        cw.set('roadmeet', 'commissaire', self.commissaire_str)
+        cw.set('roadmeet', 'title', self.title)
+        cw.set('roadmeet', 'host', self.host)
+        cw.set('roadmeet', 'subtitle', self.subtitle)
+        cw.set('roadmeet', 'document', self.document)
+        cw.set('roadmeet', 'date', self.date)
+        cw.set('roadmeet', 'organiser', self.organiser)
+        cw.set('roadmeet', 'commissaire', self.pcp)
         cw.set('roadmeet', 'lifexport', self.lifexport)
         cw.set('roadmeet', 'resfiles', self.resfiles)
         cw.set('roadmeet', 'announceresult', self.announceresult)
@@ -1201,12 +1158,12 @@ class roadmeet:
 
     def set_timer(self, newdevice='', force=False):
         """Re-set the main timer device and connect callback."""
-        if newdevice != self.timer_port or force:
-            self.timer = mkdevice(newdevice, self.timer)
-            self.timer_port = newdevice
+        if newdevice != self.timer or force:
+            self._timer = mkdevice(newdevice, self._timer)
+            self.timer = newdevice
         else:
             _log.debug('set_timer - No change required')
-        self.timer.setcb(self._timercb)
+        self._timer.setcb(self._timercb)
 
     def loadconfig(self):
         """Load meet config from disk."""
@@ -1226,7 +1183,7 @@ class roadmeet:
                 'alttimer': '',
                 'anntopic': None,
                 'timertopic': None,
-                'remote_enable': False,
+                'remoteenable': False,
                 'linkbase': '.',
                 'indexlink': None,
                 'nextlink': None,
@@ -1265,10 +1222,10 @@ class roadmeet:
 
         # set alt timer port (timy)
         nport = cr.get('roadmeet', 'alttimer')
-        if nport != self.alttimer_port:
-            self.alttimer_port = nport
-            self.alttimer.setport(nport)
-            self.alttimer.sane()
+        if nport != self.alttimer:
+            self.alttimer = nport
+            self._alttimer.setport(nport)
+            self._alttimer.sane()
 
         # set the default announce topic and subscribe to control topic
         self.anntopic = cr.get('roadmeet', 'anntopic')
@@ -1277,18 +1234,18 @@ class roadmeet:
 
         # fetch the remote timer topic and update remote control
         self.timertopic = cr.get('roadmeet', 'timertopic')
-        self.remote_enable = cr.get_bool('roadmeet', 'remote_enable')
+        self.remoteenable = cr.get_bool('roadmeet', 'remoteenable')
         self.remote_reset()
 
         # set meet meta, and then copy into text entries
         self.shortname = cr.get('roadmeet', 'shortname')
-        self.title_str = cr.get('roadmeet', 'title')
-        self.host_str = cr.get('roadmeet', 'host')
-        self.subtitle_str = cr.get('roadmeet', 'subtitle')
-        self.document_str = cr.get('roadmeet', 'document')
-        self.date_str = cr.get('roadmeet', 'date')
-        self.organiser_str = cr.get('roadmeet', 'organiser')
-        self.commissaire_str = cr.get('roadmeet', 'commissaire')
+        self.title = cr.get('roadmeet', 'title')
+        self.host = cr.get('roadmeet', 'host')
+        self.subtitle = cr.get('roadmeet', 'subtitle')
+        self.document = cr.get('roadmeet', 'document')
+        self.date = cr.get('roadmeet', 'date')
+        self.organiser = cr.get('roadmeet', 'organiser')
+        self.pcp = cr.get('roadmeet', 'commissaire')
         self.distance = cr.get_float('roadmeet', 'distance')
         self.diststr = cr.get('roadmeet', 'diststr')
         self.linkbase = cr.get('roadmeet', 'linkbase')
@@ -1320,13 +1277,13 @@ class roadmeet:
         self.open_event(event)  # always open on load if posible
         self.set_title()
 
-        # alt timer config post event load
+        # Adjust alttimer config post event load
         if self.etype == 'irtt':
-            self.alttimer.write('DTS05.00')
-            self.alttimer.write('DTF00.01')
+            self._alttimer.write('DTS05.00')
+            self._alttimer.write('DTF00.01')
         else:
             # assume 1 second gaps at finish
-            self.alttimer.write('DTF01.00')
+            self._alttimer.write('DTF01.00')
 
         # make sure export path exists
         if not os.path.exists(self.exportpath):
@@ -1362,11 +1319,11 @@ class roadmeet:
 
     def timer_announce(self, evt, timer=None, source=''):
         """Send message into announce for remote control."""
-        if not self.remote_enable and self.timertopic is not None:
+        if not self.remoteenable and self.timertopic is not None:
             if timer is None:
-                timer = self.timer
+                timer = self._timer
             prec = 4
-            if timer is self.timer:
+            if timer is self._timer:
                 prec = 3  # transponders have reduced precision
             elif 'M' in evt.chan:
                 prec = 3
@@ -1392,7 +1349,7 @@ class roadmeet:
         """Reset remote input of timer messages."""
         _log.debug('Remote control reset')
         if self.timertopic is not None:
-            if self.remote_enable:
+            if self.remoteenable:
                 _log.debug('Listening for remote timer at %r', self.timertopic)
                 self.announce.subscribe(self.timertopic)
             else:
@@ -1432,7 +1389,7 @@ class roadmeet:
     def remote_command(self, topic, msg):
         """Handle a remote control message."""
         if topic == self.timertopic:
-            if self.remote_enable:
+            if self.remoteenable:
                 self.remote_timer(msg)
         else:
             _log.debug('Unsupported remote command %r:%r', topic, msg)
@@ -1538,12 +1495,12 @@ class roadmeet:
     def _timercb(self, evt, data=None):
         if self.timercb is not None:
             GLib.idle_add(self.timercb, evt, priority=GLib.PRIORITY_HIGH)
-        GLib.idle_add(self.timer_announce, evt, self.timer, 'rfid')
+        GLib.idle_add(self.timer_announce, evt, self._timer, 'rfid')
 
     def _alttimercb(self, evt, data=None):
         if self.alttimercb is not None:
             GLib.idle_add(self.alttimercb, evt, priority=GLib.PRIORITY_HIGH)
-        GLib.idle_add(self.timer_announce, evt, self.alttimer, 'timy')
+        GLib.idle_add(self.timer_announce, evt, self._alttimer, 'timy')
 
     def _controlcb(self, topic=None, message=None):
         GLib.idle_add(self.remote_command, topic, message)
@@ -1784,7 +1741,7 @@ class roadmeet:
                         cat = dbr['no'].upper()
                         if cat in self.curevent.cats:
                             _log.warning('Deleted cat %s in open event', cat)
-                    elif series not in ['ds', 'spare', 'team']:
+                    elif series not in ('ds', 'spare', 'team'):
                         self.curevent.delrider(dbr['no'], series)
                         _log.info('Remove rider %s from event', short)
                 del (self.rdb[self._cur_rider_sel])
@@ -1802,13 +1759,13 @@ class roadmeet:
         self.meetlock = lockfile
         self.etype = etype
         self.shortname = None
-        self.title_str = ''
-        self.host_str = ''
-        self.subtitle_str = ''
-        self.document_str = ''
-        self.date_str = ''
-        self.organiser_str = ''
-        self.commissaire_str = ''
+        self.title = ''
+        self.host = ''
+        self.subtitle = ''
+        self.document = ''
+        self.date = ''
+        self.organiser = ''
+        self.pcp = ''
         self.distance = None
         self.diststr = ''
         self.linkbase = '.'
@@ -1817,8 +1774,7 @@ class roadmeet:
         self.nextlink = None
         self.prevlink = None
 
-        self.bibs_in_results = True
-        self.remote_enable = False
+        self.remoteenable = False
         self.lifexport = False
         self.resfiles = True
         self.announceresult = True
@@ -1837,13 +1793,13 @@ class roadmeet:
 
         # hardware connections
         self.timertopic = None  # remote timer topic
-        self.timer = decoder()
-        self.timer_port = ''
-        self.timer.setcb(self._timercb)
+        self._timer = decoder()
+        self.timer = ''
+        self._timer.setcb(self._timercb)
         self.timercb = None  # set by event app
-        self.alttimer = timy()  # alttimer is always timy
-        self.alttimer_port = ''
-        self.alttimer.setcb(self._alttimercb)
+        self._alttimer = timy()  # alttimer is always timy
+        self.alttimer = ''
+        self._alttimer.setcb(self._alttimercb)
         self.alttimercb = None  # set by event app
         self.announce = telegraph()
         self.announce.setcb(self._controlcb)
@@ -2013,8 +1969,8 @@ class fakemeet(roadmeet):
     def __init__(self, edb, rdb):
         self.edb = edb
         self.rdb = rdb
-        self.timer = decoder()
-        self.alttimer = timy()
+        self._timer = decoder()
+        self._alttimer = timy()
         self.stat_but = uiutil.statButton()
         self.action_model = Gtk.ListStore(str, str)
         self.action_model.append(['a', 'a'])
@@ -2022,19 +1978,18 @@ class fakemeet(roadmeet):
         self.action_combo.set_model(self.action_model)
         self.action_combo.set_active(0)
         self.announce = telegraph()
-        self.title_str = ''
-        self.host_str = ''
-        self.subtitle_str = ''
-        self.date_str = ''
-        self.organiser_str = ''
-        self.commissaire_str = ''
+        self.title = ''
+        self.host = ''
+        self.subtitle = ''
+        self.date = ''
+        self.organiser = ''
+        self.pcp = ''
         self.distance = None
         self.linkbase = '.'
         self.provisionalstart = False
         self.indexlink = None
         self.nextlink = None
         self.prevlink = None
-        self.bibs_in_results = True
 
     def cmd_announce(self, command, msg):
         return False
@@ -2047,15 +2002,14 @@ class fakemeet(roadmeet):
 
     def report_strings(self, rep):
         """Copy the meet strings into the supplied report."""
-        rep.strings['title'] = self.title_str
-        rep.strings['subtitle'] = self.subtitle_str
-        rep.strings['host'] = self.host_str
-        rep.strings['docstr'] = self.document_str
-        rep.strings['datestr'] = strops.promptstr('Date:', self.date_str)
+        rep.strings['title'] = self.title
+        rep.strings['subtitle'] = self.subtitle
+        rep.strings['host'] = self.host
+        rep.strings['docstr'] = self.document
+        rep.strings['datestr'] = strops.promptstr('Date:', self.date)
         rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
-                                                  self.commissaire_str)
-        rep.strings['orgstr'] = strops.promptstr('Organiser:',
-                                                 self.organiser_str)
+                                                  self.pcp)
+        rep.strings['orgstr'] = strops.promptstr('Organiser:', self.organiser)
         if self.distance:
             rep.strings['diststr'] = strops.promptstr(
                 'Distance:',
@@ -2103,13 +2057,13 @@ class fakemeet(roadmeet):
 
         # set meet meta, and then copy into text entries
         self.shortname = cr.get('roadmeet', 'shortname')
-        self.title_str = cr.get('roadmeet', 'title')
-        self.host_str = cr.get('roadmeet', 'host')
-        self.subtitle_str = cr.get('roadmeet', 'subtitle')
-        self.document_str = cr.get('roadmeet', 'document')
-        self.date_str = cr.get('roadmeet', 'date')
-        self.organiser_str = cr.get('roadmeet', 'organiser')
-        self.commissaire_str = cr.get('roadmeet', 'commissaire')
+        self.title = cr.get('roadmeet', 'title')
+        self.host = cr.get('roadmeet', 'host')
+        self.subtitle = cr.get('roadmeet', 'subtitle')
+        self.document = cr.get('roadmeet', 'document')
+        self.date = cr.get('roadmeet', 'date')
+        self.organiser = cr.get('roadmeet', 'organiser')
+        self.pcp = cr.get('roadmeet', 'pcp')
         self.linkbase = cr.get('roadmeet', 'linkbase')
         self.distance = cr.get_float('roadmeet', 'distance')
         self.diststr = cr.get('roadmeet', 'diststr')

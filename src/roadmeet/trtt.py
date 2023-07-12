@@ -135,7 +135,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Finish:',
         'control': 'check',
         'type': 'bool',
-        'attr': 'targetlaps',
+        'attr': 'autofinish',
         'subtext': 'Automatically Finish?',
         'hint': 'Automatically finish riders on target lap',
         'default': True,
@@ -250,15 +250,16 @@ class trtt(rms):
                 'contests': [],
                 'tallys': [],
                 'owntime': True,
-                'gapthresh': None,
+                'gapthresh': GAPTHRESH,
                 'totlaps': None,
                 'passingsource': [],
                 'defaultnth': NTH_WHEEL,
-                'minlap': None,
+                'minlap': MINLAP,
+                'startgap': STARTGAP,
                 'clubmode': False,
                 'nthwheel': {},
                 'startlist': '',
-                'autofinish': False,
+                'autofinish': True,
                 'autoexport': False,
             }
         })
@@ -294,6 +295,13 @@ class trtt(rms):
             if self.gapthresh != GAPTHRESH:
                 _log.warning('Set time gap threshold %s',
                              self.gapthresh.rawtime(2))
+
+        # fetch team start gap
+        ngt = tod.mktod(cr.get('trtt', 'startgap'))
+        if ngt is not None:
+            self.startgap = ngt
+            if self.startgap != STARTGAP:
+                _log.warning('Set team start gap %s', self.startgap.rawtime(0))
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'trtt')
@@ -361,8 +369,7 @@ class trtt(rms):
         self.team_start_times()
 
         if cr.get_bool('trtt', 'autofinish'):
-            # then override targetlaps if autofinish was set
-            self.targetlaps = True
+            self.autofinish = True
 
         # After load complete - check config and report.
         eid = cr.get('trtt', 'id')
@@ -388,7 +395,7 @@ class trtt(rms):
                         onemissing = True
             self.catlaps[c] = ls
         if onetarget:
-            self.targetlaps = True
+            self.autofinish = True
             if onemissing:
                 # There's one or more cats without a target, issue warning
                 missing = []
@@ -416,13 +423,14 @@ class trtt(rms):
         cw.set('trtt', 'showriders', self.showriders)
         cw.set('trtt', 'relativestart', self.relativestart)
         cw.set('trtt', 'gapthresh', self.gapthresh.rawtime())
+        cw.set('trtt', 'startgap', self.startgap.rawtime())
         cw.set('trtt', 'finished', self.timerstat == 'finished')
         cw.set('trtt', 'places', self.places)
         cw.set('trtt', 'totlaps', self.totlaps)
         cw.set('trtt', 'allowspares', self.allowspares)
         cw.set('trtt', 'defaultnth', self.defaultnth)
         cw.set('trtt', 'owntime', self.owntime)
-        cw.set('trtt', 'autofinish', self.targetlaps)
+        cw.set('trtt', 'autofinish', self.autofinish)
         cw.set('trtt', 'autoexport', self.autoexport)
         cw.set('trtt', 'passingsource', self.passingsource)
         cw.set('trtt', 'clubmode', self.clubmode)
@@ -578,7 +586,7 @@ class trtt(rms):
                 tname = rteam  # use key and only replace if avail
                 if rteam in self.teamnames:
                     tname = self.teamnames[rteam]
-                if ltod is not None and rstart - ltod > STARTGAP:
+                if ltod is not None and rstart - ltod > self.startgap:
                     sec.lines.append([])
                 ltod = rstart
                 cstr = ''
@@ -654,7 +662,7 @@ class trtt(rms):
         # Note: camera report treats all riders as a single blob
         ret = []
         self.recalculate()  # fill places and bunch info, order by arrival
-        pthresh = self.meet.timer.photothresh()
+        pthresh = self.meet._timer.photothresh()
         totcount = 0
         dnscount = 0
         dnfcount = 0
@@ -944,9 +952,9 @@ class trtt(rms):
 
         if self.timerstat == 'finished':
             sec.heading = 'Result'
-        elif self.timerstat in ['idle', 'armstart']:
+        elif self.timerstat in ('idle', 'armstart'):
             sec.heading = ''
-        elif self.timerstat in ['running', 'armfinish']:
+        elif self.timerstat in ('running', 'armfinish'):
             if teamCnt == finCnt:
                 sec.heading = 'Provisional Result'
             elif finCnt > 0:
@@ -1171,7 +1179,7 @@ class trtt(rms):
     def resettimer(self):
         """Reset race timer."""
         _log.info('Reset event to idle')
-        self.meet.alttimer.dearm(1)
+        self.meet._alttimer.dearm(1)
         self.set_start()
         self.clear_results()
         self.teamtimes = {}
@@ -1184,16 +1192,16 @@ class trtt(rms):
 
     def armfinish(self):
         """Process an armfinish request."""
-        if self.timerstat in ['running', 'finished']:
+        if self.timerstat in ('running', 'finished'):
             self.armlap()
             self.timerstat = 'armfinish'
             self.meet.cmd_announce('timerstat', 'armfinish')
             self.meet.stat_but.update('error', 'Arm Finish')
             self.meet.stat_but.set_sensitive(True)
-            self.meet.alttimer.armlock(True)
-            self.meet.alttimer.arm(1)
+            self.meet._alttimer.armlock(True)
+            self.meet._alttimer.arm(1)
         elif self.timerstat == 'armfinish':
-            self.meet.alttimer.dearm(1)
+            self.meet._alttimer.dearm(1)
             self.timerstat = 'running'
             self.meet.cmd_announce('timerstat', 'running')
             self.meet.stat_but.update('ok', 'Running')
@@ -1239,7 +1247,7 @@ class trtt(rms):
         # check if lap mode is target-based
         lapfinish = False
         targetlap = None
-        if self.targetlaps:
+        if self.autofinish:
             # category laps override event laps
             if rcat in self.catlaps and self.catlaps[rcat]:
                 targetlap = self.catlaps[rcat]
@@ -1268,7 +1276,7 @@ class trtt(rms):
         # end finishing rider path
 
         # lapping rider path
-        elif self.timerstat in ['running']:  # not finished, not armed
+        elif self.timerstat == 'running':
             self._dorecalc = True
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
                 # rider in the race, not yet finished: increment own lap count
@@ -1330,7 +1338,7 @@ class trtt(rms):
                                     ftxt=ft,
                                     finish=False)
         if ret[0] == 1:
-            wasrunning = self.timerstat in ['running', 'armfinish']
+            wasrunning = self.timerstat in ('running', 'armfinish')
             self.set_start(ret[1])
             if wasrunning:
                 # flag a recalculate
@@ -1562,6 +1570,7 @@ class trtt(rms):
         self.calcset = False
         self.maxfinish = tod.ZERO
         self.minlap = None
+        self.startgap = None
         self.winopen = True
         self.timerstat = 'idle'
         self.places = ''
@@ -1569,7 +1578,7 @@ class trtt(rms):
         self.ridermark = None
         self.cats = []
         self.passingsource = []  # list of decoders we accept passings from
-        self.targetlaps = False  # true if finish is det by target
+        self.autofinish = False  # true if finish is det by target
         self.catplaces = {}
         self.catlaps = {}  # cache of cat lap counts
         self.defaultnth = NTH_WHEEL

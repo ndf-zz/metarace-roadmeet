@@ -228,7 +228,7 @@ def jsob(inmap):
     if inmap is not None:
         ret = {}
         for key in inmap:
-            if key in ['minelap', 'maxelap']:
+            if key in ('minelap', 'maxelap'):
                 ret[key] = inmap[key].rawtime()
             else:
                 ret[key] = inmap[key]
@@ -241,7 +241,7 @@ def unjsob(inmap):
     if inmap is not None:
         ret = {}
         for key in inmap:
-            if key in ['minelap', 'maxelap']:
+            if key in ('minelap', 'maxelap'):
                 ret[key] = tod.mktod(inmap[key])
             else:
                 ret[key] = inmap[key]
@@ -333,7 +333,7 @@ class irtt(rms):
         elif self.timerstat == 'armstart':
             self.resetall()
         elif self.timerstat == 'running':
-            if self.sl.getstatus() in ['armstart', 'running']:
+            if self.sl.getstatus() in ('armstart', 'running'):
                 self.sl.toidle()
             elif self.sl.getstatus() != 'running':
                 self.sl.toarmstart()
@@ -383,9 +383,8 @@ class irtt(rms):
         ret = self.getelapsed(iter)
         if ret is None:
             # scan each inter from farthest to nearest
-            for ipt in [
-                    COL_INTERE, COL_INTERD, COL_INTERC, COL_INTERB, COL_INTERA
-            ]:
+            for ipt in (COL_INTERE, COL_INTERD, COL_INTERC, COL_INTERB,
+                        COL_INTERA):
                 if ipt in self.ischem and self.ischem[ipt] is not None:
                     dist = self.ischem[ipt]['dist']
                     inter = self.riders.get_value(iter, ipt)
@@ -584,7 +583,7 @@ class irtt(rms):
                 'categories': [],
                 'arrivaltimeout': ARRIVALTIMEOUT,
                 'lstart': '0',
-                'startgap': '1:00',
+                'startgap': STARTGAP,
                 'precision': 2,
                 'autoexport': False,
                 'intermeds': [],
@@ -624,7 +623,7 @@ class irtt(rms):
         # load default gap
         self.startgap = tod.mktod(cr.get('irtt', 'startgap'))
         if self.startgap is None:
-            self.startgap = tod.tod('1:00')
+            self.startgap = STARTGAP
 
         # load result precision - allow manual downgrade
         self.precision = cr.get_posint('irtt', 'precision', 1)
@@ -1081,7 +1080,7 @@ class irtt(rms):
                     if cstr in catnamecache and len(catnamecache[cstr]) < 8:
                         cstr = catnamecache[cstr]
                 sec.lines.append([stxt, bstr, name, ucicode, '____', cstr])
-                if cstr in ['MB', 'WB']:
+                if cstr in ('MB', 'WB'):
                     # lookup pilot - series lookup
                     dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
                     if dbr is not None:
@@ -1366,7 +1365,7 @@ class irtt(rms):
                     dstr = '+' + (ft - ct).rawtime(1)
                 if placed:
                     sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
-                    if cat in ['WB', 'MB']:  #also look up pilots
+                    if cat in ('WB', 'MB'):  #also look up pilots
                         # lookup pilot - series lookup
                         dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
                         if dbr is not None:
@@ -1810,7 +1809,7 @@ class irtt(rms):
     def timertrig(self, e):
         """Process transponder passing event."""
         chan = strops.chan2id(e.chan)
-        if e.refid in ['', '255']:
+        if e.refid in ('', '255'):
             if self.finishloop is not None and chan in (self.finishloop, -1):
                 self.fin_trig(e)
             elif self.startloop is not None and chan in (self.startloop, -1):
@@ -1878,7 +1877,7 @@ class irtt(rms):
                       e.rawtime(2), e.source)
             return False
 
-        if self.fl.getstatus() not in ['armfin']:
+        if self.fl.getstatus() != 'armfin':
             st = lr[COL_WALLSTART]
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]
@@ -2006,7 +2005,7 @@ class irtt(rms):
 
             # auto load/clear start lane if start loop is not set
             if self.startloop is None:
-                if self.sl.getstatus() in ['idle', 'load']:
+                if self.sl.getstatus() in ('idle', 'load'):
                     if nowoft.timeval % 5 == 0:  # every five
                         self.on_start(nowoft)
                 else:
@@ -2017,7 +2016,7 @@ class irtt(rms):
                 self.sl.set_time(nowoft.timestr(0))
 
             # if finish lane loaded, set the elapsed time
-            if self.fl.getstatus() in ['load', 'running', 'armfin']:
+            if self.fl.getstatus() in ('load', 'running', 'armfin'):
                 bib = self.fl.bibent.get_text()
                 series = self.fl.serent.get_text()
                 i = self.getiter(bib, series)
@@ -2251,7 +2250,7 @@ class irtt(rms):
         fullcnt = len(self.riders)
         placed = 0
         for r in self.riders:
-            if r[COL_PLACE] and r[COL_PLACE] in ['dns', 'dnf', 'dsq']:
+            if r[COL_PLACE] and r[COL_PLACE] in ('dns', 'dnf', 'dsq'):
                 r[COL_ETA] = None
             else:
                 i = r.iter
@@ -2318,7 +2317,7 @@ class irtt(rms):
         if src == 'fin':
             placestr = self.get_placelist()
             _log.info('Using placestr %r', placestr)
-            if tally in ['sprint', 'crit']:  # really only for sprints/crits
+            if tally in ('sprint', 'crit'):  # really only for sprints/crits
                 countbackwinner = True
         elif src == 'reg':
             placestr = self.get_startlist()
@@ -2523,7 +2522,7 @@ class irtt(rms):
             series = tp.serent.get_text().strip()
             if bib != '':
                 self.armfinish()
-                self.meet.alttimer.trig(thetime, chan=1, index='MANU')
+                self.meet._alttimer.trig(thetime, chan=1, index='MANU')
                 entry.set_text('')
                 tp.grab_focus()
         else:
@@ -2718,7 +2717,7 @@ class irtt(rms):
         self.inters = {}
         self.ischem = {}
         self.showinter = None
-        for im in [COL_INTERA, COL_INTERB, COL_INTERC, COL_INTERD, COL_INTERE]:
+        for im in (COL_INTERA, COL_INTERB, COL_INTERC, COL_INTERD, COL_INTERE):
             self.inters[im] = {'': tod.todlist('UNCAT')}
             self.ischem[im] = None
         self.interloops = {}  # map of loop ids to inter splits
@@ -2826,12 +2825,13 @@ class irtt(rms):
             b.connect_signals(self)
 
             # reconfigure the chronometer
-            self.meet.alttimer.armlock()  # lock the arm to capture all hits
-            self.meet.alttimer.arm(0)  # start line
-            self.meet.alttimer.arm(1)  # finish line (primary)
-            self.meet.alttimer.arm(2)  # use for backup trigger a
-            self.meet.alttimer.arm(3)  # use for backup trigger b
-            self.meet.alttimer.delaytime('0.01')
+            self.meet._alttimer.armlock()  # lock the arm to capture all hits
+            self.meet._alttimer.arm(0)  # start line
+            self.meet._alttimer.arm(1)  # finish line (primary)
+            self.meet._alttimer.arm(2)  # finish line (photo cell)
+            self.meet._alttimer.arm(3)  # finish line (plunger)
+            self.meet._alttimer.arm(4)  # start line (backup)
+            self.meet._alttimer.delaytime('0.01')
 
             # connect timer callback functions
             self.meet.timercb = self.timertrig  # transponders
