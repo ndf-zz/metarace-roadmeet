@@ -36,11 +36,11 @@ from roadmeet.rms import rms
 from roadmeet.irtt import irtt
 from roadmeet.trtt import trtt
 
-VERSION = '1.13.1'
+VERSION = '1.13.2'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
-ROADMEET_ID = 'roadmeet_3.1'  # configuration versioning
+ROADMEET_ID = 'roadmeet_3.2'  # configuration versioning
 EXPORTPATH = 'export'
 _log = logging.getLogger('metarace.roadmeet')
 _log.setLevel(logging.DEBUG)
@@ -53,7 +53,6 @@ ROADRACE_TYPES = {
     'irtt': 'Individual Time Trial',
     'trtt': 'Team Time Trial',
 }
-_DEFAULT_HANDLER = 'null'
 _HANDLERS = {
     'null': decoder,
     'thbc': thbc,
@@ -76,37 +75,44 @@ _CONFIG_SCHEMA = {
     'title': {
         'prompt': 'Title:',
         'hint': 'Meet title',
-        'attr': 'title'
+        'attr': 'title',
+        'default': '',
     },
     'subtitle': {
         'prompt': 'Subtitle:',
         'hint': 'Meet subtitle',
-        'attr': 'subtitle'
+        'attr': 'subtitle',
+        'default': '',
     },
     'host': {
         'prompt': 'Host:',
         'hint': 'Text for the meet host / sponsor line',
-        'attr': 'host'
+        'attr': 'host',
+        'default': '',
     },
     'document': {
         'prompt': 'Location:',
         'hint': 'Text for the meet location / document line',
-        'attr': 'document'
+        'attr': 'document',
+        'default': '',
     },
     'date': {
         'prompt': 'Date:',
         'hint': 'Date of the meet as human-readable text',
-        'attr': 'date'
+        'attr': 'date',
+        'default': '',
     },
     'pcp': {
         'prompt': 'PCP:',
         'hint': 'Name of the president of the commissaires panel',
-        'attr': 'pcp'
+        'attr': 'pcp',
+        'default': '',
     },
     'organiser': {
         'prompt': 'Organiser:',
         'hint': 'Name of the meet organiser',
-        'attr': 'organiser'
+        'attr': 'organiser',
+        'default': '',
     },
     'distance': {
         'prompt': 'Distance:',
@@ -119,7 +125,8 @@ _CONFIG_SCHEMA = {
     'diststr': {
         'prompt': 'Dist String:',
         'hint': 'Override distance string for crit/cat races',
-        'attr': 'diststr'
+        'attr': 'diststr',
+        'default': '',
     },
     'provisionalstart': {
         'prompt': 'Startlist:',
@@ -132,12 +139,12 @@ _CONFIG_SCHEMA = {
     },
     'sectele': {
         'control': 'section',
-        'prompt': 'Telegraph'
+        'prompt': 'Telegraph',
     },
     'anntopic': {
         'prompt': 'Announce:',
         'hint': 'Base topic for announcer messages',
-        'attr': 'anntopic'
+        'attr': 'anntopic',
     },
     'announceresult': {
         'prompt': 'Announce Result:',
@@ -151,7 +158,7 @@ _CONFIG_SCHEMA = {
     'timertopic': {
         'prompt': 'Timer:',
         'hint': 'Full topic for timer messages',
-        'attr': 'timertopic'
+        'attr': 'timertopic',
     },
     'remoteenable': {
         'prompt': 'Option:',
@@ -164,13 +171,13 @@ _CONFIG_SCHEMA = {
     },
     'sechw': {
         'control': 'section',
-        'prompt': 'Hardware'
+        'prompt': 'Hardware',
     },
     'timer': {
         'prompt': 'Transponders:',
         'hint': 'Transponder decoder spec TYPE:ADDR, eg: rrs:10.1.2.3',
         'defer': True,
-        'attr': 'timer'
+        'attr': 'timer',
     },
     'alttimer': {
         'prompt': 'Impulse:',
@@ -180,32 +187,32 @@ _CONFIG_SCHEMA = {
     },
     'secexp': {
         'control': 'section',
-        'prompt': 'Export'
+        'prompt': 'Export',
     },
     'mirrorcmd': {
         'prompt': 'Command:',
         'hint': 'Command to run if export script is enabled',
-        'attr': 'mirrorcmd'
+        'attr': 'mirrorcmd',
     },
     'mirrorpath': {
         'prompt': 'Path:',
         'hint': 'Result export path',
-        'attr': 'mirrorpath'
+        'attr': 'mirrorpath',
     },
     'mirrorfile': {
         'prompt': 'Filename:',
         'hint': 'Result export filename prefix',
-        'attr': 'mirrorfile'
+        'attr': 'mirrorfile',
     },
     'shortname': {
         'prompt': 'Short Name:',
         'hint': 'Short meet name on web export header',
-        'attr': 'shortname'
+        'attr': 'shortname',
     },
     'eventcode': {
         'prompt': 'Event Code:',
         'hint': 'Event code saved in reports',
-        'attr': 'eventcode'
+        'attr': 'eventcode',
     },
     'resfiles': {
         'prompt': 'Result Files:',
@@ -247,11 +254,13 @@ _CONFIG_SCHEMA = {
 }
 
 
-def mkdevice(portstr='', curdev=None):
+def mkdevice(portstr=None, curdev=None):
     """Return a decoder handle for the provided port specification."""
     # Note: If possible, returns the current device
+    if portstr is None:
+        portstr = ''
     ret = curdev
-    devtype = _DEFAULT_HANDLER
+    devtype = 'null'
     if metarace.sysconf.has_option('decoder', 'default'):
         devtype = metarace.sysconf.get('decoder', 'default')
         _log.debug('Default type set to %r from sysconf', devtype)
@@ -1105,37 +1114,9 @@ class roadmeet:
         if self.curevent is not None and self.curevent.winopen:
             self.curevent.saveconfig()
         cw = jsonconfig.config()
-        cw.add_section('roadmeet')
+        cw.add_section('roadmeet', _CONFIG_SCHEMA)
+        cw.import_section('roadmeet', self)
         cw.set('roadmeet', 'id', ROADMEET_ID)
-        cw.set('roadmeet', 'etype', self.etype)
-        cw.set('roadmeet', 'anntopic', self.anntopic)
-        cw.set('roadmeet', 'timertopic', self.timertopic)
-        cw.set('roadmeet', 'remoteenable', self.remoteenable)
-        cw.set('roadmeet', 'timer', self.timer)
-        cw.set('roadmeet', 'alttimer', self.alttimer)
-        cw.set('roadmeet', 'shortname', self.shortname)
-        cw.set('roadmeet', 'linkbase', self.linkbase)
-        cw.set('roadmeet', 'indexlink', self.indexlink)
-        cw.set('roadmeet', 'nextlink', self.nextlink)
-        cw.set('roadmeet', 'prevlink', self.prevlink)
-        cw.set('roadmeet', 'title', self.title)
-        cw.set('roadmeet', 'host', self.host)
-        cw.set('roadmeet', 'subtitle', self.subtitle)
-        cw.set('roadmeet', 'document', self.document)
-        cw.set('roadmeet', 'date', self.date)
-        cw.set('roadmeet', 'organiser', self.organiser)
-        cw.set('roadmeet', 'commissaire', self.pcp)
-        cw.set('roadmeet', 'lifexport', self.lifexport)
-        cw.set('roadmeet', 'resfiles', self.resfiles)
-        cw.set('roadmeet', 'announceresult', self.announceresult)
-        cw.set('roadmeet', 'provisionalstart', self.provisionalstart)
-        cw.set('roadmeet', 'distance', self.distance)
-        cw.set('roadmeet', 'diststr', self.diststr)
-        cw.set('roadmeet', 'mirrorpath', self.mirrorpath)
-        cw.set('roadmeet', 'mirrorcmd', self.mirrorcmd)
-        cw.set('roadmeet', 'mirrorfile', self.mirrorfile)
-        cw.set('roadmeet', 'eventcode', self.eventcode)
-
         with metarace.savefile(CONFIGFILE) as f:
             cw.write(f)
         self.rdb.save('riders.csv')
@@ -1152,40 +1133,8 @@ class roadmeet:
 
     def loadconfig(self):
         """Load meet config from disk."""
-        cr = jsonconfig.config({
-            'roadmeet': {
-                'etype': 'road',
-                'shortname': None,
-                'title': '',
-                'host': '',
-                'subtitle': '',
-                'document': '',
-                'date': '',
-                'organiser': '',
-                'commissaire': '',
-                'distance': None,
-                'diststr': '',
-                'timer': '',
-                'alttimer': '',
-                'anntopic': None,
-                'timertopic': None,
-                'remoteenable': False,
-                'linkbase': '.',
-                'indexlink': None,
-                'nextlink': None,
-                'prevlink': None,
-                'lifexport': False,
-                'resfiles': True,
-                'announceresult': True,
-                'provisionalstart': False,
-                'mirrorpath': None,
-                'mirrorcmd': None,
-                'mirrorfile': None,
-                'eventcode': '',
-                'id': ''
-            }
-        })
-        cr.add_section('roadmeet')
+        cr = jsonconfig.config()
+        cr.add_section('roadmeet', _CONFIG_SCHEMA)
 
         # re-set main log file
         _log.debug('Adding meet logfile handler %r', LOGFILE)
@@ -1200,55 +1149,19 @@ class roadmeet:
         rootlogger.addHandler(self.loghandler)
 
         cr.merge(metarace.sysconf, 'roadmeet')
-        _log.debug('Load system meet defaults')
         cr.load(CONFIGFILE)
+        cr.export_section('roadmeet', self)
 
-        # set timer port (decoder)
-        self.set_timer(cr.get('roadmeet', 'timer'))
-
-        # set alt timer port (timy)
-        nport = cr.get('roadmeet', 'alttimer')
-        if nport != self.alttimer:
-            self.alttimer = nport
-            self._alttimer.setport(nport)
+        # update hardware ports and telegraph setting
+        self.set_timer(self.timer, force=True)
+        if self.alttimer:
+            self._alttimer.setport(self.alttimer)
             self._alttimer.sane()
-
-        # set the default announce topic and subscribe to control topic
-        self.anntopic = cr.get('roadmeet', 'anntopic')
         if self.anntopic:
             self.announce.subscribe('/'.join((self.anntopic, 'control', '#')))
-
-        # fetch the remote timer topic and update remote control
-        self.timertopic = cr.get('roadmeet', 'timertopic')
-        self.remoteenable = cr.get_bool('roadmeet', 'remoteenable')
         self.remote_reset()
 
-        # set meet meta, and then copy into text entries
-        self.etype = cr.get('roadmeet', 'etype')
-        self.shortname = cr.get('roadmeet', 'shortname')
-        self.title = cr.get('roadmeet', 'title')
-        self.host = cr.get('roadmeet', 'host')
-        self.subtitle = cr.get('roadmeet', 'subtitle')
-        self.document = cr.get('roadmeet', 'document')
-        self.date = cr.get('roadmeet', 'date')
-        self.organiser = cr.get('roadmeet', 'organiser')
-        self.pcp = cr.get('roadmeet', 'commissaire')
-        self.distance = cr.get_float('roadmeet', 'distance')
-        self.diststr = cr.get('roadmeet', 'diststr')
-        self.linkbase = cr.get('roadmeet', 'linkbase')
-        self.indexlink = cr.get('roadmeet', 'indexlink')
-        self.prevlink = cr.get('roadmeet', 'prevlink')
-        self.nextlink = cr.get('roadmeet', 'nextlink')
-        self.mirrorpath = cr.get('roadmeet', 'mirrorpath')
-        self.mirrorcmd = cr.get('roadmeet', 'mirrorcmd')
-        self.mirrorfile = cr.get('roadmeet', 'mirrorfile')
-        self.eventcode = cr.get('roadmeet', 'eventcode')
-        self.lifexport = cr.get_bool('roadmeet', 'lifexport')
-        self.resfiles = cr.get_bool('roadmeet', 'resfiles')
-        self.announceresult = cr.get_bool('roadmeet', 'announceresult')
-        self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
-
-        # Re-Initialise rider and event databases
+        # Re-Initialise rider database
         self.rdb.clear(notify=False)
         _log.debug('meet load riders from riders.csv')
         self.rdb.load('riders.csv')
@@ -1271,7 +1184,7 @@ class roadmeet:
             _log.info('Created export path: %r', self.exportpath)
 
         # check and warn of config mismatch
-        cid = cr.get('roadmeet', 'id')
+        cid = cr.get_value('roadmeet', 'id')
         if cid != ROADMEET_ID:
             _log.warning('Meet config mismatch: %r != %r', cid, ROADMEET_ID)
 
@@ -1736,8 +1649,8 @@ class roadmeet:
         self.exportpath = EXPORTPATH
         if etype not in ROADRACE_TYPES:
             etype = 'road'
-        self.meetlock = lockfile
         self.etype = etype
+        self.meetlock = lockfile
         self.shortname = None
         self.title = ''
         self.host = ''
@@ -1977,79 +1890,13 @@ class fakemeet(roadmeet):
     def timer_announce(self, evt, timer=None, source=''):
         return False
 
-    def report_strings(self, rep):
-        """Copy the meet strings into the supplied report."""
-        rep.strings['title'] = self.title
-        rep.strings['subtitle'] = self.subtitle
-        rep.strings['host'] = self.host
-        rep.strings['docstr'] = self.document
-        rep.strings['datestr'] = strops.promptstr('Date:', self.date)
-        rep.strings['commstr'] = strops.promptstr('Chief Commissaire:',
-                                                  self.pcp)
-        rep.strings['orgstr'] = strops.promptstr('Organiser:', self.organiser)
-        if self.distance:
-            rep.strings['diststr'] = strops.promptstr(
-                'Distance:',
-                str(self.distance) + '\u2006km')
-        else:
-            rep.strings['diststr'] = self.diststr
-
-        if self.eventcode:
-            rep.eventid = self.eventcode
-        if self.prevlink:
-            rep.prevlink = self.prevlink
-        if self.nextlink:
-            rep.nextlink = self.nextlink
-        if self.indexlink:
-            rep.indexlink = self.indexlink
-        if self.shortname:
-            rep.shortname = self.shortname
-
     def loadconfig(self):
         """Load meet config from disk."""
-        cr = jsonconfig.config({
-            'roadmeet': {
-                'title': '',
-                'shortname': '',
-                'subtitle': '',
-                'host': '',
-                'document': '',
-                'date': '',
-                'organiser': '',
-                'commissaire': '',
-                'distance': None,
-                'diststr': '',
-                'linkbase': '.',
-                'indexlink': None,
-                'nextlink': None,
-                'prevlink': None,
-                'provisionalstart': False,
-                'eventcode': '',
-                'id': ''
-            }
-        })
-        cr.add_section('roadmeet')
+        cr = jsonconfig.config()
+        cr.add_section('roadmeet', _CONFIG_SCHEMA)
         cr.merge(metarace.sysconf, 'roadmeet')
-        cr.load('config.json')
-
-        # set meet meta, and then copy into text entries
-        self.shortname = cr.get('roadmeet', 'shortname')
-        self.title = cr.get('roadmeet', 'title')
-        self.host = cr.get('roadmeet', 'host')
-        self.subtitle = cr.get('roadmeet', 'subtitle')
-        self.document = cr.get('roadmeet', 'document')
-        self.date = cr.get('roadmeet', 'date')
-        self.organiser = cr.get('roadmeet', 'organiser')
-        self.pcp = cr.get('roadmeet', 'pcp')
-        self.linkbase = cr.get('roadmeet', 'linkbase')
-        self.distance = cr.get_float('roadmeet', 'distance')
-        self.diststr = cr.get('roadmeet', 'diststr')
-        self.eventcode = cr.get('roadmeet', 'eventcode')
-        self.linkbase = cr.get('roadmeet', 'linkbase')
-        self.indexlink = cr.get('roadmeet', 'indexlink')
-        self.prevlink = cr.get('roadmeet', 'prevlink')
-        self.nextlink = cr.get('roadmeet', 'nextlink')
-        self.provisionalstart = cr.get_bool('roadmeet', 'provisionalstart')
+        cr.load(CONFIGFILE)
+        cr.export_section('roadmeet', self)
 
 
 def createmeet():
