@@ -21,7 +21,7 @@ from . import uiutil
 
 from roadmeet.rms import rms, RESERVED_SOURCES, GAPTHRESH
 
-_log = logging.getLogger('metarace.trtt')
+_log = logging.getLogger('trtt')
 _log.setLevel(logging.DEBUG)
 
 # trtt adds team reference to rms model

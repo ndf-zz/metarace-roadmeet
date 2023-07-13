@@ -21,7 +21,7 @@ from metarace import strops
 from metarace.jsonconfig import config
 from metarace.riderdb import rider
 
-_log = logging.getLogger('roadmeet.uiutil')
+_log = logging.getLogger('uiutil')
 _log.setLevel(logging.DEBUG)
 
 # Resources package

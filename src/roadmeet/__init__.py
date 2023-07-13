@@ -42,7 +42,7 @@ LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
 ROADMEET_ID = 'roadmeet_3.2'  # configuration versioning
 EXPORTPATH = 'export'
-_log = logging.getLogger('metarace.roadmeet')
+_log = logging.getLogger('roadmeet')
 _log.setLevel(logging.DEBUG)
 ROADRACE_TYPES = {
     'road': 'Road Race',

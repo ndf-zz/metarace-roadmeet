@@ -27,7 +27,7 @@ from . import uiutil
 
 from roadmeet.rms import rms, RESERVED_SOURCES
 
-_log = logging.getLogger('metarace.irtt')
+_log = logging.getLogger('irtt')
 _log.setLevel(logging.DEBUG)
 
 # rider commands
