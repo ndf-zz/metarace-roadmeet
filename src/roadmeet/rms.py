@@ -127,7 +127,8 @@ _CONFIG_SCHEMA = {
     'categories': {
         'prompt': 'Categories:',
         'hint': 'Startlist and result categories',
-        'defer': True
+        'defer': True,
+        'default': '',
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
@@ -144,7 +145,7 @@ _CONFIG_SCHEMA = {
         'type': 'int',
         'attr': 'totlaps',
         'subtext': '(Cat laps override)',
-        'hint': 'Default target number of laps for event'
+        'hint': 'Default target number of laps for event',
     },
     'autofinish': {
         'prompt': 'Finish:',
@@ -186,7 +187,7 @@ _CONFIG_SCHEMA = {
         'prompt': 'Time Limit:',
         'control': 'short',
         'attr': 'timelimit',
-        'hint': 'Time limit eg: 12%  +1:23  4h00:00'
+        'hint': 'Time limit eg: 12%  +1:23  4h00:00',
     },
     'gapthresh': {
         'prompt': 'Time Gap:',
@@ -3498,11 +3499,16 @@ class rms:
             self.get_catlist()).strip()
         res = uiutil.options_dlg(window=self.meet.window,
                                  title='Event Properties',
-                                 schema=_CONFIG_SCHEMA,
-                                 obj=self)
+                                 sections={
+                                     'event': {
+                                         'title': 'Event',
+                                         'schema': _CONFIG_SCHEMA,
+                                         'object': self,
+                                     },
+                                 })
         # handle a change in result categories
-        if res['categories'][0]:
-            self.loadcats(res['categories'][2].upper().split())
+        if res['event']['categories'][0]:
+            self.loadcats(res['event']['categories'][2].upper().split())
             self.load_cat_data()
             if len(self.cats) > 1:
                 _log.info('Loaded result categories: %s',

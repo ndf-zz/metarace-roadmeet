@@ -18,6 +18,7 @@ from gi.repository import Pango
 import metarace
 from metarace import tod
 from metarace import strops
+from metarace.jsonconfig import config
 from metarace.riderdb import rider
 
 _log = logging.getLogger('roadmeet.uiutil')
@@ -724,12 +725,14 @@ def now_button_clicked_cb(button, entry=None):
 class option:
     """Base class for configuration option"""
 
-    def __init__(self, key, schema, obj=None):
+    def __init__(self, key, schema, obj=None, section=None):
         self.key = key
-        self._obj = None
+        self._obj = obj
+        self._section = section
         self._attr = None
         self._value = None
         self._oldvalue = None
+        self._default = None
         self._type = 'str'
         self._prompt = None
         self._hint = None
@@ -743,19 +746,25 @@ class option:
         # import schema
         if 'type' in schema:
             self._type = schema['type']
-        if obj is not None and 'attr' in schema:
-            self._obj = obj
-            if isinstance(self._obj, (rider, dict)):
-                self._attr = schema['attr']
-            else:
-                if schema['attr'] is not None and hasattr(
-                        self._obj, schema['attr']):
+        if obj is not None:
+            if isinstance(self._obj, config):
+                self._attr = key
+            elif 'attr' in schema:
+                if isinstance(self._obj, (rider, dict)):
                     self._attr = schema['attr']
+                else:
+                    if schema['attr'] is not None and hasattr(
+                            self._obj, schema['attr']):
+                        self._attr = schema['attr']
+        if 'default' in schema:
+            self._default = schema['default']
         if 'value' in schema:
             self._value = schema['value']
         if self._attr is not None and self._value is None:
             if isinstance(self._obj, rider):
                 self._value = self._obj[self._attr]
+            elif isinstance(self._obj, config):
+                self._value = self._obj.get_value(self._section, self._attr)
             elif isinstance(self._obj, dict):
                 if self._attr in self._obj:
                     valid, value = self.parse_value(self._obj[self._attr])
@@ -843,7 +852,11 @@ class option:
         elif self._type == 'str':
             if newtext is not None:
                 newval = str(newtext)
-                ret = True
+                if not newval:
+                    # Allow unset of values without default
+                    if self._default is None:
+                        newval = None
+            ret = True
         else:
             _log.warning('Unknown option value type %r=%r', self._type,
                          newtext)
@@ -876,6 +889,8 @@ class option:
             if isinstance(self._obj, rider):
                 # Don't trigger notify in this path - leave that to the caller
                 self._obj.set_value(self._attr, self._value)
+            elif isinstance(self._obj, config):
+                self._obj.set(self._section, self._attr, self._value)
             elif isinstance(self._obj, dict):
                 self._obj[self._attr] = self._value
             else:
@@ -1010,6 +1025,7 @@ class optionChoice(option):
         """Check proposed value in control"""
         newval = self._control.get_active_id()
         if newval == '':
+            # Allow un-set of option value
             newval = None
         return self.read_value(newval)
 
@@ -1066,10 +1082,14 @@ class optionSection(option):
         return 1
 
 
-def options_dlg(window=None, title='Options', schema={}, obj=None):
-    """Build and display an option editor for the provided schema
+def options_dlg(window=None, title='Options', sections={}):
+    """Build and display an option editor for the provided sections
 
-          schema = {
+      sections={
+        "section": {
+          "object": OBJECT, rider or section
+          "title": section label
+          "schema": {
             "key": {
               "value": [Original value],
               "control": [Control type],
@@ -1102,53 +1122,83 @@ def options_dlg(window=None, title='Options', schema={}, obj=None):
          check: on/off selection, extra info displayed right of input
          choice: select box, choice of options provided in schema
 
-    Return value is a dict with one tuple per key:
+    Return value is a dict of dicts with one tuple per key:
 
-        "key": (changed, oldval, newval)
+        "section": {"key": (changed, oldval, newval), ...}, ...
 
     Note: section controls return (False, None, None)
     """
     omap = {}
     # read schema into options map
-    for key in schema:
-        oschema = schema[key]
-        otype = 'text'
-        if 'control' in oschema:
-            otype = oschema['control']
-        if otype == 'section':
-            omap[key] = optionSection(key, oschema, obj)
-        elif otype == 'short':
-            omap[key] = optionShort(key, oschema, obj)
-        elif otype == 'check':
-            omap[key] = optionCheck(key, oschema, obj)
-        elif otype == 'choice':
-            omap[key] = optionChoice(key, oschema, obj)
-        elif otype == 'none':
-            omap[key] = optionHidden(key, oschema, obj)
-        else:
-            omap[key] = option(key, oschema, obj)
+    for sec in sections:
+        omap[sec] = {'title': sections[sec]['title'], 'options': {}}
+        for key in sections[sec]['schema']:
+            oschema = sections[sec]['schema'][key]
+            obj = sections[sec]['object']
+            otype = 'text'
+            if 'control' in oschema:
+                otype = oschema['control']
+            if otype == 'section':
+                omap[sec]['options'][key] = optionSection(
+                    key, oschema, obj, sec)
+            elif otype == 'short':
+                omap[sec]['options'][key] = optionShort(key, oschema, obj, sec)
+            elif otype == 'check':
+                omap[sec]['options'][key] = optionCheck(key, oschema, obj, sec)
+            elif otype == 'choice':
+                omap[sec]['options'][key] = optionChoice(
+                    key, oschema, obj, sec)
+            elif otype == 'none':
+                omap[sec]['options'][key] = optionHidden(
+                    key, oschema, obj, sec)
+            else:
+                omap[sec]['options'][key] = option(key, oschema, obj, sec)
 
     # build dialog
     dlg = Gtk.Dialog(title=title, modal=True, destroy_with_parent=True)
     dlg.set_transient_for(window)
     dlg.add_buttons("Cancel", 2, "OK", 0)
     dlg.set_default_response(0)
-    scr = Gtk.ScrolledWindow()
-    scr.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-    scr.set_propagate_natural_height(True)
-    scr.show()
-    grid = Gtk.Grid()
-    grid.props.margin = 8
-    grid.set_row_spacing(4)
-    grid.set_column_spacing(8)
-    grid.set_row_homogeneous(True)
-    row = 0
-    for key in omap:
-        rows = omap[key].add_control(grid, row)
-        row += rows
-    grid.show()
-    scr.add(grid)
-    dlg.get_content_area().pack_start(scr, True, True, 0)
+
+    # container type depends on number of config sections
+    ctr = None
+    onePage = False
+    if len(omap) == 1:
+        ctr = Gtk.ScrolledWindow()
+        ctr.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        ctr.set_propagate_natural_height(True)
+        onePage = True
+    else:
+        ctr = Gtk.Notebook()
+        ctr.set_tab_pos(Gtk.PositionType.LEFT)
+    ctr.show()
+    dlg.get_content_area().pack_start(ctr, True, True, 0)
+
+    for section in omap:
+        grid = Gtk.Grid()
+        grid.props.margin = 8
+        grid.set_row_spacing(4)
+        grid.set_column_spacing(8)
+        grid.set_row_homogeneous(False)
+        row = 0
+        for key in omap[section]['options']:
+            rows = omap[section]['options'][key].add_control(grid, row)
+            row += rows
+        grid.show()
+        if onePage:
+            ctr.add(grid)
+        else:
+            scr = Gtk.ScrolledWindow()
+            scr.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scr.set_propagate_natural_height(True)
+            scr.add(grid)
+            scr.show()
+            l = Gtk.Label()
+            l.set_text(omap[section]['title'])
+            l.set_width_chars(12)
+            l.show()
+            ctr.append_page(scr, l)
+
     retval = dlg.run()
     dlg.hide()
 
@@ -1156,17 +1206,23 @@ def options_dlg(window=None, title='Options', schema={}, obj=None):
     res = {}
     if retval == 2:
         # on cancel, reset all values and report no changes
-        for key in omap:
-            o = omap[key]
-            o.reset()
-            res[key] = (False, o.get_prev(), o.get_prev())
+        for section in omap:
+            res[section] = {}
+            sec = omap[section]['options']
+            for key in sec:
+                o = sec[key]
+                o.reset()
+                res[section][key] = (False, o.get_prev(), o.get_prev())
     else:
         # re-validate all entries and report changes
-        for key in omap:
-            o = omap[key]
-            if not o.validate():
-                _log.warning('Invalid value for option %r ignored', key)
-            res[key] = (o.changed(), o.get_prev(), o.get_value())
+        for section in omap:
+            res[section] = {}
+            sec = omap[section]['options']
+            for key in sec:
+                o = sec[key]
+                if not o.validate():
+                    _log.warning('Invalid value for option %r ignored', key)
+                res[section][key] = (o.changed(), o.get_prev(), o.get_value())
 
     dlg.destroy()
     return res

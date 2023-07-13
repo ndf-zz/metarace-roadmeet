@@ -102,7 +102,8 @@ _CONFIG_SCHEMA = {
     'categories': {
         'prompt': 'Categories:',
         'hint': 'Startlist and result categories',
-        'defer': True
+        'defer': True,
+        'default': '',
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
@@ -119,7 +120,7 @@ _CONFIG_SCHEMA = {
         'type': 'int',
         'attr': 'totlaps',
         'subtext': '(Cat laps override)',
-        'hint': 'Default target number of laps for event'
+        'hint': 'Default target number of laps for event',
     },
     'startgap': {
         'prompt': 'Start Gap:',
@@ -492,7 +493,6 @@ class irtt(rms):
                 self.delrider(bib, ser)
             return True
         elif acode == 'add':
-            _log.info('Add starter deprecated: Use startlist import')
             rlist = strops.reformat_bibserlist(rlist)
             for bibstr in rlist.split():
                 bib, ser = strops.bibstr2bibser(bibstr)
@@ -2058,17 +2058,22 @@ class irtt(rms):
             self.get_catlist()).strip()
         res = uiutil.options_dlg(window=self.meet.window,
                                  title='Event Properties',
-                                 schema=_CONFIG_SCHEMA,
-                                 obj=self)
+                                 sections={
+                                     'event': {
+                                         'title': 'Event',
+                                         'schema': _CONFIG_SCHEMA,
+                                         'object': self,
+                                     },
+                                 })
         # handle a change in result categories
-        if res['categories'][0]:
-            self.loadcats(res['categories'][2].split())
+        if res['event']['categories'][0]:
+            self.loadcats(res['event']['categories'][2].upper().split())
 
         # flag reload for anything that may change result lists
         ret = False
         for k in ('categories', 'autoimpulse', 'startloop', 'finishloop',
                   'strictstart'):
-            if res[k][0]:
+            if res['event'][k][0]:
                 ret = True
                 break
 
@@ -2794,15 +2799,6 @@ class irtt(rms):
             b = uiutil.builder('tod_context.ui')
             self.context_menu = b.get_object('tod_context')
             b.connect_signals(self)
-
-            # reconfigure the chronometer
-            self.meet._alttimer.armlock()  # lock the arm to capture all hits
-            self.meet._alttimer.arm(0)  # start line
-            self.meet._alttimer.arm(1)  # finish line (primary)
-            self.meet._alttimer.arm(2)  # finish line (photo cell)
-            self.meet._alttimer.arm(3)  # finish line (plunger)
-            self.meet._alttimer.arm(4)  # start line (backup)
-            self.meet._alttimer.delaytime('0.01')
 
             # connect timer callback functions
             self.meet.timercb = self.timertrig  # transponders

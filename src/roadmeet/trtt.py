@@ -63,12 +63,13 @@ EVENT_ID = 'trtt-3.1'
 _CONFIG_SCHEMA = {
     'etype': {
         'prompt': 'Team Time Trial',
-        'control': 'section'
+        'control': 'section',
     },
     'categories': {
         'prompt': 'Categories:',
         'hint': 'Startlist and result categories',
-        'defer': True
+        'defer': True,
+        'default': '',
     },
     'minlap': {
         'prompt': 'Minimum Lap:',
@@ -155,7 +156,7 @@ _CONFIG_SCHEMA = {
         'control': 'short',
         'attr': 'timelimit',
         'readonly': True,
-        'hint': 'Time limit eg: 12%  +1:23  4h00:00'
+        'hint': 'Time limit eg: 12%  +1:23  4h00:00',
     },
     'gapthresh': {
         'prompt': 'Time Gap:',
@@ -490,11 +491,16 @@ class trtt(rms):
             self.get_catlist()).strip()
         res = uiutil.options_dlg(window=self.meet.window,
                                  title='Event Properties',
-                                 schema=_CONFIG_SCHEMA,
-                                 obj=self)
+                                 sections={
+                                     'event': {
+                                         'title': 'Event',
+                                         'schema': _CONFIG_SCHEMA,
+                                         'object': self,
+                                     },
+                                 })
         # handle a change in result categories
-        if res['categories'][0]:
-            self.loadcats(res['categories'][2].split())
+        if res['event']['categories'][0]:
+            self.loadcats(res['event']['categories'][2].upper().split())
             self.load_cat_data()
         return False
 

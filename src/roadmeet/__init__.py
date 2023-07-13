@@ -21,13 +21,13 @@ from gi.repository import Gdk
 from metarace import jsonconfig
 from metarace import tod
 from metarace import riderdb
-from metarace.telegraph import telegraph
-from metarace.export import mirror
+from metarace.telegraph import telegraph, _CONFIG_SCHEMA as _TG_SCHEMA
+from metarace.export import mirror, _CONFIG_SCHEMA as _EXPORT_SCHEMA
 from metarace.decoder import decoder
-from metarace.decoder.rru import rru
-from metarace.decoder.rrs import rrs
-from metarace.decoder.thbc import thbc
-from metarace.timy import timy
+from metarace.decoder.rru import rru, _CONFIG_SCHEMA as _RRU_SCHEMA
+from metarace.decoder.rrs import rrs, _CONFIG_SCHEMA as _RRS_SCHEMA
+from metarace.decoder.thbc import thbc, _CONFIG_SCHEMA as _THBC_SCHEMA
+from metarace.timy import timy, _CONFIG_SCHEMA as _TIMY_SCHEMA
 from metarace import strops
 from metarace import report
 
@@ -319,13 +319,96 @@ class roadmeet:
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
-        res = uiutil.options_dlg(window=self.window,
-                                 title='Meet Properties',
-                                 schema=_CONFIG_SCHEMA,
-                                 obj=self)
+        metarace.sysconf.add_section('export', _EXPORT_SCHEMA)
+        metarace.sysconf.add_section('telegraph', _TG_SCHEMA)
+        metarace.sysconf.add_section('thbc', _THBC_SCHEMA)
+        metarace.sysconf.add_section('rru', _RRU_SCHEMA)
+        metarace.sysconf.add_section('rrs', _RRS_SCHEMA)
+        metarace.sysconf.add_section('timy', _TIMY_SCHEMA)
+        cfgres = uiutil.options_dlg(window=self.window,
+                                    title='Meet Properties',
+                                    sections={
+                                        'meet': {
+                                            'title': 'Meet',
+                                            'schema': _CONFIG_SCHEMA,
+                                            'object': self,
+                                        },
+                                        'export': {
+                                            'title': 'Export',
+                                            'schema': _EXPORT_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                        'telegraph': {
+                                            'title': 'Telegraph',
+                                            'schema': _TG_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                        'timy': {
+                                            'title': 'Timy',
+                                            'schema': _TIMY_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                        'thbc': {
+                                            'title': 'THBC',
+                                            'schema': _THBC_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                        'rru': {
+                                            'title': 'RR USB',
+                                            'schema': _RRU_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                        'rrs': {
+                                            'title': 'RR System',
+                                            'schema': _RRS_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
+                                    })
 
+        # check for sysconf changes:
+        syschange = False
+        timychg = False
+        timerchg = False
+        tgchg = False
+        for sec in ('export', 'timy', 'rru', 'rrs', 'telegraph', 'thbc'):
+            for key in cfgres[sec]:
+                if cfgres[sec][key][0]:
+                    syschange = True
+                    if sec == 'telegraph':
+                        tgchg = True
+                    elif sec in ('rru', 'rrs', 'thbc'):
+                        timerchg = True
+                    elif sec == 'timy':
+                        timerchg = True
+                        timychg = True
+        if syschange:
+            _log.info('Saving config updates to meet folder')
+            with metarace.savefile('metarace.json', perm=0o600) as f:
+                metarace.sysconf.write(f)
+
+        # reset telegraph connection if required
+        if tgchg:
+            _log.info('Re-start telegraph')
+            newannounce = telegraph()
+            newannounce.setcb(self._controlcb)
+            newannounce.start()
+            oldannounce = self.announce
+            self.announce = newannounce
+            oldannounce.exit()
+
+        # reset alttimer connection if required
+        if timychg:
+            _log.info('Re-start alt timer')
+            newtimy = timy()
+            newtimy.setcb(self._alttimercb)
+            newtimy.start()
+            oldtimy = self._alttimer
+            self._alttimer = newtimy
+            oldtimy.exit()
+
+        res = cfgres['meet']
         # handle a change in announce topic
-        if res['anntopic'][0]:
+        if res['anntopic'][0] or tgchg:
             otopic = res['anntopic'][1]
             if otopic:
                 self.announce.unsubscribe('/'.join((otopic, 'control', '#')))
@@ -334,21 +417,18 @@ class roadmeet:
                     (self.anntopic, 'control', '#')))
 
         # handle change in timer topic
-        if res['timertopic'][0]:
+        if res['timertopic'][0] or tgchg:
             otopic = res['timertopic'][1]
             if otopic:
                 self.announce.unsubscribe(otopic)
 
         # reset remote option
-        if res['timertopic'][0] or res['remoteenable'][0]:
+        if res['timertopic'][0] or res['remoteenable'][0] or tgchg:
             self.remote_reset()
-
-        # reset timer ports
-        if res['timer'][0] or res['alttimer'][0]:
-            self.menu_timing_reconnect_activate_cb(None)
 
         # if type has changed, backup config and reload
         if res['etype'][0]:
+            timerchg = True
             reopen = False
             if self.curevent is not None:
                 reopen = True
@@ -366,6 +446,11 @@ class roadmeet:
                                  e.__class__.__name__, e)
             if reopen:
                 self.open_event()
+
+        # reset timer ports
+        if res['timer'][0] or res['alttimer'][0] or timerchg:
+            self.menu_timing_reconnect_activate_cb(None)
+
         self.set_title()
 
     def report_strings(self, rep):
@@ -918,9 +1003,19 @@ class roadmeet:
         if self.etype == 'irtt':
             self._alttimer.write('DTS05.00')
             self._alttimer.write('DTF00.01')
+            self._alttimer.armlock()  # lock the arm to capture all hits
+            self._alttimer.arm(0)  # start line
+            self._alttimer.arm(1)  # finish line (primary)
+            self._alttimer.arm(2)  # finish line (photo cell)
+            self._alttimer.arm(3)  # finish line (plunger)
+            self._alttimer.arm(4)  # start line (backup)
+            self._alttimer.delaytime('0.01')
         else:
             # assume 1 second gaps at finish
             self._alttimer.write('DTF01.00')
+            self._alttimer.armlock()  # lock the arm to capture all hits
+            self._alttimer.arm(0)  # finish line (primary)
+            self._alttimer.dearm(1)  # finish line (primary)
         _log.info('Re-connect/re-start attached timers')
 
     def restart_decoder(self, data=None):
@@ -1486,11 +1581,16 @@ class roadmeet:
         short = 'Create New %s' % (rtype)
         res = uiutil.options_dlg(window=self.window,
                                  title=short,
-                                 schema=schema,
-                                 obj=dbr)
+                                 sections={
+                                     'rdb': {
+                                         'title': 'Rider',
+                                         'schema': schema,
+                                         'object': dbr,
+                                     },
+                                 })
         chg = False
-        for k in res:
-            if res[k][0]:
+        for k in res['rdb']:
+            if res['rdb'][k][0]:
                 chg = True
                 break
         if chg:
@@ -1527,12 +1627,17 @@ class roadmeet:
             short = 'Edit %s %s' % (rtype, dbr.get_bibstr())
             res = uiutil.options_dlg(window=self.window,
                                      title=short,
-                                     schema=schema,
-                                     obj=dbr)
+                                     sections={
+                                         'rdb': {
+                                             'title': 'Rider',
+                                             'schema': schema,
+                                             'object': dbr,
+                                         },
+                                     })
             if rtype == 'Team':
                 # Patch the org value which is not visible, without notify
                 dbr.set_value('org', dbr['no'].upper())
-            if res['no'][0] or res['series'][0]:
+            if res['rdb']['no'][0] or res['rdb']['series'][0]:
                 # change of number or series requires some care
                 self._cur_rider_sel = None
                 newrider = self.rdb.add_rider(dbr,
@@ -1545,16 +1650,17 @@ class roadmeet:
                             subtext=
                             'Riders in the old category will be updated to the new one',
                             title='Update Cats?'):
-                        self.rdb.update_cats(res['no'][1],
-                                             res['no'][2],
+                        self.rdb.update_cats(res['rdb']['no'][1],
+                                             res['rdb']['no'][2],
                                              notify=False)
                         # and current event
                         if self.curevent is not None:
-                            if res['no'][1].upper() in self.curevent.cats:
+                            if res['rdb']['no'][1].upper(
+                            ) in self.curevent.cats:
                                 nc = []
                                 for c in self.curevent.cats:
-                                    if c == res['no'][1].upper():
-                                        nc.append(res['no'][2].upper())
+                                    if c == res['rdb']['no'][1].upper():
+                                        nc.append(res['rdb']['no'][2].upper())
                                     else:
                                         nc.append(c)
                                 self.curevent.loadcats(nc)
@@ -1562,17 +1668,17 @@ class roadmeet:
                 else:
                     # update curevent
                     if self.curevent is not None:
-                        if self.curevent.getrider(res['no'][1],
-                                                  res['series'][1]):
+                        if self.curevent.getrider(res['rdb']['no'][1],
+                                                  res['rdb']['series'][1]):
                             # rider was in event, add new one
                             self.curevent.addrider(dbr['no'], dbr['series'])
                             if self.curevent.timerstat == 'idle':
-                                self.curevent.delrider(res['no'][1],
-                                                       res['series'][1])
+                                self.curevent.delrider(res['rdb']['no'][1],
+                                                       res['rdb']['series'][1])
                             else:
                                 _log.warning(
                                     'Changed rider number %r => %r, check data',
-                                    res['no'][1], res['no'][2])
+                                    res['rdb']['no'][1], res['rdb']['no'][2])
 
                 # del triggers a global notify
                 del (self.rdb[rider])
@@ -1585,8 +1691,8 @@ class roadmeet:
                     GLib.idle_add(self.menu_race_run_activate_cb)
             else:
                 # notify meet and event of any changes, once
-                for k in res:
-                    if res[k][0]:
+                for k in res['rdb']:
+                    if res['rdb'][k][0]:
                         dbr.notify()
                         break
 
