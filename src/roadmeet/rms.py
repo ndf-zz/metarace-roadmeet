@@ -25,7 +25,7 @@ from metarace import report
 from metarace import jsonconfig
 from . import uiutil
 
-_log = logging.getLogger('metarace.rms')
+_log = logging.getLogger('rms')
 _log.setLevel(logging.DEBUG)
 
 # Model columns
@@ -117,7 +117,7 @@ key_clearfrom = 'F7'  # clear places on selected rider and all following
 key_clearplace = 'F8'  # clear rider from place list
 
 # config version string
-EVENT_ID = 'roadrace-4.1'
+EVENT_ID = 'rms-4.2'
 
 _CONFIG_SCHEMA = {
     'etype': {
@@ -403,52 +403,40 @@ class rms:
         self.riders.clear()
         self.resettimer()
         self.cats = []
-        DEFDOWNTIMES = True
         if self.etype == 'criterium':
-            DEFDOWNTIMES = False
+            _CONFIG_SCHEMA['showdowntimes']['default'] = False
         cr = jsonconfig.config({
             'rms': {
                 'start': None,
-                'id': EVENT_ID,
                 'finish': None,
                 'finished': False,
-                'showdowntimes': DEFDOWNTIMES,
                 'places': '',
                 'comment': [],
                 'hidecols': [INCOLUMN],
-                'categories': [],
                 'intermeds': [],
-                'allowspares': False,
                 'contests': [],
                 'tallys': [],
                 'lapstart': None,
-                'dofastestlap': False,
-                'minlap': MINPASSTIME,
                 'lapfin': None,
                 'curlap': -1,
                 'passlabels': {},
                 'catonlap': {},
-                'gapthresh': GAPTHRESH,
-                'totlaps': None,
-                'autofinish': DEFDOWNTIMES,
                 'passingsource': [],
                 'laptimes': [],
-                'clubmode': False,
-                'timelimit': None,
                 'startlist': '',
-                'autoexport': False,
             }
         })
-        cr.add_section('rms')
+        cr.add_section('rms', _CONFIG_SCHEMA)
         cr.add_section('riders')
         cr.add_section('stagebonus')
         cr.add_section('stagepenalty')
         cr.merge(metarace.sysconf, 'rms')
         if not cr.load(self.configfile):
             _log.info('%r not read, loading defaults', self.configfile)
+        cr.export_section('rms', self)
 
         # load result categories
-        self.loadcats(cr.get('rms', 'categories'))
+        self.loadcats(cr.get_value('rms', 'categories').upper().split())
 
         self.passlabels = cr.get('rms', 'passlabels')
         self.catonlap = cr.get('rms', 'catonlap')
@@ -456,13 +444,11 @@ class rms:
         for source in cr.get('rms', 'passingsource'):
             self.passingsource.append(source.lower())  # force lower case
 
-        # fetch time gap threshold
-        ngt = tod.mktod(cr.get('rms', 'gapthresh'))
-        if ngt is not None:
-            self.gapthresh = ngt
-            if self.gapthresh != GAPTHRESH:
-                _log.warning('Set time gap threshold %s',
-                             self.gapthresh.rawtime(2))
+        # check gapthresh
+        if self.gapthresh != GAPTHRESH:
+            _log.warning('Set time gap threshold %s',
+                         self.gapthresh.rawtime(2))
+        _log.debug('Minimum lap time: %s', self.minlap.rawtime(1))
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'rms')
@@ -471,7 +457,6 @@ class rms:
         starters = strops.riderlist_split(
             cr.get('rms', 'startlist').upper().strip(), self.meet.rdb)
 
-        self.allowspares = cr.get_bool('rms', 'allowspares')
         onestoft = False
         oneseed = False
         for r in starters:
@@ -509,36 +494,22 @@ class rms:
                                 nr[COL_RFSEEN].append(laptod)
                 # record any extra bonus/penalty to rider model
                 if cr.has_option('stagebonus', r):
-                    nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
+                    nr[COL_BONUS] = cr.get_tod('stagebonus', r)
                 if cr.has_option('stagepenalty', r):
-                    nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
+                    nr[COL_PENALTY] = cr.get_tod('stagepenalty', r)
 
-        self.laptimes = []
-        ltin = cr.get('rms', 'laptimes')
-        for ts in ltin:
-            nlt = tod.mktod(ts)
-            if nlt is not None:
-                self.laptimes.append(nlt)
+        self.laptimes = cr.get('rms', 'laptimes')
+        self.set_start(cr.get_tod('rms', 'start'))
+        self.set_finish(cr.get_tod('rms', 'finish'))
+        self.lapstart = cr.get_tod('rms', 'lapstart')
+        self.lapfin = cr.get_tod('rms', 'lapfin')
 
-        self.set_start(cr.get('rms', 'start'))
-        self.set_finish(cr.get('rms', 'finish'))
-        self.lapstart = tod.mktod(cr.get('rms', 'lapstart'))
-        self.lapfin = tod.mktod(cr.get('rms', 'lapfin'))
-        self.minlap = tod.mktod(cr.get('rms', 'minlap'))
-        if self.minlap is None:
-            self.minlap = MINPASSTIME
-        _log.debug('Minimum lap time: %s', self.minlap.rawtime())
-        self.curlap = cr.get('rms', 'curlap')
-        self.totlaps = cr.get('rms', 'totlaps')
-        self.timelimit = cr.get('rms', 'timelimit')
+        self.curlap = cr.get_int('rms', 'curlap', -1)
+        self.totlaps = cr.get_int('rms', 'totlaps', None)
         self.places = strops.reformat_placelist(cr.get('rms', 'places'))
         self.comment = cr.get('rms', 'comment')
-        self.dofastestlap = cr.get_bool('rms', 'dofastestlap')
-        self.autoexport = cr.get_bool('rms', 'autoexport')
         if cr.get_bool('rms', 'finished'):
             self.set_finished()
-        self.showdowntimes = cr.get_bool('rms', 'showdowntimes')
-        self.clubmode = cr.get_bool('rms', 'clubmode')
         self.recalculate()
 
         self.hidecols = cr.get('rms', 'hidecols')
@@ -579,13 +550,9 @@ class rms:
         if self.totlaps is not None:
             self.totlapentry.set_text(str(self.totlaps))
 
-        if cr.get_bool('rms', 'autofinish'):
-            # override if autofinish was set
-            self.autofinish = True
-
         # After load complete - check config and report.
-        eid = cr.get('rms', 'id')
-        if eid and eid != EVENT_ID:
+        eid = cr.get_value('rms', 'id')
+        if eid is not None and eid != EVENT_ID:
             _log.info('Event config mismatch: %r != %r', eid, EVENT_ID)
             self.readonly = True
 
@@ -689,36 +656,20 @@ class rms:
             _log.error('Attempt to save readonly event')
             return
         cw = jsonconfig.config()
-        cw.add_section('rms')
-        if self.start is not None:
-            cw.set('rms', 'start', self.start.rawtime())
-        if self.finish is not None:
-            cw.set('rms', 'finish', self.finish.rawtime())
-        if self.lapstart is not None:
-            cw.set('rms', 'lapstart', self.lapstart.rawtime())
-        if self.lapfin is not None:
-            cw.set('rms', 'lapfin', self.lapfin.rawtime())
-        cw.set('rms', 'showdowntimes', self.showdowntimes)
-        cw.set('rms', 'minlap', self.minlap.rawtime())
-        cw.set('rms', 'gapthresh', self.gapthresh.rawtime())
+        cw.add_section('rms', _CONFIG_SCHEMA)
+        cw.import_section('rms', self)
+        cw.set('rms', 'start', self.start)
+        cw.set('rms', 'finish', self.finish)
+        cw.set('rms', 'lapstart', self.lapstart)
+        cw.set('rms', 'lapfin', self.lapfin)
         cw.set('rms', 'finished', self.timerstat == 'finished')
         cw.set('rms', 'places', self.places)
         cw.set('rms', 'curlap', self.curlap)
         cw.set('rms', 'onlap', self.onlap)
-        cw.set('rms', 'totlaps', self.totlaps)
-        cw.set('rms', 'allowspares', self.allowspares)
-        cw.set('rms', 'timelimit', self.timelimit)
         cw.set('rms', 'passlabels', self.passlabels)
         cw.set('rms', 'catonlap', self.catonlap)
-        cw.set('rms', 'dofastestlap', self.dofastestlap)
-        cw.set('rms', 'autoexport', self.autoexport)
         cw.set('rms', 'passingsource', self.passingsource)
-        cw.set('rms', 'clubmode', self.clubmode)
-        cw.set('rms', 'autofinish', self.autofinish)
-        ltout = []
-        for lt in self.laptimes:
-            ltout.append(lt.rawtime())
-        cw.set('rms', 'laptimes', ltout)
+        cw.set('rms', 'laptimes', self.laptimes)
 
         # save stage inters, points and bonuses
         self.savestageinters(cw, 'rms')
@@ -731,9 +682,9 @@ class rms:
             if self.autostartlist is not None:
                 cw.set('rms', 'startlist', self.autostartlist)
         if self.autocats:
-            cw.set('rms', 'categories', ['AUTO'])
+            cw.set('rms', 'categories', 'AUTO')
         else:
-            cw.set('rms', 'categories', self.get_catlist())
+            cw.set('rms', 'categories', ' '.join(self.get_catlist()).strip())
         cw.set('rms', 'comment', self.comment)
         cw.set('rms', 'hidecols', self.hidecols)
 
@@ -1003,7 +954,6 @@ class rms:
             self.catstarts[c] = cs
             self.catlaps[c] = ls
         if onetarget:
-            self.autofinish = True
             if onemissing:
                 # There's one or more cats without a target, issue warning
                 missing = []
@@ -1291,12 +1241,15 @@ class rms:
         ret = []
         allin = False
         catname = cat
+        secid = 'result'
         if cat == '':
             if len(self.cats) > 1:
                 catname = 'Uncategorised Riders'
             else:
                 # There is only one cat - so all riders are in it
                 allin = True
+        else:
+            secid = 'result-' + cat.lower()
         subhead = ''
         footer = ''
         distance = self.meet.get_distance()
@@ -1320,7 +1273,7 @@ class rms:
                     distance = float(dist)
                 except Exception:
                     _log.warning('Invalid distance %r for cat %r', dist, cat)
-        sec = report.section('result-' + cat)
+        sec = report.section(secid)
 
         wt = None
         bwt = None
@@ -1552,16 +1505,14 @@ class rms:
             else:
                 # not in this category.
                 pass
-        if self.timerstat == 'finished':
+        if self.timerstat in ('idle', 'finished'):
             sec.heading = 'Result'
-        elif self.timerstat in ('idle', 'armstart'):
-            sec.heading = ''
-        elif self.timerstat in ('running', 'armfinish'):
+        elif self.timerstat in ('armstart', 'running', 'armfinish'):
             # set status if number of judged riders greater than jtgt
             jtgt = 10
             javail = totcount - (dnfcount + dnscount + hdcount)
-            if javail < 16:
-                jtgt = 1
+            if javail < 10:
+                jtgt = min(3, javail)
             if javail > 0 and jcnt >= jtgt:
                 sec.heading = 'Provisional Result'
             elif vcnt > 0:
@@ -1578,7 +1529,10 @@ class rms:
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments
-            sec = report.bullet_text('uci-' + cat)
+            secid = 'resultmeta'
+            if cat:
+                secid = 'resultmeta-' + cat.lower()
+            sec = report.bullet_text(secid)
             if wt is not None:
                 if distance is not None:
                     sec.lines.append([
@@ -1629,11 +1583,10 @@ class rms:
         self.recalculate()
 
         # check if a categorised report is required
-        if (self.etype == 'cross'
-                or (self.etype != 'handicap' and len(self.cats) > 1)):
-            ret.extend(self.catresult_report())
-        else:
+        if self.etype == 'handicap':
             ret.extend(self.handicap_report())
+        else:
+            ret.extend(self.catresult_report())
 
         # show all intermediates here
         for i in self.intermeds:
@@ -1650,7 +1603,7 @@ class rms:
         return ret
 
     def handicap_report(self):
-        _log.debug('Result report in uncat/handicap path')
+        _log.debug('Result report in handicap path')
         ret = []
         wt = None
         we = None
@@ -1677,31 +1630,28 @@ class rms:
                     catnm = dbr['title']
                 catcache[c] = catnm
         lt = None
-        if self.places or self.timerstat != 'idle':
-            sec = report.section('result')
-            if self.etype == 'handicap':
-                sec.colheader = [None, None, None, None, 'Elapsed', 'Time/Gap']
-            if self.racestat == 'final':
-                sec.heading = 'Result'
-            elif self.racestat == 'provisional':
-                sec.heading = 'Provisional Result'
-            else:
-                sec.heading = 'Race In Progress'
+        sec = report.section('result')
+        sec.colheader = [None, None, None, None, 'Elapsed', 'Time/Gap']
+        if self.racestat in ('prerace', 'final'):
+            sec.heading = 'Result'
+        elif self.racestat == 'provisional':
+            sec.heading = 'Provisional Result'
+        else:
+            sec.heading = 'Race In Progress'
 
+        if self.places or self.timerstat != 'idle':
             first = True
             for r in self.riders:
                 totcount += 1
                 bstr = r[COL_BIB]  # 'bib'
                 nstr = r[COL_NAMESTR]  # 'name'
-                # in handicap / flat result - only first category is considered
+                # in handicap - only primary category is considered
                 cs = r[COL_CAT]
                 cstr = riderdb.primary_cat(cs)  # 'cat'
                 rcat = self.ridercat(cstr)
+                # in handicap result, cat overrides UCIID
                 if cstr.upper() in catcache:
                     cstr = catcache[cstr.upper()]
-                dbr = self.meet.rdb.get_rider(bstr, self.series)
-                if dbr is not None:
-                    cstr = dbr['uci id']
                 pstr = ''  # 'place'
                 tstr = ''  # 'elap' (hcp only)
                 dstr = ''  # 'time/gap'
@@ -1719,18 +1669,16 @@ class rms:
                         if wt is None:  # first finish time
                             wt = bt
                             first = False
-                            # for uncat/hcap first time is always race time
+                            # for hcap, first time is always race time
                             dstr = wt.rawtime(0)
                         else:
-                            # for uncat/handicap, time gap is always
+                            # for handicap, time gap is always
                             # down on winner's uncorrected time
                             if self.showdowntimes:
                                 dstr = '+' + (bt - wt).rawtime(0)
 
-                        # compute elapsed, or corrected time
-                        if self.etype == 'handicap':
-                            # always show elap for hcp, even if no stof*
-                            tstr = bt.rawtime(0)
+                        # show elapsed for hcp ...*
+                        tstr = bt.rawtime(0)
                         et = bt
                         sof = None
                         if r[COL_STOFT] is not None:  # apply a start offset
@@ -1740,7 +1688,7 @@ class rms:
                         if sof is not None:
                             dofastest = True  # will need to report!
                             et = bt - sof
-                            # *but, adjust tstr if a start offset is present
+                            # *... adjust if a start offset is present
                             tstr = et.rawtime(0)
                             if we is None:
                                 we = et
@@ -1754,7 +1702,7 @@ class rms:
                         elif rcat in self.catstarts and self.catstarts[
                                 rcat] != tod.ZERO:
                             sof = self.catstarts[rcat]
-                        if sof is not None:
+                        if sof is not None and curelap is not None:
                             vt = curelap - sof
                             if vfastest is None or vt < vfastest:
                                 vfastest = vt
@@ -1795,7 +1743,7 @@ class rms:
             ret.append(sec)
 
             # Race metadata / UCI comments
-            sec = report.bullet_text('resultuci')
+            sec = report.bullet_text('resultmeta')
             if wt is not None:
                 sec.lines.append([None, 'Race time: ' + wt.rawtime(0)])
                 if we is None:
@@ -1806,7 +1754,7 @@ class rms:
                         None, 'Average speed of the winner: ' +
                         we.speedstr(1000.0 * dval)
                     ])
-            if self.etype == 'handicap' and dofastest:
+            if dofastest:
                 if vfastest and vfastest < fastest:
                     _log.info('Fastest time not yet available')
                 else:
@@ -1838,7 +1786,8 @@ class rms:
             ret.append(sec)
 
         else:
-            _log.warning('No data available for result report')
+            ret.append(sec)
+            #_log.warning('No data available for result report')
         return ret
 
     def stat_but_clicked(self, button=None):
@@ -2247,6 +2196,7 @@ class rms:
         self.set_start()
         self.clear_results()
         self.timerstat = 'idle'
+        self.racestat = 'prerace'
         self.meet.cmd_announce('timerstat', 'idle')
         self.meet.stat_but.update('idle', 'Idle')
         self.meet.stat_but.set_sensitive(True)
@@ -2378,7 +2328,8 @@ class rms:
                     if passkey in self.passlabels:
                         lapstr = 'At ' + self.passlabels[passkey]
                     else:
-                        lapstr = ('Lap ' + str(self.onlap))
+                        if self.etype in ('circuit', 'criterium', 'cross'):
+                            lapstr = 'Lap ' + str(self.onlap)
                 self.meet.cmd_announce('laplbl', lapstr)
             else:
                 # make sure something is displayed in this path
@@ -2600,8 +2551,6 @@ class rms:
                 # if cat is a result category in this event
                 if self.ridercat(rider[0]):
                     self.load_cat_data()
-                ## TODO: verify if recalc required
-                #self._dorecalc = True
             elif rider[1] == 'team':
                 # team changes may require recalc
                 self.updateteam(rider)
@@ -2623,8 +2572,6 @@ class rms:
             _log.debug('Updated %d riders', count)
             _log.debug('Update teams')
             self.updateteam()
-            ## TODO: verify if recalc required
-            #self._dorecalc = True
 
     def retriders(self, biblist=''):
         """Return all listed riders to the event."""
@@ -2764,7 +2711,7 @@ class rms:
             return False
 
         # if there's a source filter set, discard any unknown sources
-        # todo: channel should be the primary source identifier
+        # TODO: channel should be the primary source identifier
         if len(self.passingsource) > 0:
             if e.source.lower() not in self.passingsource:
                 _log.info('Invalid passing: %s:%s@%s/%s', bib, e.chan,
@@ -3081,7 +3028,7 @@ class rms:
         st = tod.ZERO
         if self.start is not None:
             st = self.start
-        # result is sent in weird hybrid units TODO: fix the amb
+        # result elapsed time is sent in hybrid units
         wt = None
         lb = None
         scrollcnt = 0
@@ -3178,7 +3125,6 @@ class rms:
     def intsprint(self, acode='', places=''):
         """Display an intermediate sprint 'provisional' result."""
 
-        ## TODO : Fix offset time calcs - too many off by ones
         if acode not in self.intermeds:
             _log.debug('Attempt to display non-existent inter: %r', acode)
             return
@@ -3253,7 +3199,8 @@ class rms:
                     if passkey in self.passlabels:
                         lapstr = 'At ' + self.passlabels[passkey]
                     else:
-                        lapstr = ('Lap ' + str(self.onlap))
+                        if self.etype in ('circuit', 'criterium', 'cross'):
+                            lapstr = ('Lap ' + str(self.onlap))
                 self.meet.cmd_announce('laplbl', lapstr)
             else:
                 # make sure something is displayed in this path
@@ -3329,10 +3276,14 @@ class rms:
             self.meet.cmd_announce('elapmsg', '')
         return True
 
-    def set_start(self, start=''):
+    def set_start(self, start=None):
         """Set the start time."""
         wasidle = self.start is None
-        self.start = tod.mktod(start)
+        if start is not None:
+            if type(start) is not tod.tod:
+                _log.warning('Ignored invalid start time %r', start)
+                start = None
+        self.start = start
         if self.start is not None:
             if wasidle:
                 self.lapstart = None
@@ -3346,19 +3297,20 @@ class rms:
         else:
             self.meet.cmd_announce('start', None)
 
-    def set_finish(self, finish=''):
+    def set_finish(self, finish=None):
         """Set the finish time."""
-        if type(finish) is tod.tod:
-            self.finish = finish
-        else:
-            self.finish = tod.mktod(finish)
+        if finish is not None:
+            if type(finish) is not tod.tod:
+                _log.warning('Ignored invalid finish time %r', finish)
+                finish = None
+        self.finish = finish
         if self.finish is None:
             if self.start is not None:
                 self.set_running()
         else:
             self.meet.cmd_announce('finish', self.finish.rawtime())
             if self.start is None:
-                self.set_start('0')
+                self.set_start(tod.ZERO)
             else:
                 elap = self.finish - self.start
                 dval = self.meet.get_distance()
@@ -3738,7 +3690,7 @@ class rms:
         if src not in self.reserved_sources and src not in self.intermeds:
             _log.info('Invalid inter source %r in contest %r', src, contest)
             return
-        # todo: remove this countback flag - does not work as expected
+        # TODO: remove this countback flag - does not work as expected
         countbackwinner = False  # for stage finish only track winner in cb
         category = self.contestmap[contest]['category']
         tally = self.contestmap[contest]['tally']
@@ -4371,7 +4323,7 @@ class rms:
     def __init__(self, meet, etype, ui=True):
         self.meet = meet
         self.etype = etype
-        # todo: series removal
+        # TODO: series removal
         self.series = ''
         self.configfile = 'event.json'
         self.readonly = not ui
