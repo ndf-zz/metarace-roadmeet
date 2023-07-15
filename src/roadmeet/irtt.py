@@ -330,19 +330,40 @@ class irtt(rms):
             self.meet.obj_announce('arrivals', arrivals[0].serialize(rep))
         return False
 
-    def wallstartstr(self, col, cr, model, iter, data=None):
+    def editstart(self, cell, path, new_text, col=None):
+        """Edit the rider's start time."""
+        newst = tod.mktod(new_text)
+        if newst is not None:
+            if self.riders[path][COL_TODSTART] is not None:
+                self.riders[path][COL_TODSTART] = newst
+                _log.info(
+                    'Adjusted rider %s start time: %s',
+                    strops.bibser2bibstr(self.riders[path][COL_BIB],
+                                         self.riders[path][COL_SERIES]),
+                    newst.rawtime())
+            else:
+                newst = newst.truncate(0)
+                self.riders[path][COL_WALLSTART] = newst
+                _log.info(
+                    'Adjusted rider %s advertised start time: %s',
+                    strops.bibser2bibstr(self.riders[path][COL_BIB],
+                                         self.riders[path][COL_SERIES]),
+                    newst.rawtime(0))
+            self._dorecalc = True
+
+    def startstr(self, col, cr, model, iter, data=None):
         """Format start time into text for listview."""
         st = model.get_value(iter, COL_TODSTART)
         if st is not None:
-            cr.set_property('text', st.timestr(2))  # time from tapeswitch
+            cr.set_property('text', st.rawtime(2))
             cr.set_property('style', uiutil.STYLE_NORMAL)
         else:
-            cr.set_property('style', uiutil.STYLE_OBLIQUE)
             wt = model.get_value(iter, COL_WALLSTART)
             if wt is not None:
-                cr.set_property('text', wt.timestr(0))  # adv start
+                cr.set_property('text', wt.rawtime(0))
             else:
                 cr.set_property('text', '')  # no info on start time
+            cr.set_property('style', uiutil.STYLE_OBLIQUE)
 
     def announce_rider(self,
                        place='',
@@ -2698,13 +2719,18 @@ class irtt(rms):
         self.context_menu = None
         if ui:
             t.connect('button_press_event', self.treeview_button_press)
-            # TODO: show team name & club but pop up for rider list
             uiutil.mkviewcolbibser(t, bibcol=COL_BIB, sercol=COL_SERIES)
             uiutil.mkviewcoltxt(t, 'Rider', COL_NAMESTR, expand=True)
             uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, self.editcol_cb)
-            uiutil.mkviewcoltxt(t, 'Passes', COL_PASS, self.editcol_cb)
-            # -> Add in start time field with edit!
-            uiutil.mkviewcoltod(t, 'Start', cb=self.wallstartstr)
+            uiutil.mkviewcoltxt(t,
+                                'Pass',
+                                COL_PASS,
+                                self.editcol_cb,
+                                calign=1.0)
+            uiutil.mkviewcoltod(t,
+                                'Start',
+                                cb=self.startstr,
+                                editcb=self.editstart)
             uiutil.mkviewcoltod(t, 'Time', cb=self.elapstr)
             uiutil.mkviewcoltxt(t, 'Rank', COL_PLACE, halign=0.5, calign=0.5)
             t.show()
