@@ -338,7 +338,7 @@ class trtt(rms):
         self.team_start_times()
 
         # After load complete - check config and report.
-        eid = cr.get('trtt', 'id')
+        eid = cr.get_value('trtt', 'id')
         if eid is not None and eid != EVENT_ID:
             _log.info('Event config mismatch: %r != %r', eid, EVENT_ID)
             self.readonly = True
@@ -1130,7 +1130,6 @@ class trtt(rms):
     def resettimer(self):
         """Reset race timer."""
         _log.info('Reset event to idle')
-        self.meet._alttimer.dearm(1)
         self.set_start()
         self.clear_results()
         self.teamtimes = {}
@@ -1149,10 +1148,7 @@ class trtt(rms):
             self.meet.cmd_announce('timerstat', 'armfinish')
             self.meet.stat_but.update('error', 'Arm Finish')
             self.meet.stat_but.set_sensitive(True)
-            self.meet._alttimer.armlock(True)
-            self.meet._alttimer.arm(1)
         elif self.timerstat == 'armfinish':
-            self.meet._alttimer.dearm(1)
             self.timerstat = 'running'
             self.meet.cmd_announce('timerstat', 'running')
             self.meet.stat_but.update('ok', 'Running')
@@ -1186,7 +1182,8 @@ class trtt(rms):
         _log.debug('Alt timer: %s@%s/%s', e.chan, e.rawtime(), e.source)
         channo = strops.chan2id(e.chan)
         if channo == 1:
-            # this is a finish impulse, treat as an n'th wheel indicator
+            _log.info('Trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
+            # if finish armed, treat as an n'th wheel indicator
             if self.timerstat == 'armfinish':
                 _log.info('Team finish: %s', e.rawtime())
         else:

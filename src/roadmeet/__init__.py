@@ -1010,9 +1010,12 @@ class roadmeet:
             self._alttimer.arm(4)  # start line (backup)
             self._alttimer.arm(5)  # spare
         else:
-            # assume 1 second gaps at finish
             self._alttimer.write('DTS00.01')
-            self._alttimer.write('DTF01.00')
+            if self.etype == 'trtt':
+                self._alttimer.write('DTF00.01')
+            else:
+                # assume 1 second gaps at finish for road types
+                self._alttimer.write('DTF01.00')
             self._alttimer.dearm(2)
             self._alttimer.dearm(3)
             self._alttimer.dearm(4)
@@ -1273,14 +1276,6 @@ class roadmeet:
         # Open the event
         self.open_event()
         self.set_title()
-
-        # Adjust alttimer config post event load
-        if self.etype == 'irtt':
-            self._alttimer.write('DTS05.00')
-            self._alttimer.write('DTF00.01')
-        else:
-            # assume 1 second gaps at finish
-            self._alttimer.write('DTF01.00')
 
         # make sure export path exists
         if not os.path.exists(self.exportpath):
