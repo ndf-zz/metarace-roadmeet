@@ -2079,6 +2079,10 @@ def main():
         sys.exit(-1)
     else:
         app = roadmeet(None, lf)
+        mp = configpath
+        if mp.startswith(metarace.DATA_PATH):
+            mp = mp.replace(metarace.DATA_PATH + '/', '')
+        app.status.push(app.context, 'Meet Folder: ' + mp)
         app.loadconfig()
         app.window.show()
         app.start()
