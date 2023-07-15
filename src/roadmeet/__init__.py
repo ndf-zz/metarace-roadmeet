@@ -40,7 +40,7 @@ VERSION = '1.13.2'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
-ROADMEET_ID = 'roadmeet_3.2'  # configuration versioning
+ROADMEET_ID = 'roadmeet-3.2'  # configuration versioning
 EXPORTPATH = 'export'
 _log = logging.getLogger('roadmeet')
 _log.setLevel(logging.DEBUG)
@@ -995,27 +995,35 @@ class roadmeet:
         self._timer.clear()
         self._alttimer.clrmem()
 
+    def set_altchannels(self):
+        self._alttimer.armlock()  # lock the arm to capture all hits
+        self._alttimer.arm(0)  # start line
+        self._alttimer.arm(1)  # finish line (primary)
+        self._alttimer.dearm(6)
+        self._alttimer.dearm(7)
+        self._alttimer.dearm(8)
+        if self.etype == 'irtt':
+            self._alttimer.write('DTS05.00')
+            self._alttimer.write('DTF00.01')
+            self._alttimer.arm(2)  # finish line (photo cell)
+            self._alttimer.arm(3)  # finish line (plunger)
+            self._alttimer.arm(4)  # start line (backup)
+            self._alttimer.arm(5)  # spare
+        else:
+            # assume 1 second gaps at finish
+            self._alttimer.write('DTS00.01')
+            self._alttimer.write('DTF01.00')
+            self._alttimer.dearm(2)
+            self._alttimer.dearm(3)
+            self._alttimer.dearm(4)
+            self._alttimer.dearm(5)
+
     def menu_timing_reconnect_activate_cb(self, menuitem, data=None):
         """Drop current timer connection and re-connect"""
         self.set_timer(self.timer, force=True)
         self._alttimer.setport(self.alttimer)
         self._alttimer.sane()
-        if self.etype == 'irtt':
-            self._alttimer.write('DTS05.00')
-            self._alttimer.write('DTF00.01')
-            self._alttimer.armlock()  # lock the arm to capture all hits
-            self._alttimer.arm(0)  # start line
-            self._alttimer.arm(1)  # finish line (primary)
-            self._alttimer.arm(2)  # finish line (photo cell)
-            self._alttimer.arm(3)  # finish line (plunger)
-            self._alttimer.arm(4)  # start line (backup)
-            self._alttimer.delaytime('0.01')
-        else:
-            # assume 1 second gaps at finish
-            self._alttimer.write('DTF01.00')
-            self._alttimer.armlock()  # lock the arm to capture all hits
-            self._alttimer.arm(0)  # finish line (primary)
-            self._alttimer.dearm(1)  # finish line (primary)
+        self.set_altchannels()
         _log.info('Re-connect/re-start attached timers')
 
     def restart_decoder(self, data=None):
@@ -1252,6 +1260,7 @@ class roadmeet:
         if self.alttimer:
             self._alttimer.setport(self.alttimer)
             self._alttimer.sane()
+            self.set_altchannels()
         if self.anntopic:
             self.announce.subscribe('/'.join((self.anntopic, 'control', '#')))
         self.remote_reset()

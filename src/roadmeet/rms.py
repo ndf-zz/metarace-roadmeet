@@ -2191,7 +2191,6 @@ class rms:
     def resettimer(self):
         """Reset event timer."""
         _log.info('Reset event to idle')
-        self.meet._alttimer.dearm(1)
         self.set_finish()
         self.set_start()
         self.clear_results()
@@ -2248,10 +2247,7 @@ class rms:
             self.meet.cmd_announce('timerstat', 'armfinish')
             self.meet.stat_but.update('error', 'Arm Finish')
             self.meet.stat_but.set_sensitive(True)
-            self.meet._alttimer.armlock(True)
-            self.meet._alttimer.arm(1)
         elif self.timerstat == 'armfinish':
-            self.meet._alttimer.dearm(1)
             self.timerstat = 'running'
             self.meet.cmd_announce('timerstat', 'running')
             self.meet.stat_but.update('ok', 'Running')
@@ -2631,7 +2627,8 @@ class rms:
         _log.debug('Alt timer: %s@%s/%s', e.chan, e.rawtime(), e.source)
         channo = strops.chan2id(e.chan)
         if channo == 1:
-            # this is a finish impulse, treat as bunch time
+            _log.info('Trigger: %s@%s/%s', e.chan, e.rawtime(), e.source)
+            # if finish armed, treat as bunch time
             if self.timerstat == 'armfinish':
                 if self.altfinish is not None:
                     dt = e - self.altfinish
