@@ -25,14 +25,14 @@ from metarace import report
 from metarace import jsonconfig
 from . import uiutil
 
-from roadmeet.rms import rms, RESERVED_SOURCES
+from roadmeet.rms import rms, RESERVED_SOURCES, GAPTHRESH
 
 _log = logging.getLogger('irtt')
 _log.setLevel(logging.DEBUG)
 
 # rider commands
 RIDER_COMMANDS_ORD = [
-    'add', 'del', 'que', 'dns', 'otl', 'dnf', 'dsq', 'com', ''
+    'add', 'del', 'que', 'dns', 'otl', 'dnf', 'dsq', 'dec', ''
 ]
 RIDER_COMMANDS = {
     'dns': 'Did not start',
@@ -40,7 +40,7 @@ RIDER_COMMANDS = {
     'add': 'Add starters',
     'del': 'Remove starters',
     'que': 'Query riders',
-    'com': 'Add comment',
+    'dec': 'Add decision',
     'otl': 'Outside time limit',
     'dsq': 'Disqualify',
     'onc': 'Riders on course',
@@ -48,7 +48,6 @@ RIDER_COMMANDS = {
 }
 
 DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
-GAPTHRESH = tod.tod('1.12')
 STARTFUDGE = tod.tod(30)
 STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
@@ -538,8 +537,8 @@ class irtt(rms):
         elif acode == 'fin':
             _log.info('Finish places ignored')
             return True
-        elif acode == 'com':
-            self.add_comment(rlist)
+        elif acode == 'dec':
+            self.add_decision(rlist)
             return True
         else:
             _log.error('Ignoring invalid action %r', acode)
@@ -575,7 +574,7 @@ class irtt(rms):
                 'startlist': '',
                 'start': tod.ZERO,
                 'finished': False,
-                'comment': [],
+                'decisions': [],
                 'lstart': tod.ZERO,
                 'intermeds': [],
                 'contests': [],
@@ -751,7 +750,7 @@ class irtt(rms):
             'Start mode: %s; Timing mode: %s; Precision: %d; Default Laps: %r',
             startmode, timingmode, self.precision, self.totlaps)
 
-        self.comment = cr.get('irtt', 'comment')
+        self.decisions = cr.get('irtt', 'decisions')
         if cr.get_bool('irtt', 'finished'):
             self.set_finished()
         self.recalculate()
@@ -772,7 +771,7 @@ class irtt(rms):
         cw.import_section('irtt', self)
         cw.set('irtt', 'start', self.start)
         cw.set('irtt', 'lstart', self.lstart)
-        cw.set('irtt', 'comment', self.comment)
+        cw.set('irtt', 'decisions', self.decisions)
 
         # preserve timer info in finish and start passes
         fp = []
@@ -1190,12 +1189,15 @@ class irtt(rms):
         ret = []
         allin = False
         catname = cat
+        secid = 'result'
         if cat == '':
             if len(self.cats) > 1:
                 catname = 'Uncategorised Riders'
             else:
                 # There is only one cat - so all riders are in it
                 allin = True
+        else:
+            secid = 'result-' + cat.lower()
         subhead = ''
         footer = ''
         distance = self.meet.distance  # fall on meet dist
@@ -1210,7 +1212,7 @@ class irtt(rms):
                     distance = float(dist)
                 except Exception:
                     _log.warning('Invalid distance %r for cat %r', dist, cat)
-        sec = report.section('result-' + cat)
+        sec = report.section(secid)
         ct = None
         lt = None
         lpstr = None
@@ -1306,7 +1308,10 @@ class irtt(rms):
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments
-            sec = report.bullet_text('uci' + cat)
+            secid = 'resultmeta'
+            if cat:
+                secid = 'resultmeta-' + cat.lower()
+            sec = report.bullet_text(secid)
             if ct is not None:
                 if distance is not None:
                     avgprompt = 'Average speed of the winner: '
@@ -1361,12 +1366,9 @@ class irtt(rms):
             if im['places'] and im['show']:
                 ret.extend(self.int_report(i))
 
-        if len(self.comment) > 0:
-            s = report.bullet_text('comms')
-            s.heading = 'Decisions of the commissaires panel'
-            for comment in self.comment:
-                s.lines.append([None, comment])
-            ret.append(s)
+        # append a decisions section
+        ret.append(self.decision_section())
+
         return ret
 
     def startlist_gen(self, cat=''):
@@ -2657,7 +2659,7 @@ class irtt(rms):
         self.catstarts = {}
         self.catplaces = {}
         self.catlaps = {}
-        self.comment = []
+        self.decisions = []
         self.places = ''
 
         self.bonuses = {}

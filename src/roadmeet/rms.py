@@ -71,7 +71,7 @@ ROADRACE_TYPES = {
 
 # rider commands
 RIDER_COMMANDS_ORD = [
-    'add', 'del', 'que', 'dns', 'otl', 'wd', 'dnf', 'dsq', 'com', 'ret', 'man',
+    'add', 'del', 'que', 'dns', 'otl', 'wd', 'dnf', 'dsq', 'dec', 'ret', 'man',
     '', 'fin'
 ]  # then intermediates...
 RIDER_COMMANDS = {
@@ -84,7 +84,7 @@ RIDER_COMMANDS = {
     'del': 'Remove starters',
     'que': 'Query riders',
     'fin': 'Final places',
-    'com': 'Add comment',
+    'dec': 'Add decision',
     'ret': 'Return to race',
     'man': 'Manual passing',
     '': '',
@@ -411,7 +411,7 @@ class rms:
                 'finish': None,
                 'finished': False,
                 'places': '',
-                'comment': [],
+                'decisions': [],
                 'hidecols': [INCOLUMN],
                 'intermeds': [],
                 'contests': [],
@@ -507,7 +507,7 @@ class rms:
         self.curlap = cr.get_int('rms', 'curlap', -1)
         self.totlaps = cr.get_int('rms', 'totlaps', None)
         self.places = strops.reformat_placelist(cr.get('rms', 'places'))
-        self.comment = cr.get('rms', 'comment')
+        self.decisions = cr.get('rms', 'decisions')
         if cr.get_bool('rms', 'finished'):
             self.set_finished()
         self.recalculate()
@@ -685,7 +685,7 @@ class rms:
             cw.set('rms', 'categories', 'AUTO')
         else:
             cw.set('rms', 'categories', ' '.join(self.get_catlist()).strip())
-        cw.set('rms', 'comment', self.comment)
+        cw.set('rms', 'decisions', self.decisions)
         cw.set('rms', 'hidecols', self.hidecols)
 
         cw.add_section('riders')
@@ -1594,12 +1594,19 @@ class rms:
             if im['places'] and im['show']:
                 ret.extend(self.int_report(i))
 
-        if len(self.comment) > 0:
-            s = report.bullet_text('comms')
-            s.heading = 'Decisions of the commissaires panel'
-            for comment in self.comment:
-                s.lines.append([None, comment])
-            ret.append(s)
+        # append a decisions section
+        ret.append(self.decision_section())
+
+        return ret
+
+    def decision_section(self):
+        """Return an officials decision section"""
+        # TODO: macrowrite each decision
+        ret = report.bullet_text('decisions')
+        if self.decisions:
+            ret.heading = 'Decisions of the commissaires panel'
+            for decision in self.decisions:
+                ret.lines.append([None, decision])
         return ret
 
     def handicap_report(self):
@@ -1878,17 +1885,17 @@ class rms:
                 for bib in rlist.split():
                     self.query_rider(bib)
             return True
-        elif acode == 'com':
-            self.add_comment(rlist)
+        elif acode == 'dec':
+            self.add_decision(rlist)
             return True
         else:
             _log.error('Ignoring invalid action %r', acode)
         return False
 
-    def add_comment(self, comment=''):
-        """Append a commissaires comment."""
-        self.comment.append(comment.strip())
-        _log.info('Added comment: %r', comment)
+    def add_decision(self, decision=''):
+        """Append a decision of the commissaires panel."""
+        self.decisions.append(decision.strip())
+        _log.debug('Added decision: %r', decision)
 
     def query_rider(self, bib=None):
         """List info on selected rider in the scratchpad."""
@@ -4338,7 +4345,7 @@ class rms:
         self.racestat = 'prerace'
         self.places = ''
         self.laptimes = []
-        self.comment = []
+        self.decisions = []
         self.hidecols = []
         self.cats = []
         self.passingsource = []  # list of decoders we accept passings from

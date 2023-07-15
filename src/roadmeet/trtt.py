@@ -240,7 +240,7 @@ class trtt(rms):
                 'start': None,
                 'finished': False,
                 'places': '',
-                'comment': [],
+                'decisions': [],
                 'intermeds': [],
                 'contests': [],
                 'tallys': [],
@@ -323,7 +323,7 @@ class trtt(rms):
 
         self.set_start(cr.get('trtt', 'start'))
         self.places = strops.reformat_placelist(cr.get('trtt', 'places'))
-        self.comment = cr.get('trtt', 'comment')
+        self.decisions = cr.get('trtt', 'decisions')
         if strops.confopt_bool(cr.get('trtt', 'finished')):
             self.set_finished()
         self.recalculate()
@@ -400,7 +400,7 @@ class trtt(rms):
             cw.set('trtt', 'categories', 'AUTO')
         else:
             cw.set('trtt', 'categories', ' '.join(self.get_catlist()).strip())
-        cw.set('trtt', 'comment', self.comment)
+        cw.set('trtt', 'decisions', self.decisions)
 
         cw.add_section('riders')
         # sections for commissaire awarded bonus/penalty
@@ -964,12 +964,9 @@ class trtt(rms):
             if im['places'] and im['show']:
                 ret.extend(self.int_report(i))
 
-        if len(self.comment) > 0:
-            s = report.bullet_text('comms')
-            s.heading = 'Decisions of the commissaires panel'
-            for comment in self.comment:
-                s.lines.append([None, comment])
-            ret.append(s)
+        # append a decisions section
+        ret.append(self.decision_section())
+
         return ret
 
     def race_ctrl_add(self, rlist):
@@ -1518,7 +1515,7 @@ class trtt(rms):
         self.winopen = True
         self.timerstat = 'idle'
         self.places = ''
-        self.comment = []
+        self.decisions = []
         self.ridermark = None
         self.cats = []
         self.passingsource = []  # list of decoders we accept passings from
