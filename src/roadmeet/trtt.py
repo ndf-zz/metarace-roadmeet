@@ -239,44 +239,30 @@ class trtt(rms):
         cr = jsonconfig.config({
             'trtt': {
                 'start': None,
-                'id': EVENT_ID,
                 'finished': False,
-                'relativestart': False,
-                'showriders': True,
                 'places': '',
                 'comment': [],
-                'categories': [],
                 'intermeds': [],
-                'allowspares': False,
                 'contests': [],
                 'tallys': [],
-                'owntime': True,
-                'gapthresh': GAPTHRESH,
-                'totlaps': None,
                 'passingsource': [],
-                'defaultnth': NTH_WHEEL,
-                'minlap': MINLAP,
-                'startgap': STARTGAP,
-                'clubmode': False,
                 'nthwheel': {},
                 'startlist': '',
-                'autofinish': True,
-                'autoexport': False,
             }
         })
-        cr.add_section('trtt')
+        cr.add_section('trtt', _CONFIG_SCHEMA)
         cr.add_section('riders')
         cr.add_section('stagebonus')
         cr.add_section('stagepenalty')
         cr.merge(metarace.sysconf, 'trtt')
         if not cr.load(self.configfile):
             _log.info('%r not read, loading defaults', self.configfile)
+        cr.export_section('trtt', self)
 
         # load result categories
-        self.loadcats(cr.get('trtt', 'categories'))
+        self.loadcats(cr.get_value('trtt', 'categories').upper().split())
 
-        # read in default and category specific nth wheel values
-        self.defaultnth = cr.get_posint('trtt', 'defaultnth')
+        # read in category specific nth wheel overrides
         _log.debug('Default Nth Wheel: %r', self.defaultnth)
         self.nthwheel = cr.get('trtt', 'nthwheel')
         if not isinstance(self.nthwheel, dict):
@@ -289,29 +275,22 @@ class trtt(rms):
         for source in cr.get('trtt', 'passingsource'):
             self.passingsource.append(source.lower())  # force lower case
 
-        # fetch time gap threshold
-        ngt = tod.mktod(cr.get('trtt', 'gapthresh'))
-        if ngt is not None:
-            self.gapthresh = ngt
-            if self.gapthresh != GAPTHRESH:
-                _log.warning('Set time gap threshold %s',
-                             self.gapthresh.rawtime(2))
+        # check gapthresh
+        if self.gapthresh != GAPTHRESH:
+            _log.warning('Set time gap threshold %s',
+                         self.gapthresh.rawtime(2))
+        _log.debug('Minimum lap time: %s', self.minlap.rawtime(1))
 
-        # fetch team start gap
-        ngt = tod.mktod(cr.get('trtt', 'startgap'))
-        if ngt is not None:
-            self.startgap = ngt
-            if self.startgap != STARTGAP:
-                _log.warning('Set team start gap %s', self.startgap.rawtime(0))
+        # team start gap
+        if self.startgap != STARTGAP:
+            _log.info('Team start gap %s', self.startgap.rawtime(0))
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'trtt')
 
         # load competitors
-        starters = cr.get('trtt', 'startlist').split()
-        if len(starters) == 1 and starters[0] == 'all':
-            starters = strops.riderlist_split('all', self.meet.rdb)
-        self.allowspares = cr.get_bool('trtt', 'allowspares')
+        starters = strops.riderlist_split(
+            cr.get('trtt', 'startlist').upper().strip(), self.meet.rdb)
         for r in starters:
             ri = self.addrider(r)
             if ri is not None:
@@ -343,22 +322,11 @@ class trtt(rms):
                 if cr.has_option('stagepenalty', r):
                     nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
 
-        self.owntime = cr.get_bool('trtt', 'owntime')
-        self.minlap = tod.mktod(cr.get('trtt', 'minlap'))
-        if self.minlap is None:
-            self.minlap = MINLAP
-        _log.debug('Minimum lap time: %s', self.minlap.rawtime())
-
         self.set_start(cr.get('trtt', 'start'))
-        self.totlaps = cr.get('trtt', 'totlaps')
         self.places = strops.reformat_placelist(cr.get('trtt', 'places'))
         self.comment = cr.get('trtt', 'comment')
-        self.autoexport = cr.get_bool('trtt', 'autoexport')
-        self.showriders = cr.get_bool('trtt', 'showriders')
-        self.relativestart = cr.get_bool('trtt', 'relativestart')
         if strops.confopt_bool(cr.get('trtt', 'finished')):
             self.set_finished()
-        self.clubmode = cr.get_bool('trtt', 'clubmode')
         self.recalculate()
 
         self.load_cat_data()
@@ -369,12 +337,9 @@ class trtt(rms):
         # patch team start times from riderdb
         self.team_start_times()
 
-        if cr.get_bool('trtt', 'autofinish'):
-            self.autofinish = True
-
         # After load complete - check config and report.
         eid = cr.get('trtt', 'id')
-        if eid and eid != EVENT_ID:
+        if eid is not None and eid != EVENT_ID:
             _log.info('Event config mismatch: %r != %r', eid, EVENT_ID)
             self.readonly = True
 
@@ -414,27 +379,12 @@ class trtt(rms):
             _log.error('Attempt to save readonly event')
             return
         cw = jsonconfig.config()
-        cw.add_section('trtt')
-        if self.start is not None:
-            cw.set('trtt', 'start', self.start.rawtime())
-        if self.minlap is not None:
-            cw.set('trtt', 'minlap', self.minlap.rawtime())
-        else:
-            cw.set('trtt', 'minlap', None)
-        cw.set('trtt', 'showriders', self.showriders)
-        cw.set('trtt', 'relativestart', self.relativestart)
-        cw.set('trtt', 'gapthresh', self.gapthresh.rawtime())
-        cw.set('trtt', 'startgap', self.startgap.rawtime())
+        cw.add_section('trtt', _CONFIG_SCHEMA)
+        cw.import_section('trtt', self)
+        cw.set('trtt', 'start', self.start)
         cw.set('trtt', 'finished', self.timerstat == 'finished')
         cw.set('trtt', 'places', self.places)
-        cw.set('trtt', 'totlaps', self.totlaps)
-        cw.set('trtt', 'allowspares', self.allowspares)
-        cw.set('trtt', 'defaultnth', self.defaultnth)
-        cw.set('trtt', 'owntime', self.owntime)
-        cw.set('trtt', 'autofinish', self.autofinish)
-        cw.set('trtt', 'autoexport', self.autoexport)
         cw.set('trtt', 'passingsource', self.passingsource)
-        cw.set('trtt', 'clubmode', self.clubmode)
         cw.set('trtt', 'nthwheel', self.nthwheel)  # dict of cat keys
 
         # save stage inters, points and bonuses
@@ -448,9 +398,9 @@ class trtt(rms):
             if self.autostartlist is not None:
                 cw.set('trtt', 'startlist', self.autostartlist)
         if self.autocats:
-            cw.set('trtt', 'categories', ['AUTO'])
+            cw.set('trtt', 'categories', 'AUTO')
         else:
-            cw.set('trtt', 'categories', self.get_catlist())
+            cw.set('trtt', 'categories', ' '.join(self.get_catlist()).strip())
         cw.set('trtt', 'comment', self.comment)
 
         cw.add_section('riders')
@@ -558,7 +508,6 @@ class trtt(rms):
             if rstart is None:
                 rstart = tod.MAX
             if rteam != lteam:  # issue team time
-                ltod = None
                 cs = r[COL_CAT]
                 tcat = self.ridercat(riderdb.primary_cat(cs))
                 dbr = self.meet.rdb.get_rider(rteam, 'team')
@@ -844,18 +793,21 @@ class trtt(rms):
         _log.debug('Cat result for cat=%r', cat)
         ret = []
         allin = False
-        catname = cat  # fallback emergency
+        catname = cat
+        secid = 'result'
         if cat == '':
             if len(self.cats) > 1:
                 catname = 'Uncategorised Riders'
             else:
                 # There is only one cat - so all riders are in it
                 allin = True
+        else:
+            secid = 'result-' + cat.lower()
         subhead = ''
         footer = ''
         distance = self.meet.get_distance()
         laps = self.totlaps
-        if self.catlaps[cat] is not None:
+        if cat in self.catlaps and self.catlaps[cat] is not None:
             laps = self.catlaps[cat]
         dbr = self.meet.rdb.get_rider(cat, 'cat')
         if dbr is not None:
@@ -868,7 +820,7 @@ class trtt(rms):
                     distance = float(dist)
                 except Exception:
                     _log.warning('Invalid distance %r for cat %r', dist, cat)
-        sec = report.section('result-' + cat)
+        sec = report.section(secid)
 
         teamRes = {}
         teamAux = []
@@ -956,11 +908,9 @@ class trtt(rms):
 
             lt = teamTime
 
-        if self.timerstat == 'finished':
+        if self.timerstat in ('idle', 'finished'):
             sec.heading = 'Result'
-        elif self.timerstat in ('idle', 'armstart'):
-            sec.heading = ''
-        elif self.timerstat in ('running', 'armfinish'):
+        elif self.timerstat in ('armstart', 'running', 'armfinish'):
             if teamCnt == finCnt:
                 sec.heading = 'Provisional Result'
             elif finCnt > 0:
@@ -973,11 +923,14 @@ class trtt(rms):
             sec.footer = footer
 
         # Append all result categories and uncat if riders
-        if cat or finCnt > 0:
+        if cat or teamCnt > 0:
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments
-            sec = report.bullet_text('uci-' + cat)
+            secid = 'resultmeta'
+            if cat:
+                secid = 'resultmeta-' + cat.lower()
+            sec = report.bullet_text(secid)
             if wt is not None:
                 if distance is not None:
                     sec.lines.append([
@@ -985,14 +938,6 @@ class trtt(rms):
                         wt.speedstr(1000.0 * distance)
                     ])
             sec.lines.append([None, 'Number of teams: ' + str(teamCnt)])
-            #if dnfcount > 0:
-            #sec.lines.append([
-            #None,
-            #u'Teams not completing the event: ' + unicode(dnfcount)
-            #])
-            #residual = totcount - (fincount + dnfcount + dnscount + hdcount)
-            #if residual > 0:
-            #_log.info(u'%r teams unaccounted for: %r', cat, residual)
             ret.append(sec)
 
             # finish report title manipulation
