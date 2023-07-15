@@ -92,7 +92,7 @@ key_announce = 'F4'  # clear scratch
 # IRTT does not use confirm keys
 
 # config version string
-EVENT_ID = 'roadtt-3.3'
+EVENT_ID = 'roadtt-3.4'
 
 _CONFIG_SCHEMA = {
     'etype': {
@@ -167,6 +167,15 @@ _CONFIG_SCHEMA = {
         'hint': 'Check rider start times against schedule',
         'default': True,
     },
+    'showtimers': {
+        'prompt': 'Manual Timers:',
+        'subtext': 'Show?',
+        'hint': 'Show manual timer controls',
+        'type': 'bool',
+        'control': 'check',
+        'attr': 'showtimers',
+        'default': True,
+    },
     'arrivaltimeout': {
         'prompt': 'Arvl Timeout:',
         'control': 'short',
@@ -221,32 +230,6 @@ _CONFIG_SCHEMA = {
         'default': False,
     },
 }
-
-
-def jsob(inmap):
-    """Return a json'able map."""
-    ret = None
-    if inmap is not None:
-        ret = {}
-        for key in inmap:
-            if key in ('minelap', 'maxelap'):
-                ret[key] = inmap[key].rawtime()
-            else:
-                ret[key] = inmap[key]
-    return ret
-
-
-def unjsob(inmap):
-    """Un-jsob the provided map."""
-    ret = None
-    if inmap is not None:
-        ret = {}
-        for key in inmap:
-            if key in ('minelap', 'maxelap'):
-                ret[key] = tod.mktod(inmap[key])
-            else:
-                ret[key] = inmap[key]
-    return ret
 
 
 class irtt(rms):
@@ -315,7 +298,7 @@ class irtt(rms):
             self.timerstat = 'finished'
             self.meet.stat_but.update('idle', 'Finished')
             self.meet.stat_but.set_sensitive(False)
-            self.hidetimers = True
+            self.showtimers = False
             self.timerframe.hide()
 
     def armfinish(self):
@@ -558,69 +541,34 @@ class irtt(rms):
         cr = jsonconfig.config({
             'irtt': {
                 'startlist': '',
-                'id': EVENT_ID,
-                'start': '0',
+                'start': tod.ZERO,
+                'finished': False,
                 'comment': [],
-                'categories': [],
-                'arrivaltimeout': ARRIVALTIMEOUT,
-                'lstart': '0',
-                'startgap': STARTGAP,
-                'autoexport': False,
+                'lstart': tod.ZERO,
                 'intermeds': [],
                 'contests': [],
-                'minlap': STARTFUDGE,
-                'strictstart': True,
-                'autoimpulse': False,
-                'startloop': None,
-                'finishloop': None,
-                'totlaps': None,
-                'interloops': {},
-                'interlaps': {},
                 'tallys': [],
-                'onestartlist': True,
-                'hidetimers': False,
                 'startpasses': [],
                 'finishpasses': [],
-                'timelimit': None,
-                'finished': False,
                 'showinter': None,
-                'clubmode': False,
                 'intera': None,
                 'interb': None,
                 'interc': None,
                 'interd': None,
                 'intere': None,
+                'interloops': {},
+                'interlaps': {},
             }
         })
-        cr.add_section('irtt')
+        cr.add_section('irtt', _CONFIG_SCHEMA)
         cr.add_section('riders')
         cr.add_section('stagebonus')
         cr.add_section('stagepenalty')
         cr.merge(metarace.sysconf, 'irtt')
         if not cr.load(self.configfile):
             _log.info('%r not read, loading defaults', self.configfile)
+        cr.export_section('irtt', self)
 
-        # load default gap
-        self.startgap = tod.mktod(cr.get('irtt', 'startgap'))
-        if self.startgap is None:
-            self.startgap = STARTGAP
-
-        # load minimum elapsed time
-        self.minlap = tod.mktod(cr.get('irtt', 'minlap'))
-        if self.minlap is None:
-            self.minlap = STARTFUDGE
-        self.timelimit = cr.get('irtt', 'timelimit')  # save as str
-
-        # allow club mode passings
-        self.clubmode = cr.get_bool('irtt', 'clubmode')
-        # allow auto export
-        self.autoexport = cr.get_bool('irtt', 'autoexport')
-        # sloppy start times
-        self.strictstart = cr.get_bool('irtt', 'strictstart')
-        # sloppy impulse mode (aka auto timing)
-        self.autoimpulse = cr.get_bool('irtt', 'autoimpulse')
-        # count of finish passings to set finish time
-        self.totlaps = cr.get_posint('irtt', 'totlaps', None)
         if self.totlaps is not None:
             if self.totlaps > 1:
                 _log.debug('Set default target laps: %d', self.totlaps)
@@ -628,20 +576,12 @@ class irtt(rms):
                 _log.debug('Invalid target lap count (%d) ignored',
                            self.totlaps)
                 self.totlaps = None
-        # hide timer panes (for auto-timed setup)
-        self.hidetimers = cr.get_bool('irtt', 'hidetimers')
-        if self.hidetimers:
+
+        # hide timer panes
+        if not self.showtimers:
             self.timerframe.hide()
 
         # transponder timing options
-        self.startloop = strops.chan2id(cr.get('irtt', 'startloop'))
-        if self.startloop < 0:
-            _log.warning('Invalid start loop channel ignored')
-            self.startloop = None
-        self.finishloop = strops.chan2id(cr.get('irtt', 'finishloop'))
-        if self.finishloop < 0:
-            _log.warning('Invalid finish loop channel ignored')
-            self.finishloop = None
         if self.startloop is not None or self.finishloop is not None:
             if self.autoimpulse:
                 configok = True
@@ -663,18 +603,17 @@ class irtt(rms):
                     self.startloop, self.finishloop, self.autoimpulse)
 
         # load intermediate split schema
-        self.showinter = strops.confopt_posint(cr.get('irtt', 'showinter'),
-                                               None)
-        self.ischem[COL_INTERA] = unjsob(cr.get('irtt', 'intera'))
-        self.ischem[COL_INTERB] = unjsob(cr.get('irtt', 'interb'))
-        self.ischem[COL_INTERC] = unjsob(cr.get('irtt', 'interc'))
-        self.ischem[COL_INTERD] = unjsob(cr.get('irtt', 'interd'))
-        self.ischem[COL_INTERE] = unjsob(cr.get('irtt', 'intere'))
+        self.showinter = cr.get_posint('irtt', 'showinter', None)
+        self.ischem[COL_INTERA] = cr.get('irtt', 'intera')
+        self.ischem[COL_INTERB] = cr.get('irtt', 'interb')
+        self.ischem[COL_INTERC] = cr.get('irtt', 'interc')
+        self.ischem[COL_INTERD] = cr.get('irtt', 'interd')
+        self.ischem[COL_INTERE] = cr.get('irtt', 'intere')
         self.interloops = cr.get('irtt', 'interloops')
         self.interlaps = cr.get('irtt', 'interlaps')
 
         # load _result_ categories
-        self.loadcats(cr.get('irtt', 'categories'))
+        self.loadcats(cr.get_value('irtt', 'categories').upper().split())
 
         # add the category result and inter holders
         for cat in self.cats:
@@ -691,11 +630,11 @@ class irtt(rms):
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'irtt')
 
-        # re-join any existing timer state -> no, just do a start
-        self.set_syncstart(tod.mktod(cr.get('irtt', 'start')),
-                           tod.mktod(cr.get('irtt', 'lstart')))
+        # set master reference time
+        self.set_syncstart(cr.get_tod('irtt', 'start'),
+                           cr.get_tod('irtt', 'lstart'))
 
-        # re-load starters/results
+        # re-load starters/results - note this does not support lookup
         self.onestart = False
         for rs in cr.get('irtt', 'startlist').split():
             (r, s) = strops.bibstr2bibser(rs)
@@ -751,25 +690,21 @@ class irtt(rms):
             self.riders.set_value(nri, COL_LASTSEEN, lpass)
             # record any extra bonus/penalty to rider model
             if cr.has_option('stagebonus', rs):
-                nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', rs))
+                nr[COL_BONUS] = cr.get_tod('stagebonus', rs)
             if cr.has_option('stagepenalty', rs):
-                nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', rs))
+                nr[COL_PENALTY] = cr.get_tod('stagepenalty', rs)
 
         self.startpasses.clear()
         fp = cr.get('irtt', 'startpasses')
         if isinstance(fp, list):
-            for p in fp:
-                t = tod.mktod(p)
-                if t is not None:
-                    self.startpasses.insert(t)
+            for t in fp:
+                self.startpasses.insert(t)
 
         self.finishpasses.clear()
         fp = cr.get('irtt', 'finishpasses')
         if isinstance(fp, list):
-            for p in fp:
-                t = tod.mktod(p)
-                if t is not None:
-                    self.finishpasses.insert(t)
+            for t in fp:
+                self.finishpasses.insert(t)
 
         # display config
         startmode = 'Relaxed'
@@ -784,22 +719,14 @@ class irtt(rms):
             'Start mode: %s; Timing mode: %s; Precision: %d; Default Laps: %r',
             startmode, timingmode, self.precision, self.totlaps)
 
-        # recalculate rankings
+        self.comment = cr.get('irtt', 'comment')
+        if cr.get_bool('irtt', 'finished'):
+            self.set_finished()
         self.recalculate()
 
-        self.comment = cr.get('irtt', 'comment')
-        self.arrivaltimeout = tod.mktod(cr.get('irtt', 'arrivaltimeout'))
-
-        if strops.confopt_bool(cr.get('irtt', 'finished')):
-            self.set_finished()
-        self.onestartlist = strops.confopt_bool(cr.get('irtt', 'onestartlist'))
-
-        # After load complete - check config and report. This ensures
-        # an error message is left on top of status stack. This is not
-        # always a hard fail and the user should be left to determine
-        # an appropriate outcome.
-        eid = cr.get('irtt', 'id')
-        if eid and eid != EVENT_ID:
+        # After load complete - check config and report.
+        eid = cr.get_value('irtt', 'id')
+        if eid is not None and eid != EVENT_ID:
             _log.info('Event config mismatch: %r != %r', eid, EVENT_ID)
             self.readonly = True
 
@@ -809,48 +736,31 @@ class irtt(rms):
             _log.error('Attempt to save readonly event')
             return
         cw = jsonconfig.config()
-        cw.add_section('irtt')
-        if self.start is not None:
-            cw.set('irtt', 'start', self.start.rawtime())
-        if self.lstart is not None:
-            cw.set('irtt', 'lstart', self.lstart.rawtime())
+        cw.add_section('irtt', _CONFIG_SCHEMA)
+        cw.import_section('irtt', self)
+        cw.set('irtt', 'start', self.start)
+        cw.set('irtt', 'lstart', self.lstart)
         cw.set('irtt', 'comment', self.comment)
-        if self.startgap is not None:
-            cw.set('irtt', 'startgap', self.startgap.rawtime(0))
-        else:
-            cw.set('irtt', 'startgap', None)
-        if self.minlap is not None:
-            cw.set('irtt', 'minlap', self.minlap.rawtime())
-        else:
-            cw.set('irtt', 'minlap', None)
-        if self.arrivaltimeout is not None:
-            cw.set('irtt', 'arrivaltimeout', self.arrivaltimeout.rawtime())
-        else:
-            cw.set('irtt', 'arrivaltimeout', None)
 
+        # preserve timer info in finish and start passes
         fp = []
         for t in self.startpasses:
-            fp.append(t[0].rawtime(5))
+            fp.append(tod.tod(t[0]))
         cw.set('irtt', 'startpasses', fp)
         fp = []
         for t in self.finishpasses:
-            fp.append(t[0].rawtime(5))
+            fp.append(tod.tod(t[0]))
         cw.set('irtt', 'finishpasses', fp)
 
-        cw.set('irtt', 'clubmode', self.clubmode)
-        cw.set('irtt', 'strictstart', self.strictstart)
-        cw.set('irtt', 'autoimpulse', self.autoimpulse)
-        cw.set('irtt', 'autoexport', self.autoexport)
-        cw.set('irtt', 'startloop', self.startloop)
-        cw.set('irtt', 'finishloop', self.finishloop)
-        cw.set('irtt', 'totlaps', self.totlaps)
-        cw.set('irtt', 'onestartlist', self.onestartlist)
-        cw.set('irtt', 'timelimit', self.timelimit)
-        cw.set('irtt', 'hidetimers', self.hidetimers)
+        # deprecated inters - save with config for now
         cw.set('irtt', 'interloops', self.interloops)
         cw.set('irtt', 'interlaps', self.interlaps)
         cw.set('irtt', 'showinter', self.showinter)
-        cw.set('irtt', 'intera', jsob(self.ischem[COL_INTERA]))
+        cw.set('irtt', 'intera', self.ischem[COL_INTERA])
+        cw.set('irtt', 'interb', self.ischem[COL_INTERB])
+        cw.set('irtt', 'interc', self.ischem[COL_INTERC])
+        cw.set('irtt', 'interd', self.ischem[COL_INTERD])
+        cw.set('irtt', 'intere', self.ischem[COL_INTERE])
 
         # save stage inters, points and bonuses
         self.savestageinters(cw, 'irtt')
@@ -860,9 +770,9 @@ class irtt(rms):
         cw.add_section('stagepenalty')
         cw.set('irtt', 'startlist', self.get_startlist())
         if self.autocats:
-            cw.set('irtt', 'categories', ['AUTO'])
+            cw.set('irtt', 'categories', 'AUTO')
         else:
-            cw.set('irtt', 'categories', self.get_catlist())
+            cw.set('irtt', 'categories', ' '.join(self.get_catlist()).strip())
         cw.add_section('riders')
         for r in self.riders:
             if r[COL_BIB] != '':
@@ -2089,17 +1999,17 @@ class irtt(rms):
             #self.unstart(bib, series, wst=start)
 
     def delrider(self, bib='', series=''):
-        """Delete the specificed rider from the race model."""
+        """Delete the specified rider from the race model."""
         i = self.getiter(bib, series)
         if i is not None:
+            self.settimes(i)
             self.riders.remove(i)
+        if (bib, series) in self.ridernos:
             self.ridernos.remove((bib, series))
 
     def addrider(self, bib='', series=''):
         """Add specified rider to race model."""
         if bib and (bib, series) in self.ridernos:
-            _log.warning('Rider %s already in viewmodel',
-                         strops.bibser2bibstr(bib, series))
             return None
 
         if bib:
@@ -2157,11 +2067,11 @@ class irtt(rms):
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Toggle the visibility of timer panes"""
-        self.hidetimers = not self.hidetimers
-        if self.hidetimers:
-            self.timerframe.hide()
-        else:
+        self.showtimers = not self.showtimers
+        if self.showtimers:
             self.timerframe.show()
+        else:
+            self.timerframe.hide()
 
     def editcol_cb(self, cell, path, new_text, col):
         """Update value in edited cell."""
@@ -2633,9 +2543,13 @@ class irtt(rms):
         sel = self.view.get_selection().get_selected()
         if sel is not None:
             i = sel[1]  # grab off row iter
+            bib = self.riders.get_value(i, COL_BIB)
+            series = self.riders.get_value(i, COL_SERIES)
             self.settimes(i)  # clear times
             if self.riders.remove(i):
                 pass  # re-select?
+            if (bib, series) in self.ridernos:
+                self.ridernos.remove((bib, series))
 
     def log_clear(self, bib, series):
         """Print clear time log."""
@@ -2671,10 +2585,11 @@ class irtt(rms):
         self.startloop = None
         self.precision = 2
         self.totlaps = None
-        self.hidetimers = False
+        self.showtimers = False
         self.clubmode = False
         self.minlap = STARTFUDGE
         self.arrivaltimeout = ARRIVALTIMEOUT
+        self.timelimit = None
 
         # race run time attributes
         self.onestart = False
