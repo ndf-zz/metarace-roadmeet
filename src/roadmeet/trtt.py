@@ -318,9 +318,9 @@ class trtt(rms):
                                 nr[COL_RFSEEN].append(laptod)
                 # record any extra bonus/penalty to rider model
                 if cr.has_option('stagebonus', r):
-                    nr[COL_BONUS] = tod.mktod(cr.get('stagebonus', r))
+                    nr[COL_BONUS] = cr.get_tod('stagebonus', r)
                 if cr.has_option('stagepenalty', r):
-                    nr[COL_PENALTY] = tod.mktod(cr.get('stagepenalty', r))
+                    nr[COL_PENALTY] = cr.get_tod('stagepenalty', r)
 
         self.set_start(cr.get('trtt', 'start'))
         self.places = strops.reformat_placelist(cr.get('trtt', 'places'))
