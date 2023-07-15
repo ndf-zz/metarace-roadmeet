@@ -167,7 +167,6 @@ _CONFIG_SCHEMA = {
         'attr': 'gapthresh',
         'default': GAPTHRESH,
     },
-    # Clubmode may trigger problems with team data, todo: fix addrider
     'clubmode': {
         'prompt': 'Club Mode:',
         'control': 'check',
@@ -1236,12 +1235,10 @@ class trtt(rms):
 
     def finsprint(self, places):
         """Display a final sprint 'provisional' result."""
-        # TODO: output team result from here
         pass
 
     def reannounce_times(self):
         """Re-send the current timing values."""
-        # TODO
         self.meet.cmd_announce('timerstat', self.timerstat)
         return False
 
@@ -1486,7 +1483,6 @@ class trtt(rms):
     def __init__(self, meet, etype, ui=True):
         self.meet = meet
         self.etype = etype
-        # todo: series removal
         self.series = ''
         self.configfile = 'event.json'
         self.readonly = not ui

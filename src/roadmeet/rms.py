@@ -2708,7 +2708,6 @@ class rms:
             return False
 
         # if there's a source filter set, discard any unknown sources
-        # TODO: channel should be the primary source identifier
         if len(self.passingsource) > 0:
             if e.source.lower() not in self.passingsource:
                 _log.info('Invalid passing: %s:%s@%s/%s', bib, e.chan,
@@ -2768,7 +2767,6 @@ class rms:
             return False
 
         # check this passing against previous passing records
-        # TODO: compare the source against the passing in question
         lastchk = None
         ipos = bisect.bisect_right(lr[COL_RFSEEN], e)
         if ipos == 0:  # first in-race passing, accept
@@ -2966,8 +2964,6 @@ class rms:
             else:
                 # correct all rider lap counts, saturated at desired lap
                 for r in self.riders:
-                    # TODO: olap should only include laps recorded after
-                    #       catstart - which may have changed
                     olap = len(r[COL_RFSEEN])
                     if r[COL_INRACE]:
                         if olap > newlap - 1:
@@ -3682,12 +3678,10 @@ class rms:
 
     def assign_places(self, contest):
         """Transfer points and bonuses into the named contest."""
-        # fetch context meta infos
         src = self.contestmap[contest]['source']
         if src not in self.reserved_sources and src not in self.intermeds:
             _log.info('Invalid inter source %r in contest %r', src, contest)
             return
-        # TODO: remove this countback flag - does not work as expected
         countbackwinner = False  # for stage finish only track winner in cb
         category = self.contestmap[contest]['category']
         tally = self.contestmap[contest]['tally']
@@ -4320,7 +4314,6 @@ class rms:
     def __init__(self, meet, etype, ui=True):
         self.meet = meet
         self.etype = etype
-        # TODO: series removal
         self.series = ''
         self.configfile = 'event.json'
         self.readonly = not ui

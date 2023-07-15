@@ -1111,7 +1111,6 @@ class irtt(rms):
 
     def analysis_report(self):
         """Return judges report."""
-        # TODO: return info on splits and speeds with result links
         return self.camera_report()
 
     def camera_report(self):
@@ -1751,8 +1750,6 @@ class irtt(rms):
         if lr[COL_TODSTART] is not None:
             st = lr[COL_TODSTART]
         # is e beyond the start threshold?
-        ## TODO: guard near a recorded start time, handle sloppy
-        ##       start offset properly
         if st is not None and e > st and e - st > self.minlap:
             okfin = True
 
@@ -2183,9 +2180,6 @@ class irtt(rms):
         for c in self.contests:
             self.assign_places(c)
 
-        # re-order view
-        # todo
-
         return False
 
     def get_placelist(self):
@@ -2497,9 +2491,12 @@ class irtt(rms):
 
     def tod_context_ntr_activate_cb(self, menuitem, data=None):
         """Register no time recorded for rider and place last."""
-        ## TODO
-        _log.info('NTR not implemented for time trial.')
-        pass
+        sel = self.view.get_selection().get_selected()
+        if sel is not None:
+            i = sel[1]  # grab off row iter
+            bib = self.riders.get_value(i, COL_BIB)
+            series = self.riders.get_value(i, COL_SERIES)
+            self.dnfriders(strops.bibser2bibstr(bib, series), 'ntr')
 
     def tod_context_clear_activate_cb(self, menuitem, data=None):
         """Clear times for selected rider."""

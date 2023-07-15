@@ -443,7 +443,6 @@ class timerpane:
         # Clock row 'HHhMM:SS.DCMZ'
         self.ck = Gtk.Label.new(FIELDWIDTH)
         self.ck.set_alignment(0.5, 0.5)
-        # todo: alternate text modification via css
         self.ck.modify_font(DIGITFONT)
         self.ck.show()
         v.pack_start(self.ck, True, True, 0)

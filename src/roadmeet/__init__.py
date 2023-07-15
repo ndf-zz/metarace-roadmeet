@@ -900,11 +900,11 @@ class roadmeet:
         rep = report.report()
         self.report_strings(rep)
 
-        # Set provisional status	# TODO: other tests for prov flag?
+        # Set provisional status
         if self.curevent.timerstat != 'finished':
             rep.set_provisional(True)
         else:
-            rep.reportstatus = 'final'  # TODO: write in other phases
+            rep.reportstatus = 'final'
         for sec in self.curevent.result_report():
             rep.add_section(sec)
         filename = ffile
@@ -1506,7 +1506,6 @@ class roadmeet:
         bib = self._clm[path][0]
         self._clm[path][col] = new_text
         r = self.rdb.get_rider(bib, 'cat')
-        # TODO: fix the disconnect here between col and field
         if r is not None:
             if col == 1:
                 if new_text != r['title']:
@@ -1540,7 +1539,6 @@ class roadmeet:
         series = self._rlm[path][1]
         self._rlm[path][col] = new_text
         r = self.rdb.get_rider(bib, series)
-        # TODO: fix the disconnect here between col and field
         if r is not None:
             if col == 3:
                 if new_text != r['org']:
