@@ -315,7 +315,7 @@ class roadmeet:
             _log.debug('Editing race properties')
             if self.curevent.edit_event_properties(self.window):
                 _log.info('Event re-start required')
-                self.menu_race_run_activate_cb()
+                self.event_reload()
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
@@ -525,22 +525,11 @@ class roadmeet:
         """Quit the application."""
         self.window.close()
 
-    ## Race Menu Callbacks
-    def menu_race_run_activate_cb(self, menuitem=None, data=None):
+    def event_reload(self):
         """Open the event handler."""
         self.open_event()
         self.set_title()
         return False
-
-    def menu_race_close_activate_cb(self, menuitem, data=None):
-        """Close callback - disabled in roadrace."""
-        self.close_event()
-
-    def menu_race_abort_activate_cb(self, menuitem, data=None):
-        """Close the currently open event without saving."""
-        if self.curevent is not None:
-            self.curevent.readonly = True
-        self.close_event()
 
     def menu_race_armstart_activate_cb(self, menuitem, data=None):
         """Default armstart handler."""
@@ -597,9 +586,6 @@ class roadmeet:
             for cmd in cmdo:
                 self.action_model.append([cmd, cmds[cmd]])
             self.action_combo.set_active(0)
-
-        self.menu_race_close.set_sensitive(True)
-        self.menu_race_abort.set_sensitive(True)
         self.curevent.show()
 
     def close_event(self):
@@ -608,8 +594,6 @@ class roadmeet:
             if self.curevent.frame in self.race_box.get_children():
                 self.race_box.remove(self.curevent.frame)
             self.curevent.destroy()
-            self.menu_race_close.set_sensitive(False)
-            self.menu_race_abort.set_sensitive(False)
             self.curevent = None
             self.stat_but.update('idle', 'Closed')
             self.stat_but.set_sensitive(False)
@@ -681,7 +665,6 @@ class roadmeet:
                 self.rdb.clear(notify=False)
                 count = self.rdb.load(sfile)
                 _log.info('Loaded %d entries from %r', count, sfile)
-                #self.menu_race_run_activate_cb()
             except Exception as e:
                 _log.error('%s loading riders: %s', e.__class__.__name__, e)
         else:
@@ -691,7 +674,6 @@ class roadmeet:
         """Clear rider db."""
         self.rdb.clear()
         _log.info('Cleared rider db')
-        #self.menu_race_run_activate_cb()
 
     def menu_import_riders_activate_cb(self, menuitem, data=None):
         """Add riders to database."""
@@ -702,7 +684,6 @@ class roadmeet:
             try:
                 count = self.rdb.load(sfile, overwrite=True)
                 _log.info('Imported %d rider entries from %r', count, sfile)
-                #self.menu_race_run_activate_cb()
             except Exception as e:
                 _log.error('%s importing riders: %s', e.__class__.__name__, e)
         else:
@@ -1690,7 +1671,7 @@ class roadmeet:
 
                 # then reopen curevent if flagged after notify
                 if doreopen:
-                    GLib.idle_add(self.menu_race_run_activate_cb)
+                    GLib.idle_add(self.event_reload)
             else:
                 # notify meet and event of any changes, once
                 for k in res['rdb']:
@@ -1826,8 +1807,6 @@ class roadmeet:
         #self.log_view.modify_font(uiutil.LOGVIEWFONT)
         self.log_scroll = b.get_object('log_box').get_vadjustment()
         self.context = self.status.get_context_id('metarace meet')
-        self.menu_race_close = b.get_object('menu_race_close')
-        self.menu_race_abort = b.get_object('menu_race_abort')
         self.decoder_configure = b.get_object('menu_timing_configure')
         self.race_box = b.get_object('race_box')
         self.stat_but = uiutil.statButton()
@@ -2008,9 +1987,23 @@ class fakemeet(roadmeet):
 
 
 def createmeet():
-    """Prompt the user to create a new meet"""
-    _log.warning('TODO: Create meet dialog')
-    return None
+    """Create a new empty meet folder"""
+    ret = None
+    count = 0
+    dname = 'road_' + tod.datetime.now().date().isoformat()
+    cname = dname
+    while count < 100:
+        mpath = os.path.join(metarace.DATA_PATH, cname)
+        if not os.path.exists(mpath):
+            os.makedirs(mpath)
+            _log.info('Created empty meet folder: %r', mpath)
+            ret = mpath
+            break
+        count += 1
+        cname = dname + '_%02d' % (count)
+    if ret is None:
+        _log.error('Unable to create empty meet folder')
+    return ret
 
 
 def main():

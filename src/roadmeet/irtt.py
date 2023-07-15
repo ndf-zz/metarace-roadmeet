@@ -48,6 +48,7 @@ RIDER_COMMANDS = {
 }
 
 DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
+GAPTHRESH = tod.tod('1.12')
 STARTFUDGE = tod.tod(30)
 STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
@@ -221,13 +222,23 @@ _CONFIG_SCHEMA = {
     # Spare bikes should be handled manually on irtt
     'allowspares': {
         'prompt': 'Spares:',
-        'control': 'check',
+        'control': 'none',
         'type': 'bool',
         'attr': 'allowspares',
         'subtext': 'Record spare bike passings?',
         'readonly': True,
         'hint': 'Add spare bike passings to event as placeholders',
         'default': False,
+    },
+    # Provided for alignment with rms and trtt
+    'gapthresh': {
+        'prompt': 'Time Gap:',
+        'control': 'none',
+        'type': 'tod',
+        'places': 2,
+        'hint': 'Threshold for automatic time gap insertion',
+        'attr': 'gapthresh',
+        'default': GAPTHRESH,
     },
 }
 
@@ -2605,16 +2616,24 @@ class irtt(rms):
         self.totlaps = None
         self.showtimers = False
         self.clubmode = False
+        self.allowspares = False
         self.minlap = STARTFUDGE
         self.arrivaltimeout = ARRIVALTIMEOUT
         self.timelimit = None
+        self.gapthresh = GAPTHRESH
 
         # race run time attributes
+        self.live_announce = False
+        self.curlap = -1
+        self.onlap = 1
+        self.lapstart = None
+        self.lapfin = None
         self.onestart = False
         self.winopen = True
         self.timerstat = 'idle'
         self.racestat = 'prerace'
         self.start = None
+        self.finish = None
         self.lstart = None
         self.start_unload = None
         self.startgap = None
@@ -2706,6 +2725,8 @@ class irtt(rms):
         mf.pack_start(self.fl.frame, True, True, 0)
         mf.set_focus_chain([self.sl.frame, self.fl.frame, self.sl.frame])
         self.timerframe = mf
+        self.lapentry = Gtk.Label()
+        self.totlapentry = Gtk.Label()
 
         # Result Pane
         t = Gtk.TreeView(self.riders)
