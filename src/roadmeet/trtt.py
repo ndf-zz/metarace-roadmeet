@@ -836,7 +836,11 @@ class trtt(rms):
             if allin or (cat and cat in rcats):
                 incat = True  # rider is in this category
             elif not cat:  # is the rider uncategorised?
-                incat = rcats[0] not in self.cats  # backward logic
+                if rcats[0] == '':
+                    incat = True
+                else:
+                    # exclude properly categorised riders
+                    incat = rcats[0] not in self.cats
             if incat:
                 rteam = r[COL_TEAM]
                 if rteam not in teamRes:
@@ -921,8 +925,8 @@ class trtt(rms):
         if footer:
             sec.footer = footer
 
-        # Append all result categories and uncat if riders
-        if cat or teamCnt > 0:
+        # Append all result categories and uncat if appropriate
+        if cat or teamCnt > 0 or len(self.cats) < 2:
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments

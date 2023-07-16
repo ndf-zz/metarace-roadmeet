@@ -953,7 +953,6 @@ class irtt(rms):
                     cname = dbr['title']
                     if cname:
                         catnamecache[rc] = cname
-        """Return a startlist report (rough style)."""
         ret = []
         sec = report.rttstartlist('startlist')
         sec.heading = 'Start Order'
@@ -1003,10 +1002,14 @@ class irtt(rms):
                         pnam = dbr.listname()
                         sec.lines.append(['', '', pnam, puci, '', 'pilot'])
 
-        ret.append(sec)
+        fvc = []
+        if footer:
+            fvc.append(footer)
         if rcnt > 1:
-            sec = report.bullet_text('ridercnt')
-            sec.lines.append(['', 'Total riders: ' + str(rcnt)])
+            fvc.append('Total riders: ' + str(rcnt))
+        if fvc:
+            sec.footer = '\t'.join(fvc)
+        if cat or len(sec.lines) > 0 or len(self.cats) < 2:
             ret.append(sec)
         return ret
 
@@ -1186,6 +1189,7 @@ class irtt(rms):
         return ret
 
     def single_catresult(self, cat=''):
+        _log.debug('Cat result for cat=%r', cat)
         ret = []
         allin = False
         catname = cat
@@ -1233,7 +1237,8 @@ class irtt(rms):
                 if rcats[0] == '':
                     incat = True
                 else:
-                    incat = rcats[0] not in self.cats  # backward logic
+                    # exclude properly categorised riders
+                    incat = rcats[0] not in self.cats
             if incat:
                 if cat:
                     rcat = cat
@@ -1292,19 +1297,19 @@ class irtt(rms):
 
         residual = totcount - (fincount + dnfcount + dnscount + hdcount)
 
-        if self.timerstat == 'finished':  # THIS OVERRIDES RESIDUAL
+        if self.timerstat == 'finished':
             sec.heading = 'Result'
         else:
             if self.racestat == 'prerace':
-                sec.heading = ''  # anything better?
+                sec.heading = 'Result'
             else:
                 if residual > 0:
                     sec.heading = 'Standings'
                 else:
                     sec.heading = 'Provisional Result'
 
-        # Append all result categories and uncat if riders
-        if cat or totcount > 0:
+        # Append all result categories and uncat if appropriate
+        if cat or totcount > 0 or len(self.cats) < 2:
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments

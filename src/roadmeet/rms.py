@@ -994,7 +994,6 @@ class rms:
                     catcache[c] = catnm
 
         ret = []
-        sec = None
         sec = report.twocol_startlist('startlist')
         if callup:
             sec.heading = 'Call-up'
@@ -1042,13 +1041,10 @@ class rms:
             fvc.append('Total riders: ' + str(rcnt))
         if fvc:
             sec.footer = '\t'.join(fvc)
-        if len(sec.lines) > 0:
+        if cat or len(sec.lines) > 0 or len(self.cats) < 2:
             ret.append(sec)
             if uncat:
                 _log.warning('%r uncategorised riders', len(sec.lines))
-        else:
-            if cat:
-                _log.warning('No starters for category %r', cat)
 
         return ret
 
@@ -1306,7 +1302,8 @@ class rms:
                 if rcats[0] == '':
                     incat = True
                 else:
-                    incat = rcats[0] not in self.cats  # backward logic
+                    # exclude properly categorised riders
+                    incat = rcats[0] not in self.cats
             if incat:
                 if cat:
                     rcat = cat
@@ -1524,8 +1521,8 @@ class rms:
         if footer:
             sec.footer = footer
 
-        # Append all result categories and uncat if riders
-        if cat or totcount > 0:
+        # Append all result categories and uncat if appropriate
+        if cat or totcount > 0 or len(self.cats) < 2:
             ret.append(sec)
             rsec = sec
             # Race metadata / UCI comments
@@ -1695,155 +1692,149 @@ class rms:
         else:
             sec.heading = 'Race In Progress'
 
-        if self.places or self.timerstat != 'idle':
-            first = True
-            for r in self.riders:
-                totcount += 1
-                bstr = r[COL_BIB]  # 'bib'
-                nstr = r[COL_NAMESTR]  # 'name'
-                # in handicap - only primary category is considered
-                cs = r[COL_CAT]
-                cstr = riderdb.primary_cat(cs)  # 'cat'
-                rcat = self.ridercat(cstr)
-                # in handicap result, cat overrides UCIID
-                if cstr.upper() in catcache:
-                    cstr = catcache[cstr.upper()]
-                pstr = ''  # 'place'
-                tstr = ''  # 'elap' (hcp only)
-                dstr = ''  # 'time/gap'
-                placed = False  # placed at finish
-                timed = False  # timed at finish
-                if r[COL_INRACE]:
-                    psrc = r[COL_PLACE]
-                    if psrc != '':
-                        pstr = psrc + '.'
-                        placed = True
+        first = True
+        for r in self.riders:
+            totcount += 1
+            bstr = r[COL_BIB]  # 'bib'
+            nstr = r[COL_NAMESTR]  # 'name'
+            # in handicap - only primary category is considered
+            cs = r[COL_CAT]
+            cstr = riderdb.primary_cat(cs)  # 'cat'
+            rcat = self.ridercat(cstr)
+            # in handicap result, cat overrides UCIID
+            if cstr.upper() in catcache:
+                cstr = catcache[cstr.upper()]
+            pstr = ''  # 'place'
+            tstr = ''  # 'elap' (hcp only)
+            dstr = ''  # 'time/gap'
+            placed = False  # placed at finish
+            timed = False  # timed at finish
+            if r[COL_INRACE]:
+                psrc = r[COL_PLACE]
+                if psrc != '':
+                    pstr = psrc + '.'
+                    placed = True
+                bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
+                if bt is not None:
+                    timed = True
+                    fincount += 1  # for accounting, use bunch time
+                    if wt is None:  # first finish time
+                        wt = bt
+                        first = False
+                        # for hcap, first time is always race time
+                        dstr = wt.rawtime(0)
+                    else:
+                        # for handicap, time gap is always
+                        # down on winner's uncorrected time
+                        if self.showdowntimes:
+                            dstr = '+' + (bt - wt).rawtime(0)
+
+                    # show elapsed for hcp ...*
+                    tstr = bt.rawtime(0)
+                    et = bt
+                    sof = None
+                    if r[COL_STOFT] is not None:  # apply a start offset
+                        sof = r[COL_STOFT]
+                    elif rcat in self.catstarts:
+                        sof = self.catstarts[rcat]
+                    if sof is not None:
+                        dofastest = True  # will need to report!
+                        et = bt - sof
+                        # *... adjust if a start offset is present
+                        tstr = et.rawtime(0)
+                        if we is None:
+                            we = et
+                    if fastest is None or et < fastest:
+                        fastest = et
+                        fastestbib = r[COL_BIB]
+                else:  # check virtual finish time
+                    sof = None
+                    if r[COL_STOFT] is not None:
+                        sof = r[COL_STOFT]
+                    elif rcat in self.catstarts and self.catstarts[
+                            rcat] != tod.ZERO:
+                        sof = self.catstarts[rcat]
+                    if sof is not None and curelap is not None:
+                        vt = curelap - sof
+                        if vfastest is None or vt < vfastest:
+                            vfastest = vt
+                lt = bt
+            else:
+                # Non-finishers dns, dnf, otl, dsq
+                placed = True  # for purpose of listing
+                comment = r[COL_COMMENT]
+                if comment == '':
+                    comment = 'dnf'
+                if comment != lcomment:
+                    sec.lines.append([None, None, None])  # new bunch
+                lcomment = comment
+                # account for special cases
+                if comment == 'dns':
+                    dnscount += 1
+                elif comment == 'otl':
+                    # otl special case: also show down time if possible
                     bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
                     if bt is not None:
-                        timed = True
-                        fincount += 1  # for accounting, use bunch time
-                        if wt is None:  # first finish time
-                            wt = bt
-                            first = False
-                            # for hcap, first time is always race time
-                            dstr = wt.rawtime(0)
-                        else:
-                            # for handicap, time gap is always
-                            # down on winner's uncorrected time
-                            if self.showdowntimes:
-                                dstr = '+' + (bt - wt).rawtime(0)
-
-                        # show elapsed for hcp ...*
-                        tstr = bt.rawtime(0)
-                        et = bt
-                        sof = None
-                        if r[COL_STOFT] is not None:  # apply a start offset
-                            sof = r[COL_STOFT]
-                        elif rcat in self.catstarts:
-                            sof = self.catstarts[rcat]
-                        if sof is not None:
-                            dofastest = True  # will need to report!
-                            et = bt - sof
-                            # *... adjust if a start offset is present
-                            tstr = et.rawtime(0)
-                            if we is None:
-                                we = et
-                        if fastest is None or et < fastest:
-                            fastest = et
-                            fastestbib = r[COL_BIB]
-                    else:  # check virtual finish time
-                        sof = None
-                        if r[COL_STOFT] is not None:
-                            sof = r[COL_STOFT]
-                        elif rcat in self.catstarts and self.catstarts[
-                                rcat] != tod.ZERO:
-                            sof = self.catstarts[rcat]
-                        if sof is not None and curelap is not None:
-                            vt = curelap - sof
-                            if vfastest is None or vt < vfastest:
-                                vfastest = vt
-                    lt = bt
+                        if not first and wt is not None:
+                            et = bt
+                            sof = None
+                            if r[COL_STOFT] is not None:
+                                sof = r[COL_STOFT]
+                            elif rcat in self.catstarts:
+                                sof = self.catstarts[rcat]
+                            if sof is not None:
+                                # apply a start offset
+                                et = bt - sof
+                            dstr = '+' + (et - wt).rawtime(0)
+                    hdcount += 1
                 else:
-                    # Non-finishers dns, dnf, otl, dsq
-                    placed = True  # for purpose of listing
-                    comment = r[COL_COMMENT]
-                    if comment == '':
-                        comment = 'dnf'
-                    if comment != lcomment:
-                        sec.lines.append([None, None, None])  # new bunch
-                    lcomment = comment
-                    # account for special cases
-                    if comment == 'dns':
-                        dnscount += 1
-                    elif comment == 'otl':
-                        # otl special case: also show down time if possible
-                        bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
-                        if bt is not None:
-                            if not first and wt is not None:
-                                et = bt
-                                sof = None
-                                if r[COL_STOFT] is not None:
-                                    sof = r[COL_STOFT]
-                                elif rcat in self.catstarts:
-                                    sof = self.catstarts[rcat]
-                                if sof is not None:
-                                    # apply a start offset
-                                    et = bt - sof
-                                dstr = '+' + (et - wt).rawtime(0)
-                        hdcount += 1
-                    else:
-                        dnfcount += 1
-                    pstr = comment
-                if placed or timed:
-                    sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
-            ret.append(sec)
+                    dnfcount += 1
+                pstr = comment
+            if placed or timed:
+                sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
+        ret.append(sec)
 
-            # Race metadata / UCI comments
-            sec = report.bullet_text('resultmeta')
-            if wt is not None:
-                sec.lines.append([None, 'Race time: ' + wt.rawtime(0)])
-                if we is None:
-                    we = wt
-                dval = self.meet.get_distance()
-                if dval is not None:
-                    sec.lines.append([
-                        None, 'Average speed of the winner: ' +
-                        we.speedstr(1000.0 * dval)
-                    ])
-            if dofastest:
-                if vfastest and vfastest < fastest:
-                    _log.info('Fastest time not yet available')
-                else:
-                    ftr = self.getrider(fastestbib)
-                    fts = ''
-                    if ftr is not None:
-                        fts = ftr[COL_SHORTNAME]
-                    fmsg = ('Fastest time: ' + fastest.rawtime(0) + '  ' +
-                            fastestbib + ' ' + fts)
-                    smsg = ('Fastest time - ' + fts + ' ' + fastest.rawtime(0))
-                    sec.lines.append([None, fmsg])
-                    if not self.readonly:  # in a ui window?
-                        self.meet.cmd_announce('resultmsg', fmsg)
-                        self.meet.cmd_announce('scrollmsg', smsg)
-
-            sec.lines.append(
-                [None, 'Number of starters: ' + str(totcount - dnscount)])
-            if hdcount > 0:
+        # Race metadata / UCI comments
+        sec = report.bullet_text('resultmeta')
+        if wt is not None:
+            sec.lines.append([None, 'Race time: ' + wt.rawtime(0)])
+            if we is None:
+                we = wt
+            dval = self.meet.get_distance()
+            if dval is not None:
                 sec.lines.append([
-                    None,
-                    'Riders finishing out of time limits: ' + str(hdcount)
+                    None, 'Average speed of the winner: ' +
+                    we.speedstr(1000.0 * dval)
                 ])
-            if dnfcount > 0:
-                sec.lines.append(
-                    [None, 'Riders abandoning the event: ' + str(dnfcount)])
-            residual = totcount - (fincount + dnfcount + dnscount + hdcount)
-            if residual > 0:
-                _log.info('%r unaccounted for', residual)
-            ret.append(sec)
+        if dofastest:
+            if vfastest and vfastest < fastest:
+                _log.info('Fastest time not yet available')
+            else:
+                ftr = self.getrider(fastestbib)
+                fts = ''
+                if ftr is not None:
+                    fts = ftr[COL_SHORTNAME]
+                fmsg = ('Fastest time: ' + fastest.rawtime(0) + '  ' +
+                        fastestbib + ' ' + fts)
+                smsg = ('Fastest time - ' + fts + ' ' + fastest.rawtime(0))
+                sec.lines.append([None, fmsg])
+                if not self.readonly:  # in a ui window?
+                    self.meet.cmd_announce('resultmsg', fmsg)
+                    self.meet.cmd_announce('scrollmsg', smsg)
 
-        else:
-            ret.append(sec)
-            #_log.warning('No data available for result report')
+        sec.lines.append(
+            [None, 'Number of starters: ' + str(totcount - dnscount)])
+        if hdcount > 0:
+            sec.lines.append(
+                [None, 'Riders finishing out of time limits: ' + str(hdcount)])
+        if dnfcount > 0:
+            sec.lines.append(
+                [None, 'Riders abandoning the event: ' + str(dnfcount)])
+        residual = totcount - (fincount + dnfcount + dnscount + hdcount)
+        if residual > 0:
+            _log.info('%r unaccounted for', residual)
+        ret.append(sec)
+
         return ret
 
     def stat_but_clicked(self, button=None):
