@@ -1601,13 +1601,62 @@ class rms:
 
     def decision_section(self):
         """Return an officials decision section"""
-        # TODO: macrowrite each decision
         ret = report.bullet_text('decisions')
         if self.decisions:
             ret.heading = 'Decisions of the commissaires panel'
             for decision in self.decisions:
-                ret.lines.append([None, decision])
+                if decision:
+                    ret.lines.append((None, self.decision_format(decision)))
         return ret
+
+    def decision_format(self, decision):
+        """Crudely macro format a commissaire decision string"""
+        ret = []
+        for line in decision.split('\n'):
+            if line:
+                ol = []
+                for word in line.split():
+                    if word.startswith('r:'):
+                        punc = ''
+                        if not word[-1].isalnum():
+                            punc = word[-1]
+                            word = word[0:-1]
+                        rep = word
+                        look = word.split(':', 1)[-1]
+                        _log.debug('Look up rider: %r', look)
+                        rid = self.meet.rdb.get_id(look)
+                        if rid is not None:
+                            rep = self.meet.rdb[rid].name_bib()
+                        ol.append(rep + punc)
+                    elif word.startswith('t:'):
+                        punc = ''
+                        if not word[-1].isalnum():
+                            punc = word[-1]
+                            word = word[0:-1]
+                        rep = word
+                        look = word.split(':', 1)[-1]
+                        _log.debug('Look up team: %r', look)
+                        rid = self.meet.rdb.get_id(look, 'team')
+                        if rid is not None:
+                            rep = self.meet.rdb[rid][
+                                'first'] + ' (' + look.upper() + ')'
+                        ol.append(rep + punc)
+                    elif word.startswith('d:'):
+                        punc = ''
+                        if not word[-1].isalnum():
+                            punc = word[-1]
+                            word = word[0:-1]
+                        rep = word
+                        look = word.split(':', 1)[-1]
+                        _log.debug('Look up ds: %r', look)
+                        rid = self.meet.rdb.get_id(look, 'ds')
+                        if rid is not None:
+                            rep = self.meet.rdb[rid].fitname(48)
+                        ol.append(rep + punc)
+                    else:
+                        ol.append(word)
+                ret.append(' '.join(ol))
+        return '\n'.join(ret)
 
     def handicap_report(self):
         _log.debug('Result report in handicap path')
