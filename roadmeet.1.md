@@ -32,16 +32,16 @@ Recognised event types:
 
 *PATH* may be the path of the meet folder,
 or any file contained within the meet folder.
-If no *PATH* is specified, roadmeet will prompt
-to create a new meet or open existing.
+If no *PATH* is specified, roadmeet will create
+a new meet folder and open it.
 
 If the \--edit-default option is supplied,
-default values for new meets are configured.
+a default configuration editor is run.
 
 # OPTIONS
 
 \--edit-default
-: Edit default values for new meets
+: Edit default configuration
 
 # FILES
 
@@ -76,7 +76,7 @@ $HOME/Documents/metarace/default
 : Location for shared optional files not found in meet folder
 
 $HOME/Documents/metarace/default/metarace.json
-: Default options
+: Default configuration
 
 # SEE ALSO
 

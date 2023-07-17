@@ -6,6 +6,22 @@ ad-hoc time trial events.
 
 ![roadmeet screenshot](screenshot.png "roadmeet")
 
+
+## Usage
+
+Create a new meet and open it:
+
+	$ roadmeet
+
+Open an existing road meet:
+
+	$ roadmeet PATH
+
+Edit default configuration:
+
+	$ roadmeet --edit-default
+
+
 ## Requirements
 
    - Python >= 3.9

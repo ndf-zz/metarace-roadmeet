@@ -717,7 +717,7 @@ def messagedlg(window=None,
     return ret
 
 
-def questiondlg(window, question, subtext=None, title=None):
+def questiondlg(window=None, question='Question?', subtext=None, title=None):
     """Display a question dialog and return True/False."""
     return messagedlg(window=window,
                       message=question,

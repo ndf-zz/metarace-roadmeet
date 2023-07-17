@@ -32,9 +32,9 @@ from metarace import strops
 from metarace import report
 
 from . import uiutil
-from roadmeet.rms import rms
-from roadmeet.irtt import irtt
-from roadmeet.trtt import trtt
+from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
+from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
+from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
 VERSION = '1.13.2'
 LOGFILE = 'event.log'
@@ -389,7 +389,7 @@ class roadmeet:
                         timychg = True
         if syschange:
             _log.info('Saving config updates to meet folder')
-            with metarace.savefile('metarace.json', perm=0o600) as f:
+            with metarace.savefile(metarace.SYSCONF, perm=0o600) as f:
                 metarace.sysconf.write(f)
 
         # reset telegraph connection if required
@@ -1994,6 +1994,97 @@ class fakemeet(roadmeet):
         cr.export_section('roadmeet', self)
 
 
+def edit_defaults():
+    """Run a sysconf editor dialog"""
+    metarace.sysconf.add_section('roadmeet', _CONFIG_SCHEMA)
+    metarace.sysconf.add_section('rms', _RMS_SCHEMA)
+    metarace.sysconf.add_section('irtt', _IRTT_SCHEMA)
+    metarace.sysconf.add_section('trtt', _TRTT_SCHEMA)
+    metarace.sysconf.add_section('export', _EXPORT_SCHEMA)
+    metarace.sysconf.add_section('telegraph', _TG_SCHEMA)
+    metarace.sysconf.add_section('thbc', _THBC_SCHEMA)
+    metarace.sysconf.add_section('rru', _RRU_SCHEMA)
+    metarace.sysconf.add_section('rrs', _RRS_SCHEMA)
+    metarace.sysconf.add_section('timy', _TIMY_SCHEMA)
+    cfgres = uiutil.options_dlg(title='Edit Default Configuration',
+                                sections={
+                                    'roadmeet': {
+                                        'title': 'Meet',
+                                        'schema': _CONFIG_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'rms': {
+                                        'title': 'Road/Cross',
+                                        'schema': _RMS_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'irtt': {
+                                        'title': 'Individual TT',
+                                        'schema': _IRTT_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'trtt': {
+                                        'title': 'Teams TT',
+                                        'schema': _TRTT_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'export': {
+                                        'title': 'Export',
+                                        'schema': _EXPORT_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'telegraph': {
+                                        'title': 'Telegraph',
+                                        'schema': _TG_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'timy': {
+                                        'title': 'Timy',
+                                        'schema': _TIMY_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'thbc': {
+                                        'title': 'THBC',
+                                        'schema': _THBC_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'rru': {
+                                        'title': 'RR USB',
+                                        'schema': _RRU_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'rrs': {
+                                        'title': 'RR System',
+                                        'schema': _RRS_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                })
+
+    # check for sysconf changes:
+    syschange = False
+    for sec in cfgres:
+        for key in cfgres[sec]:
+            if cfgres[sec][key][0]:
+                syschange = True
+                break
+    if syschange:
+        backup = metarace.SYSCONF + '.bak'
+        _log.info('Backing up old defaults to %r', backup)
+        try:
+            if os.path.exists(backup):
+                os.unlink(backup)
+            os.link(metarace.SYSCONF, backup)
+        except Exception as e:
+            _log.warning('%s saving defaults backup: %s', e.__class__.__name__,
+                         e)
+        _log.info('Edit default: Saving sysconf to %r', metarace.SYSCONF)
+        with metarace.savefile(metarace.SYSCONF, perm=0o600) as f:
+            metarace.sysconf.write(f)
+    else:
+        _log.info('Edit default: No changes to save')
+    return 0
+
+
 def createmeet():
     """Create a new empty meet folder"""
     ret = None
@@ -2076,8 +2167,7 @@ def main():
     os.chdir(configpath)
     metarace.init()
     if doconfig:
-        _log.warning('TODO: init config editor')
-        sys.exit(-1)
+        return edit_defaults()
     else:
         app = roadmeet(None, lf)
         mp = configpath
@@ -2087,7 +2177,7 @@ def main():
         app.loadconfig()
         app.window.show()
         app.start()
-    return Gtk.main()
+        return Gtk.main()
 
 
 if __name__ == '__main__':
