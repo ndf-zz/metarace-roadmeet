@@ -3887,7 +3887,7 @@ class rms:
                 if self.etype == 'cross':
                     rftime = lastpass
             if not rplace or not r[COL_INRACE]:
-                rplace = r[COL_COMMENT]
+                rplace == ''
             if not r[COL_INRACE]:
                 rlaps = 0
                 rftime = tod.MAX
@@ -3984,12 +3984,11 @@ class rms:
                 rbunch = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
                 if rbunch is None:
                     rbunch = tod.MAX
-                if not rplace or not r[COL_INRACE]:
-                    rplace = r[COL_COMMENT]
                 if not r[COL_INRACE]:
+                    rplace = r[COL_COMMENT]
                     rlaps = 0
                 elif self.etype in ('road', 'criterium'):
-                    # group all finished riders
+                    # group all finished riders on same 'lap'
                     if rbunch < tod.MAX or r[COL_RFTIME] is not None:
                         rlaps = 999
                 auxtbl.append((not r[COL_INRACE], strops.dnfcode_key(rplace),

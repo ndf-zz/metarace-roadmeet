@@ -153,7 +153,7 @@ _CONFIG_SCHEMA = {
     # Note: on trtt, time limit usually requires manual intervention
     'timelimit': {
         'prompt': 'Time Limit:',
-        'control': 'short',
+        'control': 'none',
         'attr': 'timelimit',
         'readonly': True,
         'hint': 'Time limit eg: 12%  +1:23  4h00:00',
@@ -169,7 +169,7 @@ _CONFIG_SCHEMA = {
     },
     'clubmode': {
         'prompt': 'Club Mode:',
-        'control': 'check',
+        'control': 'none',
         'type': 'bool',
         'attr': 'clubmode',
         'readonly': True,
