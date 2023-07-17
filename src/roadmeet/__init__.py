@@ -309,6 +309,12 @@ class roadmeet:
         """Lookup cats and write them into the supplied entry."""
         entry.set_text(' '.join(self.rdb.listcats()))
 
+    def menu_race_decisions_activate_cb(self, menuitem, data=None):
+        """Edit decisions of the commissaires panel."""
+        if self.curevent is not None:
+            self.curevent.decisions = uiutil.decisions_dlg(
+                self.window, self.curevent.decisions)
+
     def menu_race_properties_activate_cb(self, menuitem, data=None):
         """Edit race specific properties."""
         if self.curevent is not None:
@@ -1022,9 +1028,11 @@ class roadmeet:
                 _log.info('Timer not connected, config not possible')
                 return False
             if not uiutil.questiondlg(
-                    self.window, 'Re-configure THBC Decoder IP Settings?',
-                    'Note: Passings will not be captured while decoder is updating.'
-            ):
+                    window=self.window,
+                    question='Re-configure THBC Decoder IP Settings?',
+                    subtext=
+                    'Note: Passings will not be captured while decoder is updating.',
+                    title='Update Decoder IP?'):
                 _log.debug('Config aborted')
                 return False
             self._timer.stop_session()
@@ -1730,7 +1738,7 @@ class roadmeet:
                 _log.info('Deleted %s', short)
                 self._cur_rider_sel = None
             else:
-                _log.debug('Aborted')
+                _log.debug('Rider delete aborted')
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
@@ -2048,28 +2056,21 @@ def main():
         _log.debug('Missing path, command: %r', sys.argv)
         _log.error('Error opening meet')
         if not os.isatty(sys.stdout.fileno()):
-            err = Gtk.MessageDialog(None, Gtk.DialogFlags.MODAL,
-                                    Gtk.MessageType.ERROR,
-                                    Gtk.ButtonsType.CLOSE,
-                                    'Error opening meet.')
-            err.set_title('roadmeet: Error')
-            err.format_secondary_text(
-                'Roadmeet was unable to open a meet folder.')
-            err.run()
+            uiutil.messagedlg(
+                message='Error opening meet.',
+                title='roadmeet: Error',
+                subtext='Roadmeet was unable to open a meet folder.')
         sys.exit(-1)
 
     lf = metarace.lockpath(configpath)
     if lf is None:
         _log.error('Unable to lock meet config, already in use')
         if not os.isatty(sys.stdout.fileno()):
-            err = Gtk.MessageDialog(None, Gtk.DialogFlags.MODAL,
-                                    Gtk.MessageType.ERROR,
-                                    Gtk.ButtonsType.CLOSE,
-                                    'Meet folder is locked.')
-            err.format_secondary_text(
+            uiutil.messagedlg(
+                message='Meet folder is locked.',
+                title='roadmeet: Locked',
+                subtext=
                 'Another application has locked the meet folder for use.')
-            err.set_title('roadmeet: Locked')
-            err.run()
         sys.exit(-1)
     _log.debug('Entering meet folder %r', configpath)
     os.chdir(configpath)

@@ -136,6 +136,19 @@
                             <signal name="activate" handler="menu_race_finished_activate_cb"/>
                           </object>
                         </child>
+                        <child>
+                          <object class="GtkSeparatorMenuItem" id="menu_race_sep21">
+                            <property name="visible">True</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkMenuItem" id="menu_race_decisions">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Decisions</property>
+                            <property name="tooltip_text" translatable="yes">Edit decisions of the commissaires panel</property>
+                            <signal name="activate" handler="menu_race_decisions_activate_cb"/>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>

@@ -2393,9 +2393,11 @@ class rms:
             if event.state & Gdk.ModifierType.CONTROL_MASK:
                 if key == key_abort:  # override ctrl+f5
                     if uiutil.questiondlg(
-                            self.meet.window, 'Reset event to idle?',
+                            window=self.meet.window,
+                            question='Reset event to idle?',
+                            subtext=
                             'Note: All result and timing data will be cleared.',
-                            'Reset Event?'):
+                            title='Reset Event?'):
                         self.resettimer()
                     return True
                 elif key == key_announce:  # re-send current announce vars

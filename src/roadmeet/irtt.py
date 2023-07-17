@@ -281,9 +281,11 @@ class irtt(rms):
             if event.state & Gdk.ModifierType.CONTROL_MASK:
                 if key == key_abort:  # override ctrl+f5
                     if uiutil.questiondlg(
-                            self.meet.window, 'Reset event to idle?',
-                            'Note: All result and timing data will be cleared.'
-                    ):
+                            window=self.meet.window,
+                            question='Reset event to idle?',
+                            subtext=
+                            'Note: All result and timing data will be cleared.',
+                            title='Reset event?'):
                         self.resettimer()
                     return True
             if key[0] == 'F':

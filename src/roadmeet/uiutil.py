@@ -478,7 +478,7 @@ class timerpane:
 def builder(resource=None):
     """Create and return a Gtk.Builder loaded from named resource"""
     ret = None
-    _log.debug('Creating Gtk Build for resource %r', resource)
+    _log.debug('Creating Gtk Builder for resource %r', resource)
     rf = files(RESOURCE_PKG).joinpath(resource)
     if rf is not None and rf.is_file():
         ret = Gtk.Builder()
@@ -488,25 +488,19 @@ def builder(resource=None):
     return ret
 
 
-def riderview(rdb):
-    """Create a rider db view"""
-    l = Gtk.Label.new('riders...')
-    l.show()
-    return l
-
-
 def about_dlg(window, version=None):
     """Display shared about dialog."""
-    dlg = Gtk.AboutDialog(modal=True, destroy_with_parent=True)
+    modal = window is not None
+    dlg = Gtk.AboutDialog(modal=modal, destroy_with_parent=True)
     dlg.set_transient_for(window)
-    dlg.set_program_name(u'roadmeet')
+    dlg.set_program_name('roadmeet')
     vtxt = 'Library: ' + metarace.VERSION
     if version:
         vtxt = 'Application: ' + version + '; ' + vtxt
     dlg.set_version(vtxt)
     dlg.set_copyright(
-        u'Copyright \u00a9 2012-2023 Nathan Fraser and contributors')
-    dlg.set_comments(u'Road cycle race result handler')
+        'Copyright \u00a9 2012-2023 Nathan Fraser and contributors')
+    dlg.set_comments('Road cycle race result handler')
     dlg.set_license_type(Gtk.License.MIT_X11)
     dlg.set_license(metarace.LICENSETEXT)
     dlg.set_wrap_license(True)
@@ -521,7 +515,8 @@ def chooseCsvFile(title='',
                   path=None,
                   hintfile=None):
     ret = None
-    dlg = Gtk.FileChooserNative(title=title, modal=True)
+    modal = parent is not None
+    dlg = Gtk.FileChooserNative(title=title, modal=modal)
     dlg.set_transient_for(parent)
     dlg.set_action(mode)
     cfilt = Gtk.FileFilter()
@@ -694,12 +689,18 @@ def mkviewcolbibser(view=None,
     return i
 
 
-def questiondlg(window, question, subtext=None, title=None):
-    """Display a question dialog and return True/False."""
-    dlg = Gtk.MessageDialog(modal=True,
-                            message_type=Gtk.MessageType.QUESTION,
-                            buttons=Gtk.ButtonsType.OK_CANCEL,
-                            text=question,
+def messagedlg(window=None,
+               message='Message',
+               message_type=Gtk.MessageType.ERROR,
+               buttons=Gtk.ButtonsType.CLOSE,
+               subtext=None,
+               title=None):
+    """Display a message dialog."""
+    modal = window is not None
+    dlg = Gtk.MessageDialog(modal=modal,
+                            message_type=message_type,
+                            buttons=buttons,
+                            text=message,
                             destroy_with_parent=True)
     dlg.set_transient_for(window)
     if title:
@@ -708,11 +709,22 @@ def questiondlg(window, question, subtext=None, title=None):
         dlg.format_secondary_text(subtext)
     ret = False
     response = dlg.run()
+    _log.debug('Message dialog %r returned: %r', title, response)
     dlg.hide()
     if response == Gtk.ResponseType.OK:
         ret = True
     dlg.destroy()
     return ret
+
+
+def questiondlg(window, question, subtext=None, title=None):
+    """Display a question dialog and return True/False."""
+    return messagedlg(window=window,
+                      message=question,
+                      message_type=Gtk.MessageType.QUESTION,
+                      buttons=Gtk.ButtonsType.OK_CANCEL,
+                      subtext=subtext,
+                      title=title)
 
 
 def now_button_clicked_cb(button, entry=None):
@@ -1154,7 +1166,8 @@ def options_dlg(window=None, title='Options', sections={}):
                 omap[sec]['options'][key] = option(key, oschema, obj, sec)
 
     # build dialog
-    dlg = Gtk.Dialog(title=title, modal=True, destroy_with_parent=True)
+    modal = window is not None
+    dlg = Gtk.Dialog(title=title, modal=modal, destroy_with_parent=True)
     dlg.set_transient_for(window)
     dlg.add_buttons("Cancel", 2, "OK", 0)
     dlg.set_default_response(0)
@@ -1223,6 +1236,23 @@ def options_dlg(window=None, title='Options', sections={}):
                     _log.warning('Invalid value for option %r ignored', key)
                 res[section][key] = (o.changed(), o.get_prev(), o.get_value())
 
+    dlg.destroy()
+    return res
+
+
+def decisions_dlg(window=None, decisions=[]):
+    """Edit decisions of the commissaires panel and return an updated list"""
+    # TODO
+    modal = window is not None
+    dlg = Gtk.Dialog(title="Edit Decisions of the Commissaires Panel",
+                     modal=modal,
+                     destroy_with_parent=True)
+    dlg.set_transient_for(window)
+    dlg.add_buttons("Cancel", 2, "OK", 0)
+    dlg.set_default_response(0)
+    retval = dlg.run()
+    res = decisions
+    dlg.hide()
     dlg.destroy()
     return res
 
