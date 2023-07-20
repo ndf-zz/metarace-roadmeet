@@ -99,8 +99,7 @@ RESERVED_SOURCES = [
 DNFCODES = ['otl', 'wd', 'dsq', 'dnf', 'dns']
 GAPTHRESH = tod.tod('1.12')
 MINPASSTIME = tod.tod(20)
-MAXELAPSTR = '12h00:00'
-MAXELAP = tod.tod(MAXELAPSTR)
+MAXELAP = tod.tod('12h00:00')
 
 # timing keys
 key_announce = 'F4'
@@ -1151,7 +1150,9 @@ class rms:
                             if bt > lt:
                                 # New bunch
                                 sec.lines.append([None, None, None])
-                                bs = '+' + (bt - ft).rawtime(0)
+                                down = bt - ft
+                                if down < MAXELAP:
+                                    bs = '+' + down.rawtime(0)
                             else:
                                 # Same time
                                 pass
@@ -1425,7 +1426,9 @@ class rms:
                                 distance = None
                         if bwt is not None:
                             if self.showdowntimes:
-                                dstr = '+' + (et - bwt).rawtime(0)
+                                down = et - bwt
+                                if down < MAXELAP:
+                                    dstr = '+' + down.rawtime(0)
                         else:
                             dstr = et.rawtime(0)
                         first = False
@@ -1453,7 +1456,9 @@ class rms:
                                 if sof is not None:
                                     # apply a start offset
                                     et = bt - sof
-                                dstr = '+' + (et - wt).rawtime(0)
+                                down = et - wt
+                                if down < MAXELAP:
+                                    dstr = '+' + down.rawtime(0)
                         hdcount += 1
                     else:
                         dnfcount += 1
@@ -1727,7 +1732,9 @@ class rms:
                         # for handicap, time gap is always
                         # down on winner's uncorrected time
                         if self.showdowntimes:
-                            dstr = '+' + (bt - wt).rawtime(0)
+                            down = bt - wt
+                            if down < MAXELAP:
+                                dstr = '+' + down.rawtime(0)
 
                     # show elapsed for hcp ...*
                     tstr = bt.rawtime(0)
@@ -1785,7 +1792,9 @@ class rms:
                             if sof is not None:
                                 # apply a start offset
                                 et = bt - sof
-                            dstr = '+' + (et - wt).rawtime(0)
+                            down = et - wt
+                            if down < MAXELAP:
+                                dstr = '+' + down.rawtime(0)
                     hdcount += 1
                 else:
                     dnfcount += 1
@@ -3293,7 +3302,9 @@ class rms:
                 # event down time is on first finisher
                 ft = (self.finish - self.start).truncate(0)
                 evec.append(ft.rawtime(0))
-                evec.append('+' + (et - ft).rawtime(0))
+                rt = et - ft
+                if rt < MAXELAP:
+                    evec.append('+' + rt.rawtime(0))
 
                 # time limit is applied to total event time/first finisher
                 limit = self.decode_limit(self.timelimit, ft)
@@ -3309,7 +3320,7 @@ class rms:
                     # lap down time
                     dt = nt - self.lapfin
                     if dt < MAXELAP:
-                        evec.append('+' + (dt).rawtime(0))
+                        evec.append('+' + dt.rawtime(0))
             elapmsg = '\u2003'.join(evec)
             self.elaplbl.set_text(elapmsg)
             self.meet.cmd_announce('elapmsg', elapmsg)
@@ -3692,8 +3703,11 @@ class rms:
                     _log.error('No previous rider to set bunch time')
             elif bunch.startswith('g'):
                 if lr[COL_RFTIME] is not None:
+                    st = tod.ZERO
+                    if self.start is not None:
+                        st = self.start
                     ret = True
-                    lr[COL_MBUNCH] = lr[COL_RFTIME].truncate(0)
+                    lr[COL_MBUNCH] = (lr[COL_RFTIME] - st).truncate(0)
                     _log.info('Rider %s assigned new bunch time: %s',
                               lr[COL_BIB], lr[COL_MBUNCH].rawtime(0))
                     if nt is not None and nt == vbt:
