@@ -424,9 +424,9 @@ class trtt(rms):
                     slice.append(t.rawtime())
             cw.set('riders', bib, slice)
             if r[COL_BONUS] is not None:
-                cw.set('stagebonus', bib, r[COL_BONUS].rawtime())
+                cw.set('stagebonus', bib, r[COL_BONUS])
             if r[COL_PENALTY] is not None:
-                cw.set('stagepenalty', bib, r[COL_PENALTY].rawtime())
+                cw.set('stagepenalty', bib, r[COL_PENALTY])
         cw.set('trtt', 'id', EVENT_ID)
         _log.debug('Saving event config %r', self.configfile)
         with metarace.savefile(self.configfile) as f:
@@ -1275,17 +1275,33 @@ class trtt(rms):
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Run an edit times dialog to update event time."""
-        st = ''
-        if self.start is not None:
-            st = self.start.rawtime(2)
-        ft = '[n/a]'
-        ret = uiutil.edit_times_dlg(self.meet.window,
-                                    stxt=st,
-                                    ftxt=ft,
-                                    finish=False)
-        if ret[0] == 1:
+        sections = {
+            'times': {
+                'object': None,
+                'title': 'times',
+                'schema': {
+                    'title': {
+                        'prompt': 'Manually adjust event time',
+                        'control': 'section',
+                    },
+                    'start': {
+                        'prompt': 'Start:',
+                        'hint': 'Event start time',
+                        'type': 'tod',
+                        'places': 4,
+                        'control': 'short',
+                        'nowbut': True,
+                        'value': self.start,
+                    },
+                },
+            },
+        }
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Edit times',
+                                 sections=sections)
+        if res['times']['start'][0]:
             wasrunning = self.timerstat in ('running', 'armfinish')
-            self.set_start(ret[1])
+            self.set_start(res['times']['start'][2])
             if wasrunning:
                 # flag a recalculate
                 self._dorecalc = True
@@ -1307,29 +1323,6 @@ class trtt(rms):
         if st is not None:
             otxt = st.rawtime(0)
         cr.set_property('text', otxt)
-
-    def editbunch_cb(self, cell, path, new_text, col=None):
-        """Edit bunch time on rider view."""
-        new_text = new_text.strip()
-        dorecalc = False
-        if new_text == '':  # user request to clear RFTIME?
-            self.riders[path][COL_RFTIME] = None
-            self.riders[path][COL_MBUNCH] = None
-            self.riders[path][COL_CBUNCH] = None
-            dorecalc = True
-        else:
-            # get 'current bunch time'
-            omb = self.vbunch(self.riders[path][COL_CBUNCH],
-                              self.riders[path][COL_MBUNCH])
-
-            # assign new bunch time
-            # note: ttt does not use + times or cascade
-            nmb = tod.mktod(new_text)
-            if self.riders[path][COL_MBUNCH] != nmb:
-                self.riders[path][COL_MBUNCH] = nmb
-                dorecalc = True
-        if dorecalc:
-            self.recalculate()
 
     def bounceteam(self, team, cat, time):
         """Bounce a teamname and time onto the panel"""

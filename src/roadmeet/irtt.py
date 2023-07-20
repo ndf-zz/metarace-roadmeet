@@ -683,9 +683,10 @@ class irtt(rms):
             imd = None
             ime = None
             lpass = None
+            seed = 0
             pcnt = 0
             if cr.has_option('riders', rs):
-                # bbb.sss = comment,wall_start,timy_start,finish,penalty,place
+                # bbb.sss = comment,wall_start,...
                 ril = cr.get('riders', rs)  # vec
                 lr = len(ril)
                 if lr > 0:
@@ -712,6 +713,8 @@ class irtt(rms):
                     pcnt = strops.confopt_posint(ril[11])
                 if lr > 12:
                     lpass = tod.mktod(ril[12])
+                if lr > 13:
+                    seed = strops.confopt_posint(ril[13])
             nri = i
             self.settimes(nri, wst, tst, ft, pt, doplaces=False)
             self.setpasses(nri, pcnt)
@@ -721,6 +724,7 @@ class irtt(rms):
             self.setinter(nri, imd, COL_INTERD)
             self.setinter(nri, ime, COL_INTERE)
             self.riders.set_value(nri, COL_LASTSEEN, lpass)
+            self.riders.set_value(nri, COL_SEED, seed)
             # record any extra bonus/penalty to rider model
             if cr.has_option('stagebonus', rs):
                 nr[COL_BONUS] = cr.get_tod('stagebonus', rs)
@@ -848,13 +852,13 @@ class irtt(rms):
                     lpass = r[COL_LASTSEEN].rawtime()
                 slice = [
                     r[COL_COMMENT], wst, tst, tft, tpt, r[COL_PLACE], tima,
-                    timb, timc, timd, tine, pcnt, lpass
+                    timb, timc, timd, tine, pcnt, lpass, r[COL_SEED]
                 ]
                 cw.set('riders', bs, slice)
                 if r[COL_BONUS] is not None:
-                    cw.set('stagebonus', bs, r[COL_BONUS].rawtime())
+                    cw.set('stagebonus', bs, r[COL_BONUS])
                 if r[COL_PENALTY] is not None:
-                    cw.set('stagepenalty', bs, r[COL_PENALTY].rawtime())
+                    cw.set('stagepenalty', bs, r[COL_PENALTY])
 
         cw.set('irtt', 'finished', self.timerstat == 'finished')
         cw.set('irtt', 'id', EVENT_ID)
@@ -2534,47 +2538,157 @@ class irtt(rms):
             entry.set_text(tod.now().timestr())
 
     def tod_context_edit_activate_cb(self, menuitem, data=None):
-        """Run edit time dialog."""
+        """Edit rider start/finish/etc."""
         sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter and read in cur times
-            tst = self.riders.get_value(i, COL_TODSTART)
-            tft = self.riders.get_value(i, COL_TODFINISH)
-            tpt = self.riders.get_value(i, COL_TODPENALTY)
+        if sel is None:
+            return False
 
-            # prepare text entry boxes
-            st = ''
-            if tst is not None:
-                st = tst.timestr()
-            ft = ''
-            if tft is not None:
-                ft = tft.timestr()
-            bt = ''
-            pt = '0'
-            if tpt is not None:
-                pt = tpt.timestr()
-
-            # run the dialog
-            (ret, st, ft, bt, pt) = uiutil.edit_times_dlg(self.meet.window,
-                                                          st,
-                                                          ft,
-                                                          bt,
-                                                          pt,
-                                                          bonus=False,
-                                                          penalty=True)
-            if ret == 1:
-                stod = tod.mktod(st)
-                ftod = tod.mktod(ft)
-                ptod = tod.mktod(pt)
-                if ptod is None:
-                    ptod = tod.ZERO
-                bib = self.riders.get_value(i, COL_BIB)
-                series = self.riders.get_value(i, COL_SERIES)
-                self.settimes(i, tst=stod, tft=ftod, pt=ptod)  # update model
-                _log.info('Race times manually adjusted for rider ' +
-                          strops.bibser2bibstr(bib, series))
-            else:
-                _log.info('Edit race times cancelled.')
+        lr = Gtk.TreeModelRow(self.riders, sel[1])
+        bibstr = strops.bibser2bibstr(lr[COL_BIB], lr[COL_SERIES])
+        placestr = ''
+        placeopts = {
+            '': ' Not yet classified',
+            'dns': 'Did not start',
+            'otl': 'Outside time limit',
+            'dnf': 'Did not finish',
+            'dsq': 'Disqualified',
+        }
+        if lr[COL_PLACE] and lr[COL_PLACE] not in placeopts:
+            placestr = 'Ranked ' + strops.rank2ord(lr[COL_PLACE])
+        elif lr[COL_PLACE] in placeopts:
+            placestr = placeopts[lr[COL_PLACE]]
+        else:
+            placestr = placeopts['']
+        sections = {
+            'result': {
+                'object': None,
+                'title': 'result',
+                'schema': {
+                    'title': {
+                        'prompt': bibstr + ' ' + lr[COL_NAMESTR],
+                        'control': 'section',
+                    },
+                    'seed': {
+                        'prompt': 'Seed:',
+                        'hint': 'Seeding number for startlists',
+                        'control': 'short',
+                        'type': 'int',
+                        'value': lr[COL_SEED],
+                        'index': COL_SEED,
+                    },
+                    'class': {
+                        'prompt': 'Classification:',
+                        'hint': 'Rider classification for event',
+                        'control': 'label',
+                        'value': placestr,
+                    },
+                    'wallstart': {
+                        'prompt': 'Wall Start:',
+                        'hint': 'Advertised start time',
+                        'type': 'tod',
+                        'places': 0,
+                        'control': 'short',
+                        'value': lr[COL_WALLSTART],
+                        'index': COL_WALLSTART,
+                    },
+                    'laps': {
+                        'prompt': 'Laps:',
+                        'hint': 'Rider lap/passing count',
+                        'control': 'short',
+                        'type': 'int',
+                        'value': lr[COL_PASS],
+                        'index': COL_PASS,
+                    },
+                    'lpass': {
+                        'prompt': 'Last Pass:',
+                        'hint': 'Time last seen on finish loop',
+                        'type': 'tod',
+                        'places': 4,
+                        'readonly': 'true',
+                        'control': 'short',
+                        'value': lr[COL_LASTSEEN],
+                    },
+                    'start': {
+                        'prompt': 'Start:',
+                        'hint': 'Recorded start time',
+                        'type': 'tod',
+                        'places': 4,
+                        'value': lr[COL_TODSTART],
+                        'nowbut': True,
+                        'control': 'short',
+                        'subtext': 'Set start time to now',
+                        'index': COL_TODSTART,
+                    },
+                    'finish': {
+                        'prompt': 'Finish:',
+                        'hint': 'Recorded finish time',
+                        'type': 'tod',
+                        'places': 4,
+                        'value': lr[COL_TODFINISH],
+                        'nowbut': True,
+                        'control': 'short',
+                        'subtext': 'Set finish time to now',
+                        'index': COL_TODFINISH,
+                    },
+                    'evtpenalty': {
+                        'prompt': 'Penalty:',
+                        'hint': 'Event penalty time',
+                        'subtext': 'Applies to ranking',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_TODPENALTY],
+                        'control': 'short',
+                        'default': 0,
+                        'index': COL_TODPENALTY,
+                    },
+                    'bonus': {
+                        'prompt': 'Stage Bonus:',
+                        'hint': 'Additional stage bonus time',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_BONUS],
+                        'control': 'short',
+                        'index': COL_BONUS,
+                    },
+                    'penalty': {
+                        'prompt': 'Stage Penalty:',
+                        'hint': 'Additional stage penalty time',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_PENALTY],
+                        'control': 'short',
+                        'index': COL_PENALTY,
+                    },
+                },
+            },
+        }
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Edit times',
+                                 sections=sections)
+        changed = False
+        dotimes = False
+        for option in res['result']:
+            if res['result'][option][0]:
+                changed = True
+                if 'index' in sections['result']['schema'][option]:
+                    index = sections['result']['schema'][option]['index']
+                    lr[index] = res['result'][option][2]
+                    _log.debug('Updated %s to: %r', option,
+                               res['result'][option][2])
+                    if option in ('wallstart', 'start', 'finish',
+                                  'evtpenalty'):
+                        dotimes = True
+                else:
+                    _log.debug('Unknown option %r changed', option)
+        if dotimes:
+            if lr[COL_TODPENALTY] is None:
+                lr[COL_TODPENALTY] = tod.ZERO
+            self.settimes(lr.iter,
+                          tst=lr[COL_TODSTART],
+                          tft=lr[COL_TODFINISH],
+                          pt=lr[COL_TODPENALTY])
+        if changed:
+            self.recalculate()
 
     def tod_context_del_activate_cb(self, menuitem, data=None):
         """Delete selected row from race model."""

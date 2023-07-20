@@ -713,9 +713,9 @@ class rms:
                     slice.append(t.rawtime())  # retain 'precision' here too
             cw.set('riders', bib, slice)
             if r[COL_BONUS] is not None:
-                cw.set('stagebonus', bib, r[COL_BONUS].rawtime())
+                cw.set('stagebonus', bib, r[COL_BONUS])
             if r[COL_PENALTY] is not None:
-                cw.set('stagepenalty', bib, r[COL_PENALTY].rawtime())
+                cw.set('stagepenalty', bib, r[COL_PENALTY])
         cw.set('rms', 'id', EVENT_ID)
         _log.debug('Saving event config %r', self.configfile)
         with metarace.savefile(self.configfile) as f:
@@ -3386,17 +3386,43 @@ class rms:
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Run an edit times dialog to update event time."""
-        st = ''
-        if self.start is not None:
-            st = self.start.rawtime(2)
-        ft = ''
-        if self.finish is not None:
-            ft = self.finish.rawtime(2)
-        ret = uiutil.edit_times_dlg(self.meet.window, stxt=st, ftxt=ft)
-        if ret[0] == 1:
+        sections = {
+            'times': {
+                'object': None,
+                'title': 'times',
+                'schema': {
+                    'title': {
+                        'prompt': 'Manually adjust event time',
+                        'control': 'section',
+                    },
+                    'start': {
+                        'prompt': 'Start:',
+                        'hint': 'Event start time',
+                        'type': 'tod',
+                        'places': 4,
+                        'control': 'short',
+                        'nowbut': True,
+                        'value': self.start,
+                    },
+                    'finish': {
+                        'prompt': 'Finish:',
+                        'hint': 'Event finish time',
+                        'type': 'tod',
+                        'places': 4,
+                        'control': 'short',
+                        'nowbut': True,
+                        'value': self.finish,
+                    },
+                },
+            },
+        }
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Edit times',
+                                 sections=sections)
+        if res['times']['start'][0] or res['times']['finish'][0]:
             wasrunning = self.timerstat in ('running', 'armfinish')
-            self.set_finish(ret[2])
-            self.set_start(ret[1])
+            self.set_finish(res['times']['finish'][2])
+            self.set_start(res['times']['start'][2])
             if wasrunning:
                 # flag a recalculate
                 self._dorecalc = True
@@ -3404,7 +3430,9 @@ class rms:
                 self.resetcatonlaps()
                 if self.etype in ('criterium', 'circuit', 'cross'):
                     GLib.idle_add(self.armlap)
-            _log.info('Adjusted event times')
+            _log.info('Manually adjusted event times')
+        else:
+            _log.debug('Edit times: no change.')
 
     def editcol_cb(self, cell, path, new_text, col):
         """Edit column callback."""
@@ -3584,43 +3612,129 @@ class rms:
     def editbunch_cb(self, cell, path, new_text, col=None):
         """Edit bunch time on rider view."""
         new_text = new_text.strip()
-        dorecalc = False
-        if not self.showdowntimes:
-            self.showdowntimes = True  # assume edit implies required on result
-        if new_text == '':  # user request to clear also clears RFTIME
-            self.riders[path][COL_RFTIME] = None
-            self.riders[path][COL_MBUNCH] = None
-            self.riders[path][COL_CBUNCH] = None
-            dorecalc = True
-        else:
-            # get 'current bunch time'
-            omb = self.vbunch(self.riders[path][COL_CBUNCH],
-                              self.riders[path][COL_MBUNCH])
-
-            # assign new bunch time
-            nmb = None
-            if '+' in new_text:  # assume a down time
-                oft = tod.ZERO
-                if self.winbunch is not None:
-                    oft = self.winbunch
-                nmb = tod.mktod(new_text.replace('+', ''))
-                if nmb is not None:
-                    nmb += oft
-            elif new_text.startswith('s'):
-                # assume same time as previous rider
-                i = int(path) - 1
-                if i >= 0:
-                    nmb = self.vbunch(self.riders[i][COL_CBUNCH],
-                                      self.riders[i][COL_MBUNCH])
-                else:
-                    _log.info('Ignored same time on first rider')
-            else:
-                nmb = tod.mktod(new_text)
-            if self.riders[path][COL_MBUNCH] != nmb:
-                self.riders[path][COL_MBUNCH] = nmb
-                dorecalc = True
+        dorecalc = self.edit_mbunch(self.riders[path], new_text)
         if dorecalc:
             self.recalculate()
+
+    def get_leader(self, lr=None):
+        """Return the lead rider's bib and bunch time if possible"""
+        leader = None
+        lbt = None
+        if lr is not None and len(self.cats) > 1:
+            cs = lr[COL_CAT]
+            rcat = self.ridercat(riderdb.primary_cat(cs))
+            for r in self.riders:
+                if r[COL_BIB] == lr[COL_BIB]:
+                    _log.debug('Search rider %s is cat %s leader', lr[COL_BIB],
+                               rcat)
+                    break
+                # match against primary cat
+                if rcat == self.ridercat(riderdb.primary_cat(r[COL_CAT])):
+                    lbt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
+                    if lbt is not None:
+                        leader = r[COL_BIB]
+                        _log.debug('Found cat %s leader: %s', rcat, r[COL_BIB])
+                        break
+        else:
+            lbt = self.vbunch(self.riders[0][COL_CBUNCH],
+                              self.riders[0][COL_MBUNCH])
+            if lbt is not None:
+                leader = self.riders[0][COL_BIB]
+            if lr is not None:
+                if leader == lr[COL_BIB]:
+                    _log.debug('Search rider %s is event leader', lr[COL_BIB])
+                    leader = None
+        return (leader, lbt)
+
+    def edit_mbunch(self, lr=None, bunch=None):
+        """Update manual bunch time and return true if recalc required"""
+        # possible values:
+        #   - Empty or None:  clear manual bunch entry
+        #   - Event time eg:   1h23:45
+        #   - Down time from cat leader eg:  +1:23
+        #   - Same time as previous rider: s
+        #   - Own time (manual time gap): g
+        # Assumes model is in bunch order (work in progress)
+        ret = False
+        if bunch is None or bunch == '':
+            # clear values
+            lr[COL_MBUNCH] = None
+            lr[COL_CBUNCH] = None
+            ret = True
+            _log.info('Cleared manual bunch time for rider %s', lr[COL_BIB])
+        elif lr[COL_PLACE] or lr[COL_COMMENT] == 'otl':
+            bunch = bunch.lower()
+
+            # get current bunch for the rider in question
+            vbt = self.vbunch(lr[COL_CBUNCH], lr[COL_MBUNCH])
+
+            # get previous and next rider info
+            pr = lr.get_previous()
+            pt = None
+            if pr is not None:
+                pt = self.vbunch(pr[COL_CBUNCH], pr[COL_MBUNCH])
+            nr = lr.get_next()
+            nt = None
+            if nr is not None:
+                nt = self.vbunch(nr[COL_CBUNCH], nr[COL_MBUNCH])
+
+            if bunch.startswith('s'):
+                if pr is not None and pt is not None:
+                    ret = True
+                    lr[COL_MBUNCH] = pt
+                    _log.info('Rider %s assigned same bunch as %s: %s',
+                              lr[COL_BIB], pr[COL_BIB], pt.rawtime(0))
+                    if nt is not None and nt == vbt:
+                        # next rider was same time
+                        if nr[COL_MBUNCH] is not None:
+                            nr[COL_MBUNCH] = pt
+                else:
+                    _log.error('No previous rider to set bunch time')
+            elif bunch.startswith('g'):
+                if lr[COL_RFTIME] is not None:
+                    ret = True
+                    lr[COL_MBUNCH] = lr[COL_RFTIME].truncate(0)
+                    _log.info('Rider %s assigned new bunch time: %s',
+                              lr[COL_BIB], lr[COL_MBUNCH].rawtime(0))
+                    if nt is not None and nt == vbt:
+                        # next rider was same time
+                        if nr[COL_MBUNCH] is not None:
+                            nr[COL_MBUNCH] = lr[COL_MBUNCH]
+                else:
+                    _log.error('Rider %s does not have arrival time',
+                               lr[COL_BIB])
+            else:
+                # manual override of one bunch time
+                nbt = None
+                if bunch.startswith('+'):
+                    oft = tod.mktod(bunch[1:])
+                    if oft is not None:
+                        leadrider, leadbunch = self.get_leader(lr)
+                        if leadrider is not None and lr[COL_BIB] != leadrider:
+                            nbt = leadbunch + oft
+                            _log.debug('Using rider %s as cat leader',
+                                       leadrider)
+                        else:
+                            _log.debug('No lead rider, %s down time ignored',
+                                       lr[COL_BIB])
+                else:
+                    nbt = tod.mktod(bunch)
+
+                if nbt is not None:
+                    lr[COL_MBUNCH] = nbt.truncate(0)
+                    ret = True
+                    _log.info('Rider %s bunch time set to: %s', lr[COL_BIB],
+                              lr[COL_MBUNCH].rawtime(0))
+                    if nt is not None and nt == vbt:
+                        # next rider was at same time, preserve orignal bunch
+                        nr[COL_MBUNCH] = vbt
+                else:
+                    _log.warning('Invalid bunch time ignored for rider %s',
+                                 lr[COL_BIB])
+        else:
+            _log.error('Cannot edit bunch time on un-placed rider %s',
+                       lr[COL_BIB])
+        return ret
 
     def checkplaces(self, rlist='', dnf=True):
         """Check the proposed places against current event model."""
@@ -3931,7 +4045,7 @@ class rms:
                         r[COL_CBUNCH] = bt
                         if ft is None:
                             ft = bt
-                        lt = bt
+                        lt = rtime
                     elif rtime is not None:
                         # establish elapsed, but allow subsequent override
                         if rtime > self.maxfinish:
@@ -3944,8 +4058,8 @@ class rms:
                             ft = et.truncate(0)  # compute first time
                             bt = ft
                         else:
-                            if lt is not None and (et < lt or
-                                                   et - lt < self.gapthresh):
+                            if lt is not None and (
+                                    rtime < lt or rtime - lt < self.gapthresh):
                                 # same time
                                 pass
                             else:
@@ -3953,7 +4067,7 @@ class rms:
 
                         # assign and continue
                         r[COL_CBUNCH] = bt
-                        lt = et
+                        lt = rtime
                     else:
                         # empty rftime with non-empty rank implies no time gap
                         if r[COL_PLACE]:
@@ -4031,8 +4145,6 @@ class rms:
                                     r[COL_COMMENT] = ''
                 else:
                     handled += 1
-            if ft is not None:
-                self.winbunch = ft
             if self.timerstat == 'finished' or handled == tot:
                 self.racestat = 'final'
             else:
@@ -4289,41 +4401,173 @@ class rms:
     def rms_context_edit_activate_cb(self, menuitem, data=None):
         """Edit rider start/finish/etc."""
         sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            stx = ''
-            ftx = ''
-            btx = ''
-            ptx = ''
-            st = self.riders.get_value(sel[1], COL_STOFT)
-            ft = self.riders.get_value(sel[1], COL_RFTIME)
-            bt = self.riders.get_value(sel[1], COL_BONUS)
-            pt = self.riders.get_value(sel[1], COL_PENALTY)
-            if st:
-                stx = st.rawtime()
-            if ft:
-                ftx = ft.rawtime()
-            if bt:
-                btx = bt.rawtime()
-            if pt:
-                ptx = pt.rawtime()
-            tvec = uiutil.edit_times_dlg(self.meet.window, stx, ftx, btx, ptx,
-                                         True, True)  # enable bon+pen
-            if len(tvec) > 4 and tvec[0] == 1:
-                self.riders.set_value(sel[1], COL_STOFT, tod.mktod(tvec[1]))
-                self.riders.set_value(sel[1], COL_RFTIME, tod.mktod(tvec[2]))
-                self.riders.set_value(sel[1], COL_BONUS, tod.mktod(tvec[3]))
-                self.riders.set_value(sel[1], COL_PENALTY, tod.mktod(tvec[4]))
-                bib = self.riders.get_value(sel[1], COL_BIB)
-                nst = '-'
-                st = self.riders.get_value(sel[1], COL_STOFT)
-                if st:
-                    nst = st.rawtime(0)
-                nft = '-'
-                ft = self.riders.get_value(sel[1], COL_RFTIME)
-                if ft:
-                    nft = ft.rawtime(2)
-                _log.info('Adjust rider %r start:%s, finish:%s', bib, nst, nft)
-                self.recalculate()
+        if sel is None:
+            return False
+
+        lr = Gtk.TreeModelRow(self.riders, sel[1])
+        st = lr[COL_STOFT]
+        stextra = ''
+        if not st:
+            # check for a category start time
+            cs = lr[COL_CAT]
+            rcat = self.ridercat(riderdb.primary_cat(cs))
+            if rcat in self.catstarts and self.catstarts[rcat] is not None:
+                st = self.catstarts[rcat]
+                stextra = '[Cat start: %s]' % (rcat)
+
+        lastpass = None
+        if len(lr[COL_RFSEEN]) > 0:
+            lastpass = lr[COL_RFSEEN][-1]
+        placestr = None
+        if lr[COL_COMMENT]:
+            placestr = lr[COL_COMMENT]
+        placeopts = {
+            '': 'Unclassified',
+            'dns': 'Did not start',
+            'otl': 'Outside time limit',
+            'dnf': 'Did not finish',
+            'dsq': 'Disqualified',
+        }
+        if lr[COL_PLACE]:
+            placeopts['plc'] = 'Placed ' + strops.rank2ord(lr[COL_PLACE])
+        if lr[COL_INRACE]:
+            if lr[COL_PLACE]:
+                placestr = 'plc'
+        if placestr is not None and placestr not in placeopts:
+            placeopts[placestr] = placestr
+        manbunch = None
+        if lr[COL_MBUNCH] is not None:
+            manbunch = lr[COL_MBUNCH].rawtime(0)
+        sections = {
+            'result': {
+                'object': None,
+                'title': 'result',
+                'schema': {
+                    'title': {
+                        'prompt': lr[COL_BIB] + ' ' + lr[COL_NAMESTR],
+                        'control': 'section',
+                    },
+                    'seed': {
+                        'prompt': 'Seed:',
+                        'hint': 'Seeding number for startlists',
+                        'control': 'short',
+                        'type': 'int',
+                        'value': lr[COL_SEED],
+                        'index': COL_SEED,
+                    },
+                    'class': {
+                        'prompt': 'Classification:',
+                        'hint': 'Rider classification for event',
+                        'control': 'choice',
+                        'value': placestr,
+                        'options': placeopts,
+                        'default': '',
+                    },
+                    'start': {
+                        'prompt': 'Start Offset:',
+                        'hint': 'Start offset',
+                        'type': 'tod',
+                        'places': 0,
+                        'control': 'short',
+                        'value': st,
+                        'subtext': stextra,
+                        'index': COL_STOFT,
+                    },
+                    'laps': {
+                        'prompt': 'Laps:',
+                        'hint': 'Rider lap count',
+                        'control': 'short',
+                        'type': 'int',
+                        'value': lr[COL_LAPS],
+                        'index': COL_LAPS,
+                    },
+                    'lpass': {
+                        'prompt': 'Last Pass:',
+                        'hint': 'Time last seen at finish line',
+                        'type': 'tod',
+                        'places': 4,
+                        'readonly': 'true',
+                        'control': 'short',
+                        'value': lastpass,
+                    },
+                    'rftime': {
+                        'prompt': 'Finish:',
+                        'hint': 'Time of arrival at event finish',
+                        'type': 'tod',
+                        'places': 4,
+                        'value': lr[COL_RFTIME],
+                        'nowbut': True,
+                        'control': 'short',
+                        'subtext': 'Set finish time to now',
+                        'index': COL_RFTIME,
+                    },
+                    'cbunch': {
+                        'prompt': 'Bunch:',
+                        'hint': 'Computed bunch time',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_CBUNCH],
+                        'control': 'short',
+                        'readonly': 'true',
+                    },
+                    'mbunch': {
+                        'prompt': 'Man Bunch:',
+                        'hint': 'Override computed bunch time',
+                        'places': 0,
+                        'value': manbunch,
+                        'control': 'short',
+                    },
+                    'bonus': {
+                        'prompt': 'Stage Bonus:',
+                        'hint': 'Additional stage bonus time',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_BONUS],
+                        'control': 'short',
+                        'index': COL_BONUS,
+                    },
+                    'penalty': {
+                        'prompt': 'Stage Penalty:',
+                        'hint': 'Additional stage penalty time',
+                        'type': 'tod',
+                        'places': 0,
+                        'value': lr[COL_PENALTY],
+                        'control': 'short',
+                        'index': COL_PENALTY,
+                    },
+                },
+            },
+        }
+        res = uiutil.options_dlg(window=self.meet.window,
+                                 title='Edit times',
+                                 sections=sections)
+        changed = False
+        for option in res['result']:
+            if res['result'][option][0]:
+                changed = True
+                if 'index' in sections['result']['schema'][option]:
+                    index = sections['result']['schema'][option]['index']
+                    lr[index] = res['result'][option][2]
+                    _log.debug('Updated %s to: %r', option,
+                               res['result'][option][2])
+                elif option == 'class':
+                    newclass = res['result'][option][2]
+                    if newclass is None:
+                        newclass = ''
+                    if newclass in ('dns', 'otl', 'dnf', 'dsq'):
+                        lr[COL_INRACE] = False
+                    else:
+                        lr[COL_INRACE] = True
+                    if newclass != 'plc':
+                        lr[COL_COMMENT] = newclass
+                        if res['result'][option][1] == 'plc':
+                            self.clear_place(lr[COL_BIB])
+                elif option == 'mbunch':
+                    self.edit_mbunch(lr, res['result'][option][2])
+                else:
+                    _log.debug('Unknown option %r changed', option)
+        if changed:
+            self.recalculate()
 
     def rms_context_chg_activate_cb(self, menuitem, data=None):
         """Update selected rider from event."""
@@ -4380,7 +4624,6 @@ class rms:
         self.altfinish = None
         self.maxfinish = None
         self.showdowntimes = True
-        self.winbunch = None  # bunch time of winner (overall race time)
         self.winopen = True
         self.timerstat = 'idle'
         self.racestat = 'prerace'
