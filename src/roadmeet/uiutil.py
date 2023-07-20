@@ -727,12 +727,6 @@ def questiondlg(window=None, question='Question?', subtext=None, title=None):
                       title=title)
 
 
-def now_button_clicked_cb(button, entry=None):
-    """Copy the current time of day into the supplied entry."""
-    if entry is not None:
-        entry.set_text(tod.now().timestr())
-
-
 class option:
     """Base class for configuration option"""
 
@@ -751,6 +745,7 @@ class option:
         self._control = None
         self._options = {}
         self._places = 0
+        self._nowbut = False
         self._readonly = False
         self._defer = False
 
@@ -796,6 +791,8 @@ class option:
             self._places = strops.confopt_posint(schema['places'], 0)
         if 'readonly' in schema:
             self._readonly = bool(schema['readonly'])
+        if 'nowbut' in schema:
+            self._nowbut = bool(schema['nowbut'])
         if 'defer' in schema:
             self._defer = bool(schema['defer'])
         if 'options' in schema:
@@ -921,15 +918,17 @@ class option:
         else:
             return False
 
-    def add_control(self, grid, row):
-        """Create a new control and add it to the provided grid"""
+    def _prompt_label(self):
+        """Return a prompt label"""
         lbl = Gtk.Label(label=self._prompt)
         lbl.set_single_line_mode(True)
-        lbl.set_halign(Gtk.Align.FILL)
-        lbl.set_xalign(0.0)
-        lbl.set_hexpand(True)
+        lbl.set_halign(Gtk.Align.START)
         lbl.show()
-        grid.attach(lbl, 0, row, 1, 1)
+        return lbl
+
+    def add_control(self, grid, row):
+        """Create a new control and add it to the provided grid"""
+        grid.attach(self._prompt_label(), 0, row, 1, 1)
 
         self._control = Gtk.Entry()
         self._control.set_width_chars(32)
@@ -942,25 +941,24 @@ class option:
         if not self._defer:
             self._control.connect('activate', self._updated)
         if self._readonly:
-            self._control.set_sensitive(False)
-        grid.attach(self._control, 1, row, 2, 1)
+            self._control.set_editable(False)
+        grid.attach(self._control, 1, row, 4, 1)
         return 1
 
 
 class optionShort(option):
 
+    def _now_press(self, widget, event):
+        """Transfer now into value and re-validate"""
+        self._value = tod.now().truncate(self._places)
+        self._control.set_text(self.format_value())
+
     def add_control(self, grid, row):
         """Create a new control and add it to the provided grid"""
-        lbl = Gtk.Label(label=self._prompt)
-        lbl.set_single_line_mode(True)
-        lbl.set_halign(Gtk.Align.FILL)
-        lbl.set_xalign(0.0)
-        lbl.set_hexpand(True)
-        lbl.show()
-        grid.attach(lbl, 0, row, 1, 1)
+        grid.attach(self._prompt_label(), 0, row, 1, 1)
 
         self._control = Gtk.Entry()
-        self._control.set_width_chars(11)
+        self._control.set_width_chars(12)
         self._control.set_activates_default(True)
         if self._value is not None:
             self._control.set_text(self.format_value())
@@ -970,17 +968,30 @@ class optionShort(option):
         if not self._defer:
             self._control.connect('activate', self._updated)
         if self._readonly:
-            self._control.set_sensitive(False)
+            self._control.set_editable(False)
         grid.attach(self._control, 1, row, 1, 1)
 
-        if self._subtext:
-            lbl = Gtk.Label(label=self._subtext)
+        if self._nowbut:
+            but = Gtk.Button()
+            but.set_label('Now')
+            but.set_halign(Gtk.Align.START)
+            but.set_can_focus(False)
+            but.show()
+            if self._subtext:
+                but.set_tooltip_text(self._subtext)
+            else:
+                but.set_tooltip_text('Set the tod entry to now')
+            but.connect('button-press-event', self._now_press)
+            grid.attach(but, 2, row, 1, 1)
+        else:
+            subtext = ''
+            if self._subtext:
+                subtext = self._subtext
+            lbl = Gtk.Label(label=subtext)
             lbl.set_single_line_mode(True)
-            lbl.set_halign(Gtk.Align.FILL)
-            lbl.set_xalign(0.0)
-            lbl.set_hexpand(True)
+            lbl.set_halign(Gtk.Align.START)
             lbl.show()
-            grid.attach(lbl, 2, row, 1, 1)
+            grid.attach(lbl, 2, row, 3, 1)
         return 1
 
 
@@ -996,13 +1007,7 @@ class optionCheck(option):
 
     def add_control(self, grid, row):
         """Create a new control and add it to the provided grid"""
-        lbl = Gtk.Label(label=self._prompt)
-        lbl.set_single_line_mode(True)
-        lbl.set_halign(Gtk.Align.FILL)
-        lbl.set_xalign(0.0)
-        lbl.set_hexpand(True)
-        lbl.show()
-        grid.attach(lbl, 0, row, 1, 1)
+        grid.attach(self._prompt_label(), 0, row, 1, 1)
 
         st = ''
         if self._subtext:
@@ -1017,14 +1022,37 @@ class optionCheck(option):
             self._control.connect('toggled', self._updated)
         if self._readonly:
             self._control.set_sensitive(False)
-        grid.attach(self._control, 1, row, 2, 1)
+        grid.attach(self._control, 1, row, 3, 1)
         return 1
 
 
 class optionHidden(option):
+    """Hidden option with value and type"""
 
     def add_control(self, grid, row):
         return 0
+
+    def validate(self):
+        return True
+
+
+class optionLabel(option):
+
+    def add_control(self, grid, row):
+        grid.attach(self._prompt_label(), 0, row, 1, 1)
+
+        self._control = Gtk.Label()
+        self._control.set_halign(Gtk.Align.START)
+        self._control.set_selectable(True)
+        self._control.set_margin_top(4)
+        self._control.set_margin_bottom(4)
+        if self._value is not None:
+            self._control.set_text(self.format_value())
+        if self._hint is not None:
+            self._control.set_tooltip_text(self._hint)
+        self._control.show()
+        grid.attach(self._control, 1, row, 4, 1)
+        return 1
 
     def validate(self):
         return True
@@ -1046,13 +1074,7 @@ class optionChoice(option):
 
     def add_control(self, grid, row):
         """Create a new control and add it to the provided grid"""
-        lbl = Gtk.Label(label=self._prompt)
-        lbl.set_single_line_mode(True)
-        lbl.set_halign(Gtk.Align.FILL)
-        lbl.set_xalign(0.0)
-        lbl.set_hexpand(True)
-        lbl.show()
-        grid.attach(lbl, 0, row, 1, 1)
+        grid.attach(self._prompt_label(), 0, row, 1, 1)
 
         self._control = Gtk.ComboBoxText.new()
         for k in self._options:
@@ -1068,7 +1090,16 @@ class optionChoice(option):
             self._control.set_sensitive(False)
         if self._hint is not None:
             self._control.set_tooltip_text(self._hint)
-        grid.attach(self._control, 1, row, 2, 1)
+        grid.attach(self._control, 1, row, 3, 1)
+
+        subtext = ''
+        if self._subtext:
+            subtext = self._subtext
+        lbl = Gtk.Label(label=subtext)
+        lbl.set_single_line_mode(True)
+        lbl.show()
+        grid.attach(lbl, 4, row, 1, 1)
+
         return 1
 
 
@@ -1081,15 +1112,12 @@ class optionSection(option):
         """Create a new control and add it to the provided grid"""
         lbl = Gtk.Label(label=self._prompt)
         lbl.set_single_line_mode(True)
-        lbl.set_width_chars(42)
-        lbl.set_halign(Gtk.Align.FILL)
-        lbl.set_xalign(0.0)
+        lbl.set_halign(Gtk.Align.START)
         lbl.set_attributes(Pango.AttrList.from_string('0 -1 style oblique'))
         if row != 0:
             lbl.set_margin_top(15)
-        lbl.set_hexpand(True)
         lbl.show()
-        grid.attach(lbl, 0, row, 3, 1)
+        grid.attach(lbl, 0, row, 5, 1)
         return 1
 
 
@@ -1127,6 +1155,7 @@ def options_dlg(window=None, title='Options', sections={}):
        Control types:
 
          none: nothing displayed for the config option
+         label: prompt and value as readonly text
          section: section delimiter
          text: standard text input
          short: short text input, extra info displayed right of input
@@ -1156,6 +1185,8 @@ def options_dlg(window=None, title='Options', sections={}):
                 omap[sec]['options'][key] = optionShort(key, oschema, obj, sec)
             elif otype == 'check':
                 omap[sec]['options'][key] = optionCheck(key, oschema, obj, sec)
+            elif otype == 'label':
+                omap[sec]['options'][key] = optionLabel(key, oschema, obj, sec)
             elif otype == 'choice':
                 omap[sec]['options'][key] = optionChoice(
                     key, oschema, obj, sec)
@@ -1191,6 +1222,7 @@ def options_dlg(window=None, title='Options', sections={}):
         grid.props.margin = 8
         grid.set_row_spacing(4)
         grid.set_column_spacing(8)
+        grid.set_column_homogeneous(False)
         grid.set_row_homogeneous(False)
         row = 0
         for key in omap[section]['options']:
@@ -1255,58 +1287,3 @@ def decisions_dlg(window=None, decisions=[]):
     dlg.hide()
     dlg.destroy()
     return res
-
-
-def edit_times_dlg(window,
-                   stxt=None,
-                   ftxt=None,
-                   btxt=None,
-                   ptxt=None,
-                   bonus=False,
-                   penalty=False,
-                   finish=True):
-    """Display times edit dialog and return updated time strings."""
-    b = builder('edit_times.ui')
-    dlg = b.get_object('timing')
-    dlg.set_transient_for(window)
-
-    se = b.get_object('timing_start_entry')
-    se.modify_font(MONOFONT)
-    if stxt is not None:
-        se.set_text(stxt)
-    b.get_object('timing_start_now').connect('clicked', now_button_clicked_cb,
-                                             se)
-
-    fe = b.get_object('timing_finish_entry')
-    fe.modify_font(MONOFONT)
-    if ftxt is not None:
-        fe.set_text(ftxt)
-    if finish:
-        b.get_object('timing_finish_now').connect('clicked',
-                                                  now_button_clicked_cb, fe)
-    else:
-        b.get_object('timing_finish_now').set_sensitive(False)
-
-    be = b.get_object('timing_bonus_entry')
-    be.modify_font(MONOFONT)
-    if btxt is not None:
-        be.set_text(btxt)
-    if bonus:
-        be.show()
-        b.get_object('timing_bonus_label').show()
-
-    pe = b.get_object('timing_penalty_entry')
-    pe.modify_font(MONOFONT)
-    if ptxt is not None:
-        pe.set_text(ptxt)
-    if penalty:
-        pe.show()
-        b.get_object('timing_penalty_label').show()
-
-    ret = dlg.run()
-    stxt = se.get_text().strip()
-    ftxt = fe.get_text().strip()
-    btxt = be.get_text().strip()
-    ptxt = pe.get_text().strip()
-    dlg.destroy()
-    return (ret, stxt, ftxt, btxt, ptxt)
