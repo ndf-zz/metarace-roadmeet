@@ -568,9 +568,13 @@ def mkviewcoltxt(view=None,
                  expand=False,
                  editcb=None,
                  maxwidth=None,
+                 minwidth=None,
+                 charwidth=None,
                  bgcol=None,
                  fontdesc=None,
-                 fixed=False):
+                 wrap=None,
+                 fixed=False,
+                 valign=None):
     """Return a text view column."""
     i = Gtk.CellRendererText()
     if cb is not None:
@@ -578,8 +582,21 @@ def mkviewcoltxt(view=None,
         i.connect('edited', cb, colno)
     if calign is not None:
         i.set_property('xalign', calign)
+    if valign is not None:
+        i.set_property('yalign', valign)
     if fontdesc is not None:
         i.set_property('font_desc', fontdesc)
+    if charwidth is not None:
+        i.set_property('width_chars', charwidth)
+    if wrap is not None:
+        if minwidth is None:
+            minwidth = 400
+        if wrap:
+            i.set_property('wrap-mode', Pango.WrapMode.WORD_CHAR)
+            i.set_property('wrap-width', minwidth)
+        else:
+            i.set_property('wrap-width', -1)
+
     j = Gtk.TreeViewColumn(header, i, text=colno)
     if bgcol is not None:
         j.add_attribute(i, 'background', bgcol)
@@ -594,7 +611,7 @@ def mkviewcoltxt(view=None,
     else:
         if width is not None:
             j.set_min_width(width)
-    if maxwidth is not None:
+    if maxwidth is not None and wrap is None:
         j.set_max_width(maxwidth)
     view.append_column(j)
     if editcb is not None:
@@ -1272,18 +1289,126 @@ def options_dlg(window=None, title='Options', sections={}):
     return res
 
 
+class decisionEditor:
+
+    def __init__(self, window=None, decisions=[]):
+        modal = window is not None
+        self._dlg = Gtk.Dialog(
+            title="Edit Decisions of the Commissaires Panel",
+            modal=modal,
+            destroy_with_parent=True)
+        self._dlg.set_transient_for(window)
+        self._dlg.add_buttons("Done", 0)
+
+        self._model = Gtk.ListStore(str, str)
+        for d in decisions:
+            self._model.append((
+                '\u2023',
+                d.strip(),
+            ))
+        self._view = Gtk.TreeView(self._model)
+        self._view.set_reorderable(True)
+        self._view.set_rules_hint(False)
+        self._view.set_headers_visible(False)
+        self._view.set_property('height-request', 200)
+        mkviewcoltxt(self._view, 'Bullet', 0, charwidth=2, valign=0.0)
+        mkviewcoltxt(self._view,
+                     'Decision',
+                     1,
+                     expand=True,
+                     width=400,
+                     charwidth=66,
+                     cb=self.edit_decision,
+                     wrap=True,
+                     valign=0.0)
+        self._view.show()
+        ctr = Gtk.ScrolledWindow()
+        ctr.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        ctr.set_propagate_natural_height(True)
+        ctr.add(self._view)
+        ctr.show()
+        self._dlg.get_content_area().pack_start(ctr, True, True, 4)
+        bb = Gtk.ButtonBox()
+        bb.set_layout(Gtk.ButtonBoxStyle.START)
+        bb.show()
+
+        but = Gtk.Button.new_from_icon_name('list-add',
+                                            Gtk.IconSize.LARGE_TOOLBAR)
+        but.set_always_show_image(True)
+        but.show()
+        but.connect('clicked', self.add_empty)
+        bb.pack_start(but, False, False, 0)
+        bb.set_child_non_homogeneous(but, True)
+
+        but = Gtk.Button.new_from_icon_name('list-remove',
+                                            Gtk.IconSize.LARGE_TOOLBAR)
+        but.set_always_show_image(True)
+        but.show()
+        but.connect('clicked', self.del_selected)
+        bb.pack_start(but, False, False, 0)
+        bb.set_child_non_homogeneous(but, True)
+
+        but = Gtk.Button.new_from_icon_name('pan-up-symbolic',
+                                            Gtk.IconSize.LARGE_TOOLBAR)
+        but.set_always_show_image(True)
+        but.show()
+        but.connect('clicked', self.move_up)
+        bb.pack_start(but, False, False, 0)
+        bb.set_child_non_homogeneous(but, True)
+
+        but = Gtk.Button.new_from_icon_name('pan-down-symbolic',
+                                            Gtk.IconSize.LARGE_TOOLBAR)
+        but.set_always_show_image(True)
+        but.show()
+        but.connect('clicked', self.move_down)
+        bb.pack_start(but, False, False, 0)
+        bb.set_child_non_homogeneous(but, True)
+
+        self._dlg.get_content_area().pack_start(bb, False, False, 4)
+
+    def del_selected(self, button):
+        """Delete the selected row."""
+        model, i = self._view.get_selection().get_selected()
+        if i is not None:
+            self._model.remove(i)
+
+    def move_up(self, button):
+        """Move selected row up one slot"""
+        model, i = self._view.get_selection().get_selected()
+        if i is not None:
+            j = self._model.iter_previous(i)
+            if j is not None:
+                self._model.swap(i, j)
+
+    def move_down(self, button):
+        """Move selected row down one slot"""
+        model, i = self._view.get_selection().get_selected()
+        if i is not None:
+            j = self._model.iter_next(i)
+            if j is not None:
+                self._model.swap(i, j)
+
+    def add_empty(self, button):
+        """Add an empty row and trigger editing the content"""
+        i = self._model.append(('\u2023', ''))
+        path = Gtk.TreeModelRow(self._model, i).path
+        self._view.set_cursor(path, self._view.get_column(1), True)
+
+    def edit_decision(self, cell, path, new_text, col):
+        """Edit column callback."""
+        new_text = new_text.strip()
+        self._model[path][col] = new_text
+
+    def run(self):
+        # for now, ignore dialog return value
+        self._dlg.run()
+        self._dlg.hide()
+        res = [d[1] for d in self._model]
+        self._dlg.destroy()
+        return res
+
+
 def decisions_dlg(window=None, decisions=[]):
     """Edit decisions of the commissaires panel and return an updated list"""
-    # TODO
-    modal = window is not None
-    dlg = Gtk.Dialog(title="Edit Decisions of the Commissaires Panel",
-                     modal=modal,
-                     destroy_with_parent=True)
-    dlg.set_transient_for(window)
-    dlg.add_buttons("Cancel", 2, "OK", 0)
-    dlg.set_default_response(0)
-    retval = dlg.run()
-    res = decisions
-    dlg.hide()
-    dlg.destroy()
-    return res
+    dlg = decisionEditor(window=window, decisions=decisions)
+    return dlg.run()
