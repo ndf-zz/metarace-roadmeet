@@ -36,7 +36,7 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.2'
+VERSION = '1.13.3'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -1273,7 +1273,7 @@ class roadmeet:
 
         # check and warn of config mismatch
         cid = cr.get_value('roadmeet', 'id')
-        if cid != ROADMEET_ID:
+        if cid is not None and cid != ROADMEET_ID:
             _log.warning('Meet config mismatch: %r != %r', cid, ROADMEET_ID)
 
     def get_distance(self):
