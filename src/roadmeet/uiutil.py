@@ -1130,7 +1130,9 @@ class optionSection(option):
         lbl = Gtk.Label(label=self._prompt)
         lbl.set_single_line_mode(True)
         lbl.set_halign(Gtk.Align.START)
-        lbl.set_attributes(Pango.AttrList.from_string('0 -1 style oblique'))
+        if hasattr(Pango.AttrList, 'from_string'):
+            lbl.set_attributes(
+                Pango.AttrList.from_string('0 -1 style oblique'))
         if row != 0:
             lbl.set_margin_top(15)
         lbl.show()
