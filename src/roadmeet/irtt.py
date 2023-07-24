@@ -275,24 +275,7 @@ class irtt(rms):
         self._dorecalc = True
 
     def key_event(self, widget, event):
-        """Race window key press handler."""
-        if event.type == Gdk.EventType.KEY_PRESS:
-            key = Gdk.keyval_name(event.keyval) or 'None'
-            if event.state & Gdk.ModifierType.CONTROL_MASK:
-                if key == key_abort:  # override ctrl+f5
-                    if uiutil.questiondlg(
-                            window=self.meet.window,
-                            question='Reset event to idle?',
-                            subtext=
-                            'Note: All result and timing data will be cleared.',
-                            title='Reset event?'):
-                        self.resettimer()
-                    return True
-            if key[0] == 'F':
-                if key == key_announce:
-                    self.meet.cmd_announce('clear', 'all')
-                    self._doannounce = True
-                    return True
+        """Ignore keys in irtt"""
         return False
 
     def resetall(self):
@@ -310,8 +293,19 @@ class irtt(rms):
             self.timerstat = 'finished'
             self.meet.stat_but.update('idle', 'Finished')
             self.meet.stat_but.set_sensitive(False)
+            self.hidetimer(True)
+
+    def hidetimer(self, hide=False):
+        if hide:
+            self.timericon.set_from_icon_name('view-reveal-symbolic',
+                                              Gtk.IconSize.SMALL_TOOLBAR)
             self.showtimers = False
             self.timerframe.hide()
+        else:
+            self.timericon.set_from_icon_name('view-conceal-symbolic',
+                                              Gtk.IconSize.SMALL_TOOLBAR)
+            self.showtimers = True
+            self.timerframe.show()
 
     def armfinish(self):
         if self.timerstat == 'running':
@@ -440,7 +434,7 @@ class irtt(rms):
         return ret
 
     def checkplaces(self, rlist='', dnf=True):
-        """Check the proposed places against current race model."""
+        """Check the proposed places against current event model."""
         ret = True
         placeset = set()
         for no in strops.reformat_bibserlist(rlist).split():
@@ -457,7 +451,7 @@ class irtt(rms):
                     _log.error('Non-starter in places: %r', no)
                     ret = False
                 else:
-                    # rider still in the race?
+                    # rider still in the event?
                     if lr[COL_COMMENT]:
                         _log.warning('DNS/DNF rider in places: %r', no)
                         if dnf:
@@ -483,7 +477,7 @@ class irtt(rms):
             self.recalculate()
         return False
 
-    def race_ctrl(self, acode='', rlist=''):
+    def event_ctrl(self, acode='', rlist=''):
         """Apply the selected action to the provided bib list."""
         if acode in self.intermeds:
             if acode == 'brk':
@@ -565,7 +559,7 @@ class irtt(rms):
             cr.set_property('text', '')
 
     def loadconfig(self):
-        """Load race config from disk."""
+        """Load event config from disk."""
         self.ridernos.clear()
         self.riders.clear()
         self.results = {'': tod.todlist('UNCAT')}
@@ -612,7 +606,7 @@ class irtt(rms):
 
         # hide timer panes
         if not self.showtimers:
-            self.timerframe.hide()
+            self.hidetimer(True)
 
         # transponder timing options
         if self.startloop is not None or self.finishloop is not None:
@@ -768,7 +762,7 @@ class irtt(rms):
             self.readonly = True
 
     def saveconfig(self):
-        """Save race to disk."""
+        """Save event to disk."""
         if self.readonly:
             _log.error('Attempt to save readonly event')
             return
@@ -874,7 +868,7 @@ class irtt(rms):
         return ' '.join(ret)
 
     def get_starters(self):
-        """Return a list of riders that 'started' the race."""
+        """Return a list of riders that 'started' the event."""
         ret = []
         for r in self.riders:
             if r[COL_COMMENT] != 'dns' or r[COL_INRACE]:
@@ -1339,7 +1333,7 @@ class irtt(rms):
                 ])
             if dnfcount > 0:
                 sec.lines.append(
-                    [None, 'Riders abandoning the race: ' + str(dnfcount)])
+                    [None, 'Riders abandoning the event: ' + str(dnfcount)])
             ret.append(sec)
 
             # finish report title manipulation
@@ -1354,7 +1348,7 @@ class irtt(rms):
         return ret
 
     def result_report(self):
-        """Return a race result report."""
+        """Return event result report."""
         ret = []
         self.recalculate()
 
@@ -1918,7 +1912,7 @@ class irtt(rms):
                     break
 
     def timeout(self):
-        """Update slow changing aspects of race."""
+        """Update slow changing aspects of event."""
         if not self.winopen:
             return False
         if self._dorecalc:
@@ -2041,7 +2035,7 @@ class irtt(rms):
             #self.unstart(bib, series, wst=start)
 
     def delrider(self, bib='', series=''):
-        """Delete the specified rider from the race model."""
+        """Delete the specified rider from the event model."""
         i = self.getiter(bib, series)
         if i is not None:
             self.settimes(i)
@@ -2050,7 +2044,7 @@ class irtt(rms):
             self.ridernos.remove((bib, series))
 
     def addrider(self, bib='', series=''):
-        """Add specified rider to race model."""
+        """Add specified rider to event model."""
         if bib and (bib, series) in self.ridernos:
             return None
 
@@ -2109,11 +2103,7 @@ class irtt(rms):
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Toggle the visibility of timer panes"""
-        self.showtimers = not self.showtimers
-        if self.showtimers:
-            self.timerframe.show()
-        else:
-            self.timerframe.hide()
+        self.hidetimer(self.showtimers)
 
     def editcol_cb(self, cell, path, new_text, col):
         """Update value in edited cell."""
@@ -2323,7 +2313,7 @@ class irtt(rms):
         return i
 
     def dnfriders(self, biblist='', code='dnf'):
-        """Remove each rider from the race with supplied code."""
+        """Remove each rider from the event with supplied code."""
         recalc = False
         for bibstr in biblist.split():
             bib, ser = strops.bibstr2bibser(bibstr)
@@ -2383,7 +2373,7 @@ class irtt(rms):
                  tft=None,
                  pt=None,
                  doplaces=True):
-        """Transfer race times into rider model."""
+        """Transfer event times into rider model."""
         bib = self.riders.get_value(iter, COL_BIB)
         series = self.riders.get_value(iter, COL_SERIES)
         cs = self.riders.get_value(iter, COL_CAT)
@@ -2476,12 +2466,12 @@ class irtt(rms):
                 return True
         return False
 
-    def tod_context_print_activate_cb(self, menuitem, data=None):
+    def rider_context_print_activate_cb(self, menuitem, data=None):
         """Print times for selected rider."""
         _log.info('Print times not implemented.')
         pass
 
-    def tod_context_dns_activate_cb(self, menuitem, data=None):
+    def rider_context_dns_activate_cb(self, menuitem, data=None):
         """Register rider as non-starter."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
@@ -2490,7 +2480,7 @@ class irtt(rms):
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dns')
 
-    def tod_context_dnf_activate_cb(self, menuitem, data=None):
+    def rider_context_dnf_activate_cb(self, menuitem, data=None):
         """Register rider as non-finisher."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
@@ -2499,7 +2489,7 @@ class irtt(rms):
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dnf')
 
-    def tod_context_dsq_activate_cb(self, menuitem, data=None):
+    def rider_context_dsq_activate_cb(self, menuitem, data=None):
         """Disqualify rider."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
@@ -2508,12 +2498,12 @@ class irtt(rms):
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dsq')
 
-    def tod_context_rel_activate_cb(self, menuitem, data=None):
+    def rider_context_rel_activate_cb(self, menuitem, data=None):
         """Relegate rider."""
         _log.info('Relegate not implemented for time trial.')
         pass
 
-    def tod_context_ntr_activate_cb(self, menuitem, data=None):
+    def rider_context_ntr_activate_cb(self, menuitem, data=None):
         """Register no time recorded for rider and place last."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
@@ -2522,7 +2512,7 @@ class irtt(rms):
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'ntr')
 
-    def tod_context_clear_activate_cb(self, menuitem, data=None):
+    def rider_context_clear_activate_cb(self, menuitem, data=None):
         """Clear times for selected rider."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
@@ -2537,7 +2527,7 @@ class irtt(rms):
         if entry is not None:
             entry.set_text(tod.now().timestr())
 
-    def tod_context_edit_activate_cb(self, menuitem, data=None):
+    def rider_context_edit_activate_cb(self, menuitem, data=None):
         """Edit rider start/finish/etc."""
         sel = self.view.get_selection().get_selected()
         if sel is None:
@@ -2690,8 +2680,8 @@ class irtt(rms):
         if changed:
             self.recalculate()
 
-    def tod_context_del_activate_cb(self, menuitem, data=None):
-        """Delete selected row from race model."""
+    def rider_context_del_activate_cb(self, menuitem, data=None):
+        """Delete selected row from event model."""
         sel = self.view.get_selection().get_selected()
         if sel is not None:
             i = sel[1]  # grab off row iter
@@ -2745,7 +2735,7 @@ class irtt(rms):
         self.timelimit = None
         self.gapthresh = GAPTHRESH
 
-        # race run time attributes
+        # event run time attributes
         self.live_announce = False
         self.curlap = -1
         self.onlap = 1
@@ -2826,7 +2816,7 @@ class irtt(rms):
         )
 
         b = uiutil.builder('irtt.ui')
-        self.frame = b.get_object('race_vbox')
+        self.frame = b.get_object('event_vbox')
         self.frame.connect('destroy', self.shutdown)
 
         # meta info pane
@@ -2834,7 +2824,7 @@ class irtt(rms):
         self.set_titlestr()
 
         # Timer Panes
-        mf = b.get_object('race_timer_pane')
+        mf = b.get_object('event_timer_pane')
         self.sl = uiutil.timerpane('Start Line', doser=True)
         self.sl.disable()
         self.sl.bibent.connect('activate', self.bibent_cb, self.sl)
@@ -2848,6 +2838,7 @@ class irtt(rms):
         mf.pack_start(self.fl.frame, True, True, 0)
         mf.set_focus_chain([self.sl.frame, self.fl.frame, self.sl.frame])
         self.timerframe = mf
+        self.timericon = b.get_object('info_time_icon')
         self.lapentry = Gtk.Label()
         self.totlapentry = Gtk.Label()
 
@@ -2875,11 +2866,8 @@ class irtt(rms):
             uiutil.mkviewcoltod(t, 'Time', cb=self.elapstr)
             uiutil.mkviewcoltxt(t, 'Rank', COL_PLACE, halign=0.5, calign=0.5)
             t.show()
-            b.get_object('race_result_win').add(t)
-            b.connect_signals(self)
-
-            b = uiutil.builder('tod_context.ui')
-            self.context_menu = b.get_object('tod_context')
+            b.get_object('event_result_win').add(t)
+            self.context_menu = b.get_object('rider_context')
             b.connect_signals(self)
 
             # connect timer callback functions

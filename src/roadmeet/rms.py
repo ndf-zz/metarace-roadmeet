@@ -36,9 +36,9 @@ COL_NAMESTR = 1
 COL_SHORTNAME = 2
 COL_CAT = 3
 COL_COMMENT = 4
-COL_INRACE = 5  # boolean in the race
+COL_INRACE = 5  # boolean in the event
 COL_PLACE = 6  # Place assigned in result
-COL_LAPS = 7  # Incremented if inrace and not finished
+COL_LAPS = 7  # Incremented if COL_INRACE and not finished
 COL_SEED = 8  # Seeding number (overrides startlist ordering)
 
 # timing infos
@@ -85,9 +85,16 @@ RIDER_COMMANDS = {
     'que': 'Query riders',
     'fin': 'Final places',
     'dec': 'Add decision',
-    'ret': 'Return to race',
+    'ret': 'Return to event',
     'man': 'Manual passing',
     '': '',
+}
+_DNFLABELS = {
+    'did not start': 'dns',
+    'did not finish': 'dnf',
+    'withdrawn': 'wd',
+    'outside time limit': 'otl',
+    'disqualify': 'dsq',
 }
 
 RESERVED_SOURCES = [
@@ -582,7 +589,7 @@ class rms:
         return ' '.join(ret)
 
     def get_starters(self):
-        """Return a list of riders that 'started' the race."""
+        """Return a list of riders that 'started' the event."""
         ret = []
         for r in self.riders:
             if r[COL_COMMENT] != 'dns' or r[COL_INRACE]:
@@ -729,7 +736,7 @@ class rms:
         self.frame.hide()
 
     def title_close_clicked_cb(self, button, entry=None):
-        """Close and save the race."""
+        """Close and save the event."""
         self.meet.close_event()
 
     def set_titlestr(self, titlestr=None):
@@ -742,7 +749,7 @@ class rms:
         self.title_namestr.set_text(titlestr)
 
     def destroy(self):
-        """Emit destroy signal to race handler."""
+        """Emit destroy signal to event handler."""
         if self.context_menu is not None:
             self.context_menu.destroy()
         self.frame.destroy()
@@ -1225,7 +1232,7 @@ class rms:
         return ret
 
     def catresult_report(self):
-        """Return a categorised race result report."""
+        """Return a categorised event result report."""
         _log.debug('Categorised result report')
         ret = []
         for cat in self.cats:
@@ -1726,7 +1733,7 @@ class rms:
                     if wt is None:  # first finish time
                         wt = bt
                         first = False
-                        # for hcap, first time is always race time
+                        # for hcap, first time is always event time
                         dstr = wt.rawtime(0)
                     else:
                         # for handicap, time gap is always
@@ -1862,21 +1869,21 @@ class rms:
             if entry is not None:
                 entry.set_text('')
 
-    def race_ctrl_add(self, rlist):
+    def event_ctrl_add(self, rlist):
         """Add the supplied riders to event model with lookup"""
         rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
         for bib in rlist:
             self.addrider(bib)
         return True
 
-    def race_ctrl_del(self, rlist):
+    def event_ctrl_del(self, rlist):
         """Delete nominated riders from event model"""
         rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
         for bib in rlist:
             self.delrider(bib)
         return True
 
-    def race_ctrl(self, acode='', rlist=''):
+    def event_ctrl(self, acode='', rlist=''):
         """Apply the selected action to the provided bib list."""
         if acode in self.intermeds:
             if acode == 'brk':
@@ -1925,9 +1932,9 @@ class rms:
             self.manpassing(strops.reformat_bibserlist(rlist))
             return True
         elif acode == 'del':
-            return self.race_ctrl_del(rlist)
+            return self.event_ctrl_del(rlist)
         elif acode == 'add':
-            return self.race_ctrl_add(rlist)
+            return self.event_ctrl_add(rlist)
         elif acode == 'que':
             rlist = strops.reformat_biblist(rlist)
             if rlist != '':
@@ -2055,7 +2062,7 @@ class rms:
 
         Notes: 
 
-           - Handicap race type includes start offset in bonus time
+           - Handicap event type includes start offset in bonus time
            - Cross type adjusts time to include cat leader's average
              lap time and time down at finish
         """
@@ -2160,7 +2167,7 @@ class rms:
         self.resetplaces()
         self.places = ''
         _log.debug('Clear event result')
-        # scan riders to clear any race info
+        # scan riders to clear any event info
         for r in self.riders:
             r[COL_COMMENT] = ''
             r[COL_INRACE] = True
@@ -2400,16 +2407,7 @@ class rms:
         if event.type == Gdk.EventType.KEY_PRESS:
             key = Gdk.keyval_name(event.keyval) or 'None'
             if event.state & Gdk.ModifierType.CONTROL_MASK:
-                if key == key_abort:  # override ctrl+f5
-                    if uiutil.questiondlg(
-                            window=self.meet.window,
-                            question='Reset event to idle?',
-                            subtext=
-                            'Note: All result and timing data will be cleared.',
-                            title='Reset Event?'):
-                        self.resettimer()
-                    return True
-                elif key == key_announce:  # re-send current announce vars
+                if key == key_announce:  # re-send current announce vars
                     self.reannounce_times()
                     return True
                 elif key == key_clearfrom:  # clear all places from selected
@@ -2797,7 +2795,7 @@ class rms:
         if not lr[COL_INRACE]:
             _log.warning('Withdrawn rider: %s:%s@%s/%s', bib, e.chan,
                          e.rawtime(2), e.source)
-            # but continue as if still in race
+            # but continue as if still in event
         else:
             _log.info('Saw: %s:%s@%s/%s', bib, e.chan, e.rawtime(2), e.source)
 
@@ -2869,7 +2867,7 @@ class rms:
                 if self.etype == 'cross':
                     doarm = True
 
-        # for cross races when targets apply, armfinish is set automatically
+        # for cross events when targets apply, armfinish is set automatically
         if doarm and lapfinish and self.timerstat != 'armfinish':
             self.armfinish()
 
@@ -2913,7 +2911,7 @@ class rms:
         elif self.timerstat == 'running':
             self._dorecalc = True
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
-                # rider in the race, not yet finished: increment own lap count
+                # rider in the event, not yet finished: increment own lap count
                 lr[COL_LAPS] += 1
                 onlap = False
 
@@ -3767,7 +3765,7 @@ class rms:
                     _log.error('Non-starter in places: %r', no)
                     ret = False
                 else:
-                    # rider still in the race?
+                    # rider still in the event?
                     if not lr[COL_INRACE]:
                         _log.info('DNF/DNS rider in places: %r', no)
                         if dnf:
@@ -4068,7 +4066,7 @@ class rms:
 
                         # establish bunch time
                         if ft is None and r[COL_RFTIME] is not None:
-                            racefinish = r[COL_RFTIME]  # save race finish
+                            racefinish = r[COL_RFTIME]  # save event finish
                             ft = et.truncate(0)  # compute first time
                             bt = ft
                         else:
@@ -4594,7 +4592,7 @@ class rms:
             if change == 'delete':
                 _log.info('Delete rider: %r', selbib)
                 self.delrider(selbib)
-            elif change == 'clear':
+            elif change == 'clear finish':
                 _log.info('Clear rider %r finish time', selbib)
                 self.riders.set_value(i, COL_RFTIME, None)
                 self.riders.set_value(i, COL_MBUNCH, None)
@@ -4608,8 +4606,8 @@ class rms:
                         selbib, nf.rawtime(2))
                     self.riders.set_value(i, COL_RFTIME, nf)
                     self.recalculate()
-            elif change in ('dns', 'dnf', 'wd', 'otl', 'dsq'):
-                self.dnfriders(selbib, change)
+            elif change in _DNFLABELS:
+                self.dnfriders(selbib, _DNFLABELS[change])
             elif change == 'return':
                 self.retriders(selbib)
             elif change == 'passing':
@@ -4712,7 +4710,7 @@ class rms:
         )
 
         b = uiutil.builder('rms.ui')
-        self.frame = b.get_object('race_vbox')
+        self.frame = b.get_object('event_vbox')
 
         # meta info pane
         self.shortname = None
@@ -4762,10 +4760,7 @@ class rms:
                                 width=50)
             uiutil.mkviewcoltxt(t, 'Place', COL_PLACE, calign=0.5, width=50)
             t.show()
-            b.get_object('race_result_win').add(t)
-            b.connect_signals(self)
-
-            b = uiutil.builder('rms_context.ui')
+            b.get_object('event_result_win').add(t)
             self.context_menu = b.get_object('rms_context')
             self.view.connect('button_press_event', self.treeview_button_press)
             b.connect_signals(self)

@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 #
-# Crude user installation script for Debian/Linux/GNU systems
+# Crude user installation script for Linux/GNU systems
 #
 set -e
 
@@ -20,21 +20,43 @@ else
 fi
 
 # check distribution
-echo -n "Debian: "
+pkgstyle=apt
 if [ -e /etc/os-release ] ; then
   . /etc/os-release
-  if [ "x$ID" = "xdebian" ] ; then 
-    dv=`echo "$VERSION_ID" | cut -d . -f 1`
-    if [ "$dv" -gt 10 ] ; then
-      echo "$VERSION"
-    else
-      echo "Version $VERSION not supported."
+  echo -n "Distribution: "
+  dv=`echo "$VERSION_ID" | cut -d . -f 1`
+  case "x$ID" in
+    "xdebian")
+      if [ "$dv" -gt 10 ] ; then
+        echo "$NAME $VERSION"
+      else
+        echo "$NAME version $VERSION not supported."
+        exit
+      fi
+    ;;
+    "xubuntu")
+      if [ "$dv" -gt 21 ] ; then
+        echo "$NAME $VERSION"
+      else
+        echo "$NAME version $VERSION not supported."
+        exit
+      fi
+    ;;
+    "xarch")
+      pkgstyle=pacman
+      echo "Arch [TODO]"
       exit
-    fi
-  else
-    echo "$ID not supported by this installer."
-    exit
-  fi
+    ;;
+    "xalpine")
+      pkgstyle=apk
+      echo "Alpine [TODO]"
+      exit
+    ;;
+    *)
+      echo "$ID not supported by this installer."
+      exit
+    ;;
+  esac
 else
   echo OS info not found.
   exit
@@ -56,7 +78,7 @@ read -p "Update system packages? [y/N]: " doupdate
 if [ "x$doupdate" = "xy" ] ; then
   echo -n "Updating system packages: "
   sudo apt-get update -q
-  sudo apt-get install -q -y python3-venv python3-pip python3-cairo python3-gi python3-gi-cairo python3-serial python3-paho-mqtt python3-dateutil python3-xlwt tex-gyre fonts-noto evince gir1.2-gtk-3.0 gir1.2-rsvg-2.0 gir1.2-pango-1.0 mosquitto
+  sudo apt-get install -q -y python3-venv python3-pip python3-cairo python3-gi python3-gi-cairo python3-serial python3-paho-mqtt python3-dateutil python3-xlwt fonts-texgyre fonts-noto evince gir1.2-gtk-3.0 gir1.2-rsvg-2.0 gir1.2-pango-1.0 mosquitto
   echo Done.
   # Make sure user is member of dialout group
   echo -n "Serial port access: "
@@ -116,7 +138,6 @@ metarace.init()'
   echo Updated.
 fi
 
-# replace desktop shortcut entry
 echo -n "Desktop entry: "
 XDGPATH="$HOME/.local/share/applications"
 SPATH="$XDGPATH/metarace"
@@ -134,18 +155,29 @@ MimeType=inode/directory;application/json;
 Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
-Actions=Config;
-
-[Desktop Action Config]
-Exec=$VPATH/bin/roadmeet --edit-default
-Name=Edit Meet Defaults
-Icon=preferences-system
 __EOF__
 mv "$TMPF" "$SPATH/roadmeet.desktop"
 echo "$SPATH/roadmeet.desktop"
+echo -n "Config entry: "
+TMPF=`mktemp -p "$SPATH"`
+tee "$TMPF" <<__EOF__ >/dev/null
+[Desktop Entry]
+Version=1.0
+Type=Application
+Exec=$VPATH/bin/roadmeet --edit-default
+Icon=$DPATH/default/metarace_icon.svg
+Terminal=false
+StartupNotify=true
+Name=Roadmeet Config
+Comment=Edit roadmeet default configuration
+Categories=Settings;
+__EOF__
+mv "$TMPF" "$SPATH/roadmeet-config.desktop"
+echo "$SPATH/roadmeet-config.desktop"
 echo -n "Update MIME types cache: "
 update-desktop-database -q "$XDGPATH"
 echo "Done."
+
 echo
 echo Package roadmeet installed.
 if [ "x$gchange" = "xy" ] ; then

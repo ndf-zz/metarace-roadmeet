@@ -31,9 +31,9 @@ COL_NAMESTR = 1
 COL_SHORTNAME = 2
 COL_CAT = 3
 COL_COMMENT = 4
-COL_INRACE = 5  # boolean in the race
+COL_INRACE = 5  # boolean in the event
 COL_PLACE = 6  # Place assigned in result
-COL_LAPS = 7  # Incremented if inrace and not finished
+COL_LAPS = 7  # Incremented if COL_INRACE and not finished
 COL_SEED = 8  # Seeding number (overrides startlist ordering)
 
 # timing infos
@@ -568,7 +568,7 @@ class trtt(rms):
         aux = []
         cnt = 0
         for r in self.riders:
-            # in the race?
+            # in the event?
             inField = True
             if not r[COL_INRACE]:
                 inField = False
@@ -955,7 +955,7 @@ class trtt(rms):
         return ret
 
     def result_report(self):
-        """Return a race result report"""
+        """Return event result report"""
         ret = []
         self.recalculate()
 
@@ -973,7 +973,7 @@ class trtt(rms):
 
         return ret
 
-    def race_ctrl_add(self, rlist):
+    def event_ctrl_add(self, rlist):
         """Add the supplied riders to event model with lookup"""
         rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
         for bib in rlist:
@@ -981,7 +981,7 @@ class trtt(rms):
         self.team_start_times()
         return True
 
-    def race_ctrl_del(self, rlist):
+    def event_ctrl_del(self, rlist):
         """Delete nominated riders from event model"""
         rlist = strops.riderlist_split(rlist, self.meet.rdb, self.series)
         for bib in rlist:
@@ -1128,7 +1128,7 @@ class trtt(rms):
         self.team_start_times()
 
     def resettimer(self):
-        """Reset race timer."""
+        """Reset event timer."""
         _log.info('Reset event to idle')
         self.set_start()
         self.clear_results()
@@ -1227,7 +1227,7 @@ class trtt(rms):
         elif self.timerstat == 'running':
             self._dorecalc = True
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
-                # rider in the race, not yet finished: increment own lap count
+                # rider in event, not yet finished: increment own lap count
                 lr[COL_LAPS] += 1
 
                 # announce all rider passings
@@ -1572,7 +1572,7 @@ class trtt(rms):
         )
 
         b = uiutil.builder('rms.ui')
-        self.frame = b.get_object('race_vbox')
+        self.frame = b.get_object('event_vbox')
         self.frame.connect('destroy', self.shutdown)
 
         # meta info pane
@@ -1618,12 +1618,9 @@ class trtt(rms):
                                 width=50)
             uiutil.mkviewcoltxt(t, 'Arvl', COL_PLACE, calign=0.5, width=50)
             t.show()
-            b.get_object('race_result_win').add(t)
-            b.connect_signals(self)
-
-            b = uiutil.builder('rms_context.ui')
+            b.get_object('event_result_win').add(t)
             self.context_menu = b.get_object('rms_context')
-            self.view.connect('button_press_event', self.treeview_button_press)
             b.connect_signals(self)
+            self.view.connect('button_press_event', self.treeview_button_press)
             self.meet.timercb = self.timertrig
             self.meet.alttimercb = self.alttimertrig

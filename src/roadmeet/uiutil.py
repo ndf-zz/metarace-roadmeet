@@ -399,7 +399,7 @@ class timerpane:
 
     def __init__(self, label='Timer', doser=False):
         """Constructor."""
-        _log.debug('building the timerpane')
+        _log.debug('Building timerpane: %r', label)
         s = Gtk.Frame.new(label)
         s.set_border_width(5)
         s.set_shadow_type(Gtk.ShadowType.IN)
@@ -1334,7 +1334,7 @@ class decisionEditor:
         bb.set_layout(Gtk.ButtonBoxStyle.START)
         bb.show()
 
-        but = Gtk.Button.new_from_icon_name('list-add',
+        but = Gtk.Button.new_from_icon_name('list-add-symbolic',
                                             Gtk.IconSize.LARGE_TOOLBAR)
         but.set_always_show_image(True)
         but.show()
@@ -1342,7 +1342,7 @@ class decisionEditor:
         bb.pack_start(but, False, False, 0)
         bb.set_child_non_homogeneous(but, True)
 
-        but = Gtk.Button.new_from_icon_name('list-remove',
+        but = Gtk.Button.new_from_icon_name('list-remove-symbolic',
                                             Gtk.IconSize.LARGE_TOOLBAR)
         but.set_always_show_image(True)
         but.show()

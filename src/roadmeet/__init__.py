@@ -309,19 +309,30 @@ class roadmeet:
         """Lookup cats and write them into the supplied entry."""
         entry.set_text(' '.join(self.rdb.listcats()))
 
-    def menu_race_decisions_activate_cb(self, menuitem, data=None):
+    def menu_event_decisions_activate_cb(self, menuitem, data=None):
         """Edit decisions of the commissaires panel."""
         if self.curevent is not None:
             self.curevent.decisions = uiutil.decisions_dlg(
                 self.window, self.curevent.decisions)
 
-    def menu_race_properties_activate_cb(self, menuitem, data=None):
-        """Edit race specific properties."""
+    def menu_event_properties_activate_cb(self, menuitem, data=None):
+        """Edit event specific properties."""
         if self.curevent is not None:
-            _log.debug('Editing race properties')
+            _log.debug('Editing event properties')
             if self.curevent.edit_event_properties(self.window):
                 _log.info('Event re-start required')
                 self.event_reload()
+
+    def menu_event_reset_cb(self, menuitem, data=None):
+        """Reset current event."""
+        if self.curevent is not None:
+            _log.debug('Reset event')
+            if uiutil.questiondlg(
+                    window=self.window,
+                    question='Reset event to idle?',
+                    subtext='Note: All result and timing data will be cleared.',
+                    title='Reset Event?'):
+                self.curevent.resettimer()
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
@@ -537,7 +548,7 @@ class roadmeet:
         self.set_title()
         return False
 
-    def menu_race_armstart_activate_cb(self, menuitem, data=None):
+    def menu_event_armstart_activate_cb(self, menuitem, data=None):
         """Default armstart handler."""
         _log.info('Arm Start')
         try:
@@ -545,7 +556,7 @@ class roadmeet:
         except Exception as e:
             _log.error('Arm start %s: %s', e.__class__.__name__, e)
 
-    def menu_race_armlap_activate_cb(self, menuitem, data=None):
+    def menu_event_armlap_activate_cb(self, menuitem, data=None):
         """Default armlap handler."""
         _log.debug('Arm Lap')
         try:
@@ -553,7 +564,7 @@ class roadmeet:
         except Exception as e:
             _log.error('Arm lap %s: %s', e.__class__.__name__, e)
 
-    def menu_race_armfin_activate_cb(self, menuitem, data=None):
+    def menu_event_armfin_activate_cb(self, menuitem, data=None):
         """Default armfin handler."""
         _log.info('Arm Finish')
         try:
@@ -561,7 +572,7 @@ class roadmeet:
         except Exception as e:
             _log.error('Arm finish %s: %s', e.__class__.__name__, e)
 
-    def menu_race_finished_activate_cb(self, menuitem, data=None):
+    def menu_event_finished_activate_cb(self, menuitem, data=None):
         """Default finished handler."""
         _log.info('Finished')
         try:
@@ -582,7 +593,7 @@ class roadmeet:
             self.curevent = rms(self, self.etype, True)
 
         self.curevent.loadconfig()
-        self.race_box.add(self.curevent.frame)
+        self.event_box.add(self.curevent.frame)
 
         # re-populate the rider command model.
         cmdo = self.curevent.get_ridercmdorder()
@@ -595,10 +606,10 @@ class roadmeet:
         self.curevent.show()
 
     def close_event(self):
-        """Close the currently opened race."""
+        """Close the currently opened event."""
         if self.curevent is not None:
-            if self.curevent.frame in self.race_box.get_children():
-                self.race_box.remove(self.curevent.frame)
+            if self.curevent.frame in self.event_box.get_children():
+                self.event_box.remove(self.curevent.frame)
             self.curevent.destroy()
             self.curevent = None
             self.stat_but.update('idle', 'Closed')
@@ -646,7 +657,7 @@ class roadmeet:
             if sections:
                 self.print_report(sections)
 
-    def race_results_points_activate_cb(self, menuitem, data=None):
+    def event_results_points_activate_cb(self, menuitem, data=None):
         """Generate the points tally report."""
         if self.curevent is not None:
             sections = self.curevent.points_report()
@@ -654,7 +665,7 @@ class roadmeet:
                 self.print_report(sections)
 
     def menu_reports_result_activate_cb(self, menuitem, data=None):
-        """Generate the race result report."""
+        """Generate the event result report."""
         if self.curevent is not None:
             sections = self.curevent.result_report()
             if sections:
@@ -954,7 +965,7 @@ class roadmeet:
         self._alttimer.status()
 
     def menu_timing_start_activate_cb(self, menuitem, data=None):
-        """Manually set race elapsed time via trigger."""
+        """Manually set event elapsed time via trigger."""
         if self.curevent is None:
             _log.info('No event open to set elapsed time on')
         else:
@@ -1049,21 +1060,21 @@ class roadmeet:
         uiutil.about_dlg(self.window, VERSION)
 
     ## Race Control Elem callbacks
-    def race_stat_but_clicked_cb(self, button, data=None):
+    def event_stat_but_clicked_cb(self, button, data=None):
         """Call through into event if open."""
         if self.curevent is not None:
             self.curevent.stat_but_clicked(button)
 
-    def race_stat_entry_activate_cb(self, entry, data=None):
+    def event_stat_entry_activate_cb(self, entry, data=None):
         """Pass the chosen action and bib list through to curevent."""
         action = self.action_model.get_value(
             self.action_combo.get_active_iter(), 0)
         if self.curevent is not None:
-            if self.curevent.race_ctrl(action, self.action_entry.get_text()):
+            if self.curevent.event_ctrl(action, self.action_entry.get_text()):
                 self.action_entry.set_text('')
 
     ## Menu button callbacks
-    def race_action_combo_changed_cb(self, combo, data=None):
+    def event_action_combo_changed_cb(self, combo, data=None):
         """Notify curevent of change in combo."""
         aiter = self.action_combo.get_active_iter()
         if self.curevent is not None and aiter is not None:
@@ -1085,7 +1096,7 @@ class roadmeet:
                     _log.debug('Removing completed export thread.')
 
             if self.running:
-                # call into race timeout handler
+                # call into event timeout handler
                 if self.curevent is not None:
                     self.curevent.timeout()
 
@@ -1160,7 +1171,7 @@ class roadmeet:
         return False
 
     def key_event(self, widget, event):
-        """Collect key events on main window and send to race."""
+        """Collect key events on main window and send to event."""
         if event.type == Gdk.EventType.KEY_PRESS:
             key = Gdk.keyval_name(event.keyval) or 'None'
             if event.state & Gdk.ModifierType.CONTROL_MASK:
@@ -1176,6 +1187,10 @@ class roadmeet:
                     # passing
                     self._timercb(t)
                     return True
+                elif key == 'left':
+                    self.notebook.prev_page()
+                elif key == 'right':
+                    self.notebook.next_page()
             if self.curevent is not None:
                 return self.curevent.key_event(widget, event)
         return False
@@ -1277,7 +1292,7 @@ class roadmeet:
             _log.warning('Meet config mismatch: %r != %r', cid, ROADMEET_ID)
 
     def get_distance(self):
-        """Return race distance in km."""
+        """Return meet distance in km."""
         return self.distance
 
     ## Announcer methods (replaces old irc/unt telegraph)
@@ -1554,9 +1569,17 @@ class roadmeet:
                         i = sel[1]
                         r = Gtk.TreeModelRow(self._cur_model, i)
                         self._cur_rider_sel = r[7]
+                        self._rider_menu_edit.set_sensitive(True)
+                        self._rider_menu_del.set_sensitive(True)
                     else:
                         _log.error('Invalid selection ignored')
                         self._cur_rider_sel = None
+                        self._rider_menu_edit.set_sensitive(False)
+                        self._rider_menu_del.set_sensitive(False)
+                else:
+                    self._cur_rider_sel = None
+                    self._rider_menu_edit.set_sensitive(False)
+                    self._rider_menu_del.set_sensitive(False)
                 self._rider_menu.popup_at_pointer(None)
                 return True
         return False
@@ -1816,14 +1839,15 @@ class roadmeet:
         self.log_scroll = b.get_object('log_box').get_vadjustment()
         self.context = self.status.get_context_id('metarace meet')
         self.decoder_configure = b.get_object('menu_timing_configure')
-        self.race_box = b.get_object('race_box')
+        self.event_box = b.get_object('event_box')
         self.stat_but = uiutil.statButton()
-        b.get_object('race_stat_but').add(self.stat_but)
-        self.action_model = b.get_object('race_action_model')
-        self.action_combo = b.get_object('race_action_combo')
-        self.action_entry = b.get_object('race_action_entry')
-        b.get_object('race_stat_hbox').set_focus_chain(
+        b.get_object('event_stat_but').add(self.stat_but)
+        self.action_model = b.get_object('event_action_model')
+        self.action_combo = b.get_object('event_action_combo')
+        self.action_entry = b.get_object('event_action_entry')
+        b.get_object('event_stat_hbox').set_focus_chain(
             [self.action_combo, self.action_entry, self.action_combo])
+        self.notebook = b.get_object('meet_nb')
 
         # prepare local scratch pad ? can these be removed?
         self.an_cur_lap = tod.ZERO
@@ -1832,6 +1856,14 @@ class roadmeet:
         self.an_cur_bunchcnt = 0
         self.an_last_time = None
         self.an_cur_start = tod.ZERO
+
+        # setup context menu handles
+        self._rider_menu = b.get_object('rider_context')
+        self._rider_menu_edit = b.get_object('rider_edit')
+        self._rider_menu_lookup = b.get_object('rider_lookup')
+        self._rider_menu_del = b.get_object('rider_del')
+        self._cur_rider_sel = None
+        self._cur_model = None
 
         b.connect_signals(self)
 
@@ -1853,13 +1885,6 @@ class roadmeet:
         self.lh.setFormatter(f)
         self.lh.setLevel(logging.INFO)  # show info+ in text view
         rootlogger.addHandler(self.lh)
-
-        # create a rider context menu
-        bc = uiutil.builder('rider_context.ui')
-        self._rider_menu = bc.get_object('rider_context')
-        self._cur_rider_sel = None
-        self._cur_model = None
-        bc.connect_signals(self)
 
         # Build a rider list store and view
         self._rlm = Gtk.ListStore(
@@ -1942,7 +1967,7 @@ class roadmeet:
         self._maptag = {}
 
         # select event page in notebook.
-        b.get_object('meet_nb').set_current_page(0)
+        self.notebook.set_current_page(0)
 
         # start timer
         GLib.timeout_add_seconds(1, self.timeout)

@@ -1,45 +1,25 @@
-<?xml version="1.0"?>
+<!-- rms event ui -->
 <interface>
-  <requires lib="gtk+" version="2.16"/>
-  <!-- interface-naming-policy project-wide -->
-  <object class="GtkListStore" id="race_action_model">
-    <columns>
-      <!-- column-name action -->
-      <column type="gchararray"/>
-      <!-- column-name code -->
-      <column type="gchararray"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">Withdraw</col>
-        <col id="1" translatable="yes">dnf</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Add Starters</col>
-        <col id="1" translatable="yes">add</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Del Starters</col>
-        <col id="1" translatable="yes">del</col>
-      </row>
-    </data>
-  </object>
-  <object class="GtkVBox" id="race_vbox">
-    <property name="visible">True</property>
+  <requires lib="gtk+" version="3.0"/>
+  <object class="GtkBox" id="event_vbox">
     <property name="orientation">vertical</property>
+    <property name="visible">True</property>
     <child>
-      <object class="GtkHBox" id="race_title_box">
+      <object class="GtkBox" id="event_title_box">
+        <property name="orientation">horizontal</property>
         <property name="visible">True</property>
         <property name="border_width">5</property>
         <child>
           <object class="GtkLabel" id="title_namestr">
             <property name="visible">True</property>
             <property name="xalign">0</property>
-            <property name="label" translatable="yes">Lines</property>
+            <property name="label">Lines</property>
           </object>
           <packing>
             <property name="padding">2</property>
-            <property name="position">0</property>
+            <property name="pack-type">start</property>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
           </packing>
         </child>
         <child>
@@ -50,45 +30,39 @@
             <property name="single_line_mode">True</property>
           </object>
           <packing>
-            <property name="expand">False</property>
+            <property name="pack-type">start</property>
             <property name="padding">2</property>
-            <property name="position">1</property>
           </packing>
         </child>
         <child>
           <object class="GtkEntry" id="lapentry">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="invisible_char">&#x25CF;</property>
             <property name="width_chars">3</property>
             <signal name="activate" handler="lapentry_activate_cb"/>
           </object>
           <packing>
-            <property name="expand">False</property>
-            <property name="position">2</property>
+            <property name="pack-type">start</property>
           </packing>
         </child>
         <child>
           <object class="GtkLabel" id="lapsepslash">
             <property name="visible">True</property>
-            <property name="label" translatable="yes">/</property>
+            <property name="label">/</property>
           </object>
           <packing>
-            <property name="expand">False</property>
-            <property name="position">3</property>
+            <property name="pack-type">start</property>
           </packing>
         </child>
         <child>
           <object class="GtkEntry" id="totlapentry">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="invisible_char">&#x25CF;</property>
             <property name="width_chars">3</property>
             <signal name="activate" handler="totlapentry_activate_cb"/>
           </object>
           <packing>
-            <property name="expand">False</property>
-            <property name="position">4</property>
+            <property name="pack-type">start</property>
           </packing>
         </child>
         <child>
@@ -96,58 +70,146 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
-            <property name="tooltip_text" translatable="yes">Manually adjust event time</property>
+            <property name="tooltip_text">Manually adjust event time</property>
             <signal name="clicked" handler="info_time_edit_clicked_cb"/>
             <child>
-              <object class="GtkImage" id="race_time_edit_icon">
+              <object class="GtkImage" id="event_time_edit_icon">
                 <property name="visible">True</property>
-                <property name="tooltip_text" translatable="yes">Manually adjust event times</property>
-                <property name="stock">gtk-edit</property>
+                <property name="icon-name">document-edit-symbolic</property>
                 <property name="icon-size">1</property>
               </object>
             </child>
           </object>
           <packing>
-            <property name="expand">False</property>
+            <property name="pack-type">start</property>
             <property name="padding">2</property>
-            <property name="position">5</property>
           </packing>
         </child>
       </object>
       <packing>
-        <property name="expand">False</property>
-        <property name="position">0</property>
+        <property name="pack-type">start</property>
       </packing>
     </child>
     <child>
-      <object class="GtkScrolledWindow" id="race_result_win">
+      <object class="GtkScrolledWindow" id="event_result_win">
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="border_width">5</property>
         <property name="hscrollbar_policy">automatic</property>
         <property name="vscrollbar_policy">automatic</property>
         <property name="shadow_type">in</property>
-        <child>
-          <placeholder/>
-        </child>
       </object>
       <packing>
-        <property name="position">1</property>
+        <property name="pack-type">start</property>
+        <property name="expand">True</property>
+        <property name="fill">True</property>
       </packing>
     </child>
   </object>
-  <object class="GtkListStore" id="race_timetype_model">
-    <columns>
-      <!-- column-name label -->
-      <column type="gchararray"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0" translatable="yes">ITT/Pursuit</col>
-      </row>
-      <row>
-        <col id="0" translatable="yes">Flying Start</col>
-      </row>
-    </data>
+
+  <!-- rider context menu -->
+  <object class="GtkMenu" id="rms_context">
+    <property name="visible">True</property>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_edit">
+        <property name="label">Edit</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_edit_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_clear">
+        <property name="label">Clear Finish</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_refinish">
+        <property name="label">Refinish</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_pass">
+        <property name="label">Passing</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rms_context_sep1">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dns">
+        <property name="label">Did Not Start</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_wd">
+        <property name="label">Withdrawn</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_otl">
+        <property name="label">Outside Time Limit</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dnf">
+        <property name="label">Did Not Finish</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_dsq">
+        <property name="label">Disqualify</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_ret">
+        <property name="label">Return</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="rms_context_sep0">
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_down">
+        <property name="label">Laps Down</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_down_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_swap">
+        <property name="label">Swap</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_swap_activate_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rms_context_del">
+        <property name="label">Delete</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_chg_activate_cb"/>
+      </object>
+    </child>
   </object>
 </interface>
