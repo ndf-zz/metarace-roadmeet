@@ -1,103 +1,246 @@
 #!/usr/bin/env sh
 #
-# Crude user installation script for Linux/GNU systems
+# Crude installation script for Unix-like systems
 #
 set -e
 
+check_command() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+check_continue() {
+  echo "  - $1 Continue? [Enter]"
+  read -r yesno
+  if [ "$yesno" = "" ] ; then
+    return 0
+  else
+    echo "Installation Aborted"
+    exit
+  fi
+}
+
+check_yesno() {
+  echo "  - $1 [y/n]"
+  read -r yesno
+  if [ "$yesno" = "y" ] ; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+echo_continue() {
+  echo "  - $1"
+}
+
+sysup_apt() {
+  echo "Synchronize Package Index:"
+  sudo apt-get update
+  echo_continue "Done"
+
+  echo "Install Required Packages:"
+  sudo apt-get install -y python3-venv python3-pip python3-cairo python3-gi python3-gi-cairo python3-serial python3-paho-mqtt python3-dateutil python3-xlwt gir1.2-gtk-3.0 gir1.2-rsvg-2.0 gir1.2-pango-1.0
+  echo_continue "Done"
+
+  echo "Install Optional Components:"
+  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+    sudo apt-get install -y fonts-texgyre fonts-noto evince mosquitto rsync
+    echo_continue "Done"
+  else
+    echo_continue "Skipped"
+  fi
+}
+
+sysup_dnf() {
+  echo "Install Required Packages:"
+  sudo dnf -q -y install gtk3 gobject-introspection cairo-gobject python3-pip python3-cairo python3-pyserial python3-paho-mqtt python3-dateutil python3-xlwt
+  echo_continue "Done"
+
+  echo "Install Optional Components:"
+  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+    sudo dnf -q -y install google-noto-sans-fonts google-noto-mono-fonts google-noto-emoji-fonts texlive-tex-gyre evince rsync mosquitto
+    sudo systemctl enable mosquitto.service
+    echo_continue "Done"
+  else
+    echo_continue "Skipped"
+  fi
+}
+
+sysup_pacman() {
+  echo "Install Required Packages:"
+  sudo pacman -S --noconfirm -q --needed python python-pip gtk3 python-pyserial python-dateutil python-xlwt python-paho-mqtt python-gobject python-cairo
+  echo_continue "Done"
+
+  echo "Install Optional Components:"
+  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+    sudo pacman -S --noconfirm -q --needed noto-fonts tex-gyre-fonts evince rsync mosquitto
+    sudo systemctl enable mosquitto.service
+    echo_continue "Done"
+  else
+    echo_continue "Skipped"
+  fi
+}
+
 # abort if not normal user
 if [ "$(id -u)" -eq 0 ]; then
-  echo Running as root: Aborting installation.
+  echo "Running as root, installation aborted."
   exit
 fi
 
-# check sys
-echo -n "OS: "
-if uname -o | grep -F "GNU/Linux" ; then
-  true
+# check operating system
+echo "Operating System:"
+OSINFO="unknown"
+if check_command uname ; then
+  OSINFO=$(uname -o)
+fi
+if [ "$OSINFO" = "unknown" ] ; then
+  check_continue "Unknown OS."
 else
-  echo Incorrect operating system.
-  exit
+  echo_continue "$OSINFO"
 fi
 
-# check distribution
-pkgstyle=apt
+# check distribution via os-release if available
+ttygroup="unknown"
+pkgstyle="unknown"
 if [ -e /etc/os-release ] ; then
+  # This machine probably uses systemd, check distro and version
   . /etc/os-release
-  echo -n "Distribution: "
-  dv=`echo "$VERSION_ID" | cut -d . -f 1`
-  case "x$ID" in
-    "xdebian")
+  echo "Distribution/Release:"
+  dv=$(echo "$VERSION_ID" | cut -d . -f 1)
+  case "$ID" in
+    "debian")
+      pkgstyle="apt"
+      ttygroup="dialout"
       if [ "$dv" -gt 10 ] ; then
-        echo "$NAME $VERSION"
+        echo_continue "$NAME $VERSION"
       else
-        echo "$NAME version $VERSION not supported."
-        exit
+        check_continue "$NAME $VERSION not supported."
       fi
     ;;
-    "xubuntu")
-      if [ "$dv" -gt 21 ] ; then
-        echo "$NAME $VERSION"
-      else
-        echo "$NAME version $VERSION not supported."
-        exit
-      fi
+    "ubuntu")
+      pkgstyle="apt"
+      ttygroup="dialout"
+      echo_continue "$NAME $VERSION"
     ;;
-    "xarch")
-      pkgstyle=pacman
-      echo "Arch [TODO]"
-      exit
+    "linuxmint")
+      pkgstyle="apt"
+      ttygroup="dialout"
+      echo_continue "$NAME $VERSION"
     ;;
-    "xalpine")
-      pkgstyle=apk
-      echo "Alpine [TODO]"
-      exit
+    "arch")
+      pkgstyle="pacman"
+      ttygroup="uucp"
+      echo_continue "$NAME"
+    ;;
+    "manjaro")
+      pkgstyle="pacman"
+      ttygroup="uucp"
+      echo_continue "$NAME"
+    ;;
+    "alpine")
+      pkgstyle="apk"
+      check_continue "$NAME $VERSION TODO."
+    ;;
+    "fedora")
+      pkgstyle="dnf"
+      ttygroup="dialout"
+      echo_continue "$NAME $VERSION"
     ;;
     *)
-      echo "$ID not supported by this installer."
-      exit
+      check_continue "$NAME $VERSION not recognised."
     ;;
   esac
-else
-  echo OS info not found.
-  exit
 fi
 
-# check python version
-echo -n "Python >= 3.9: "
-if python3 -c 'import sys
-print(sys.version_info>=(3,9))' | grep -F "True" ; then
-  true
-else
-  echo Python version too old.
-  exit
-fi
-
-# check deb sys packages and group membership
-gchange=n
-read -p "Update system packages? [y/N]: " doupdate
-if [ "x$doupdate" = "xy" ] ; then
-  echo -n "Updating system packages: "
-  sudo apt-get update -q
-  sudo apt-get install -q -y python3-venv python3-pip python3-cairo python3-gi python3-gi-cairo python3-serial python3-paho-mqtt python3-dateutil python3-xlwt fonts-texgyre fonts-noto evince gir1.2-gtk-3.0 gir1.2-rsvg-2.0 gir1.2-pango-1.0 mosquitto
-  echo Done.
-  # Make sure user is member of dialout group
-  echo -n "Serial port access: "
-  if groups | grep -F dialout >/dev/null 2>&1 ; then
-    echo OK.
+echo "Package Manager:"
+if [ "$pkgstyle" = "unknown" ] ; then
+  if check_command apt ; then
+    pkgstyle="apt"
+    echo_continue "Debian/apt"
+  elif command -v pacman ; then
+    pkgstyle="pacman"
+    check_continue "Arch/pacman todo."
+  elif command -v dnf ; then
+    pkgstyle="dnf"
+    echo "Fedora/dnf"
+  elif command -v apk ; then
+    pkgstyle="apk"
+    check_continue "Alpine/apk todo."
+  elif command -v brew ; then
+    pkgstyle="brew"
+    check_continue "MacOS/brew todo."
+  elif command -v flatpak ; then
+    pkgstyle="flatpak"
+    check_continue "Flatpak todo."
   else
-    sudo gpasswd -a "$USER" dialout
-    gchange=y
+    check_continue "Not found."
   fi
 else
-  echo System packages not updated.
+  echo_continue "$pkgstyle"
 fi
 
-# check for venv module
-echo -n "Python venv: "
-if python3 -c 'import venv' >/dev/null 2>&1 ; then
-  echo OK.
+if [ "$pkgstyle" = "unknown" ] ; then
+  # assume ok
+  true
 else
-  echo Not installed.
+  echo "Install System Requirements:"
+  if check_yesno "Use $pkgstyle to install requirements?" ; then
+    case "$pkgstyle" in
+      "apt")
+        sysup_apt
+      ;;
+      "dnf")
+        sysup_dnf
+      ;;
+      "pacman")
+        sysup_pacman
+      ;;
+      *)
+        echo_continue "Unknown package style - skipped"
+      ;;
+    esac
+  fi
+fi
+
+# check serial port access
+if [ "$ttygroup" = "unknown" ] ; then
+  true
+else
+  echo "Serial Port Access:"
+  if groups | grep -F "$ttygroup" >/dev/null 2>&1 ; then
+    echo_continue "OK ($ttygroup)"
+  else
+    if check_yesno "Add $USER to group $ttygroup?" ; then
+      sudo gpasswd -a "$USER" "$ttygroup"
+      echo_continue "Done"
+    else
+      echo_continue "Skipped"
+    fi
+  fi
+fi
+
+# check python interpreter version
+echo "Python Interpreter:"
+if check_command python3 ; then
+  echo_continue "Present"
+else
+  echo_continue "Python interpreter not found, installation aborted."
+  exit
+fi
+echo "Python Version >= 3.9:"
+if python3 -c 'import sys
+print(sys.version_info>=(3,9))' | grep -F "True" >/dev/null ; then
+  echo_continue "Yes"
+else
+  echo_continue "Python version too old, installation aborted."
+  exit
+fi
+# check for venv module
+echo "Python venv Module:"
+if python3 -c 'import venv' >/dev/null 2>&1 ; then
+  echo_continue "Present"
+else
+  echo_continue "Not available, installation aborted."
   exit
 fi
 
@@ -105,50 +248,52 @@ fi
 DPATH="$HOME/Documents/metarace"
 VDIR="venv"
 VPATH="$DPATH/$VDIR"
-echo -n "Venv: "
+echo "Check Installation Path:"
 if [ -d "$VPATH" ] ; then
-  echo "$VDIR"
+  echo_continue "Present"
 else
-  echo Build new.
   mkdir -p "$DPATH"
+  echo_continue "Creating new venv $VPATH"
 fi
 
 # re-build venv
-echo -n "Updating venv: "
+echo "Update Venv:"
 python3 -m venv --system-site-packages "$VPATH"
-echo Done.
+echo_continue "Done"
 
 # install packages
-echo -n "Updating roadmeet: "
+echo "Update Roadmeet From PyPI:"
 if [ -e "$VPATH/bin/pip3" ] ; then 
   "$VPATH/bin/pip3" -q install metarace-roadmeet --upgrade
-  echo "$VPATH/bin/roadmeet"
+  echo_continue "$VPATH/bin/roadmeet"
 else
-  echo Unable to install: Virtual env not setup.
+  echo_continue "Unable to install: Virtual env not setup."
+  exit
 fi
 
 # run a dummy metarace init to populate the data directories
-echo -n "Defaults folder: "
-DEFS="$DPATH/default/metarace_icon.svg"
-if [ -e "$DEFS" ] ; then
-  echo Unchanged.
+echo "Defaults folder:"
+DEFICON="$DPATH/default/metarace_icon.svg"
+if [ -e "$DEFICON" ] ; then
+  echo_continue "Present"
 else
   "$VPATH/bin/python3" -c 'import metarace
 metarace.init()'
-  echo Updated.
+  echo_continue "Created new defaults"
 fi
 
-echo -n "Desktop entry: "
-XDGPATH="$HOME/.local/share/applications"
-SPATH="$XDGPATH/metarace"
-mkdir -p "$SPATH"
-TMPF=`mktemp -p "$SPATH"`
-tee "$TMPF" <<__EOF__ >/dev/null
+echo "Desktop Shortcuts:"
+if check_command update-desktop-database ; then
+  XDGPATH="$HOME/.local/share/applications"
+  SPATH="$XDGPATH/metarace"
+  mkdir -p "$SPATH"
+  TMPF=$(mktemp -p "$SPATH")
+  tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
 Version=1.0
 Type=Application
 Exec=$VPATH/bin/roadmeet %f
-Icon=$DPATH/default/metarace_icon.svg
+Icon=$DEFICON
 Terminal=false
 StartupNotify=true
 MimeType=inode/directory;application/json;
@@ -156,30 +301,28 @@ Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
 __EOF__
-mv "$TMPF" "$SPATH/roadmeet.desktop"
-echo "$SPATH/roadmeet.desktop"
-echo -n "Config entry: "
-TMPF=`mktemp -p "$SPATH"`
-tee "$TMPF" <<__EOF__ >/dev/null
+  mv "$TMPF" "$SPATH/roadmeet.desktop"
+  echo_continue "$SPATH/roadmeet.desktop"
+  TMPF=$(mktemp -p "$SPATH")
+  tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
 Version=1.0
 Type=Application
 Exec=$VPATH/bin/roadmeet --edit-default
-Icon=$DPATH/default/metarace_icon.svg
+Icon=$DEFICON
 Terminal=false
 StartupNotify=true
 Name=Roadmeet Config
 Comment=Edit roadmeet default configuration
 Categories=Settings;
 __EOF__
-mv "$TMPF" "$SPATH/roadmeet-config.desktop"
-echo "$SPATH/roadmeet-config.desktop"
-echo -n "Update MIME types cache: "
-update-desktop-database -q "$XDGPATH"
-echo "Done."
+  mv "$TMPF" "$SPATH/roadmeet-config.desktop"
+  echo_continue "$SPATH/roadmeet-config.desktop"
+  update-desktop-database -q "$XDGPATH"
+  echo_continue "MIME types cache"
+else
+  echo_continue "Skipped"
+fi
 
 echo
-echo Package roadmeet installed.
-if [ "x$gchange" = "xy" ] ; then
-  echo "Group membership changed, log out and back in for serial port access"
-fi
+echo "Package roadmeet installed."
