@@ -176,12 +176,12 @@ order to access serial ports:
 
 Install system requirements with pacman:
 
-	$ sudo pacman -S python python-pip gtk3
-	$ sudo pacman -S python-pyserial python-dateutil python-xlwt python-paho-mqtt python-gobject python-cairo
+	$ sudo pacman -S --needed python python-pip gtk3
+	$ sudo pacman -S --needed python-pyserial python-dateutil python-xlwt python-paho-mqtt python-gobject python-cairo
 
 Optionally install pdf viewer, fonts, rsync and mqtt broker:
 
-	$ sudo pacman -S noto-fonts tex-gyre-fonts evince rsync mosquitto
+	$ sudo pacman -S --needed noto-fonts tex-gyre-fonts evince rsync mosquitto
 	$ sudo systemctl enable mosquitto.service
 
 If using an Alge Timy, Tag Heuer decoder or Race Result
@@ -193,7 +193,24 @@ order to access serial ports:
 
 ### Gentoo Linux
 
-[todo]
+Install required system libraries, or select a
+suitable meta-package. For example, XFCE:
+
+	# emerge --ask -n xfce-base/xfce4-meta x11-themes/gnome-themes-standard
+
+Install required python packages:
+
+	# emerge --ask -n dev-libs/gobject-introspection dev-python/pygobject dev-python/python-dateutil dev-python/xlwt dev-python/pyserial dev-python/paho-mqtt
+
+Install optional fonts, pdf viewer and MQTT broker:
+
+	# emerge --ask -n media-fonts/tex-gyre media-fonts/noto app-text/evince app-misc/mosquitto net-misc/rsync
+
+If using an Alge Timy, Tag Heuer decoder or Race Result
+USB active extension, add your user to the group dialout in
+order to access serial ports:
+
+	# gpasswd -a "username" dialout
 
 
 ### Alpine Linux (apk)
@@ -219,6 +236,7 @@ USB active extension, add your user to the group dialout in
 order to access serial ports:
 
 	$ sudo gpasswd -a "$USER" dialout
+
 
 ### MacOS / Brew
 

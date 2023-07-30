@@ -81,6 +81,12 @@ sysup_pacman() {
   fi
 }
 
+sysup_emerge() {
+  echo "Install Packages:"
+  sudo emerge --ask -n dev-libs/gobject-introspection dev-python/pygobject dev-python/python-dateutil dev-python/xlwt dev-python/pyserial dev-python/paho-mqtt media-fonts/tex-gyre media-fonts/noto app-text/evince app-misc/mosquitto net-misc/rsync
+  echo_continue "Done"
+}
+
 # abort if not normal user
 if [ "$(id -u)" -eq 0 ]; then
   echo "Running as root, installation aborted."
@@ -146,6 +152,11 @@ if [ -e /etc/os-release ] ; then
       ttygroup="dialout"
       echo_continue "$NAME $VERSION"
     ;;
+    "gentoo")
+      pkgstyle="emerge"
+      ttygroup="dialout"
+      echo_continue "$NAME $VERSION_ID"
+    ;;
     *)
       check_continue "$NAME $VERSION not recognised."
     ;;
@@ -183,22 +194,30 @@ if [ "$pkgstyle" = "unknown" ] ; then
   # assume ok
   true
 else
-  echo "Install System Requirements:"
-  if check_yesno "Use $pkgstyle to install requirements?" ; then
-    case "$pkgstyle" in
-      "apt")
-        sysup_apt
-      ;;
-      "dnf")
-        sysup_dnf
-      ;;
-      "pacman")
-        sysup_pacman
-      ;;
-      *)
-        echo_continue "Unknown package style - skipped"
-      ;;
-    esac
+  # Don't update packages if sudo not available
+  if check_command sudo ; then
+    echo "Install System Requirements:"
+    if check_yesno "Use $pkgstyle to install requirements?" ; then
+      case "$pkgstyle" in
+        "apt")
+          sysup_apt
+        ;;
+        "dnf")
+          sysup_dnf
+        ;;
+        "pacman")
+          sysup_pacman
+        ;;
+        "emerge")
+          sysup_emerge
+        ;;
+        *)
+          echo_continue "Unknown package style - skipped"
+        ;;
+      esac
+    fi
+  else
+    check_continue "sudo not available, install packages skipped."
   fi
 fi
 
