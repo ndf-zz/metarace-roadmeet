@@ -44,7 +44,12 @@ sysup_apt() {
 
   echo "Install Optional Components:"
   if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
-    sudo apt-get install -y fonts-texgyre fonts-noto evince mosquitto rsync
+    if [ -e "/etc/mx-version" ] ; then
+      sudo apt-get install -y fonts-texgyre fonts-noto evince rsync
+      check_continue "MX detected: MQTT broker not installed."
+    else
+      sudo apt-get install -y fonts-texgyre fonts-noto evince mosquitto rsync
+    fi
     echo_continue "Done"
   else
     echo_continue "Skipped"
@@ -76,6 +81,34 @@ sysup_pacman() {
     sudo pacman -S --noconfirm -q --needed noto-fonts tex-gyre-fonts evince rsync mosquitto
     sudo systemctl enable mosquitto.service
     echo_continue "Done"
+  else
+    echo_continue "Skipped"
+  fi
+}
+
+sysup_apk() {
+  echo "Install Required Packages:"
+  sudo apk add py3-pip py3-pyserial py3-dateutil py3-paho-mqtt py3-gobject3 py3-cairo 
+  echo_continue "Done"
+
+  echo "Install Optional Components:"
+  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+    sudo apk add font-noto evince rsync mosquitto
+    echo_continue "Packages"
+    sudo rc-update add mosquitto default
+    sudo rc-service mosquitto start
+    echo_continue "Started MQTT Broker"
+    if check_command unzip ; then
+      if check_command wget ; then
+        mkdir -p "$HOME/.local/share/fonts"
+        TMPF=$(mktemp -p . tg-XXXXXXXX.zip)
+        wget -nv -O "$TMPF" https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+        unzip -q -j -d "$HOME/.local/share/fonts" "$TMPF"
+        fc-cache -f
+        rm "$TMPF"
+        echo_continue "Added Tex-Gyre Fonts"
+      fi
+    fi
   else
     echo_continue "Skipped"
   fi
@@ -145,7 +178,8 @@ if [ -e /etc/os-release ] ; then
     ;;
     "alpine")
       pkgstyle="apk"
-      check_continue "$NAME $VERSION TODO."
+      ttygroup="dialout"
+      echo_continue "$NAME $VERSION_ID"
     ;;
     "fedora")
       pkgstyle="dnf"
@@ -170,13 +204,13 @@ if [ "$pkgstyle" = "unknown" ] ; then
     echo_continue "Debian/apt"
   elif command -v pacman ; then
     pkgstyle="pacman"
-    check_continue "Arch/pacman todo."
+    echo_continue "Arch/pacman"
   elif command -v dnf ; then
     pkgstyle="dnf"
     echo "Fedora/dnf"
   elif command -v apk ; then
     pkgstyle="apk"
-    check_continue "Alpine/apk todo."
+    echo_continue "Alpine/apk"
   elif command -v brew ; then
     pkgstyle="brew"
     check_continue "MacOS/brew todo."
@@ -204,6 +238,9 @@ else
         ;;
         "dnf")
           sysup_dnf
+        ;;
+        "apk")
+          sysup_apk
         ;;
         "pacman")
           sysup_pacman

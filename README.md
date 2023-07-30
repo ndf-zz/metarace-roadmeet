@@ -152,7 +152,7 @@ and back in for the menu entries to be properly updated.
 
 ## System-Specific Preparation
 
-### Debian 11+, Ubuntu, Mint (apt)
+### Debian 11+, Ubuntu, Mint, MX (apt)
 
 Install system requirements for roadmeet and metarace with apt:
 
@@ -215,7 +215,22 @@ order to access serial ports:
 
 ### Alpine Linux (apk)
 
-[todo]
+Setup a desktop environment, then add python requirements
+with apk:
+
+	# apk add py3-pip py3-pyserial py3-dateutil py3-paho-mqtt py3-gobject3 py3-cairo
+
+Install optional fonts, pdf viewer, rsync and MQTT broker:
+
+	# apk add font-noto evince rsync mosquitto
+
+Note: Alpine does not package Tex-Gyre fonts, they can be added
+manually from Gust as follows:
+
+	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+	$ mkdir -p ~/.local/share/fonts
+	$ unzip tg2_501otf.zip -j -d ~/.local/share/fonts
+	$ fc-cache -f
 
 
 ### Fedora Linux (dnf)
