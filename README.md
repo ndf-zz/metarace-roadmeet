@@ -66,7 +66,8 @@ source using one of the following methods:
 ### Install From PyPI With Pip
 
 Use pip in your virtual env to download and install
-roadmeet from the Python Package Index:
+roadmeet along with any required python packages
+from the Python Package Index:
 
 	$ ~/Documents/metarace/venv/bin/pip3 install metarace-roadmeet
 
@@ -165,9 +166,8 @@ Optionally add fonts, PDF viewer, rsync and MQTT broker:
 
 	$ sudo apt install fonts-texgyre fonts-noto evince rsync mosquitto
 
-If using an Alge Timy, Tag Heuer decoder or Race Result
-USB active extension, add your user to the group dialout in
-order to access serial ports:
+Add your user to the group **dialout**
+in order to access serial ports:
 
 	$ sudo gpasswd -a "$USER" dialout
 
@@ -184,9 +184,8 @@ Optionally install pdf viewer, fonts, rsync and mqtt broker:
 	$ sudo pacman -S --needed noto-fonts tex-gyre-fonts evince rsync mosquitto
 	$ sudo systemctl enable mosquitto.service
 
-If using an Alge Timy, Tag Heuer decoder or Race Result
-USB active extension, add your user to the group uucp in
-order to access serial ports:
+Add your user to the group **uucp**
+in order to access serial ports:
 
 	$ sudo gpasswd -a "$USER" uucp
 
@@ -206,9 +205,8 @@ Install optional fonts, pdf viewer and MQTT broker:
 
 	# emerge --ask -n media-fonts/tex-gyre media-fonts/noto app-text/evince app-misc/mosquitto net-misc/rsync
 
-If using an Alge Timy, Tag Heuer decoder or Race Result
-USB active extension, add your user to the group dialout in
-order to access serial ports:
+Add your user to the group **dialout**
+in order to access serial ports:
 
 	# gpasswd -a "username" dialout
 
@@ -224,13 +222,17 @@ Install optional fonts, pdf viewer, rsync and MQTT broker:
 
 	# apk add font-noto evince rsync mosquitto
 
-Note: Alpine does not package Tex-Gyre fonts, they can be added
-manually from Gust as follows:
+Install Tex Gyre fonts from Gust:
 
 	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
 	$ mkdir -p ~/.local/share/fonts
-	$ unzip tg2_501otf.zip -j -d ~/.local/share/fonts
+	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
 	$ fc-cache -f
+
+Add your user to the group **dialout**
+in order to access serial ports:
+
+	$ sudo gpasswd -a "$USER" dialout
 
 
 ### Fedora Linux (dnf)
@@ -246,11 +248,43 @@ Optionally add fonts, PDF viewer, rsync and MQTT broker:
 	$ sudo dnf install google-noto-sans-fonts google-noto-mono-fonts google-noto-emoji-fonts texlive-tex-gyre evince rsync mosquitto
 	$ sudo systemctl enable mosquitto.service
 
-If using an Alge Timy, Tag Heuer decoder or Race Result
-USB active extension, add your user to the group dialout in
-order to access serial ports:
+Add your user to the group **dialout**
+in order to access serial ports:
 
 	$ sudo gpasswd -a "$USER" dialout
+
+
+### Slackware
+
+Install a desktop environment like XFCE.
+Python packages will be installed
+as required by pip.
+
+Note: Slackware does not ship evince with the XFCE
+desktop, but sets it as the Gtk print preview application.
+To enable print preview, install evince from slackbuilds,
+or add an entry in ~/.config/gtk-3.0/settings.ini
+to point to another application:
+
+	[Settings]
+	gtk-print-preview-command=xpdf %f
+
+Install Tex Gyre fonts from Gust:
+
+	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+	$ mkdir -p ~/.local/share/fonts
+	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
+	$ fc-cache -f
+
+Add your user to the group **dialout**
+in order to access serial ports:
+
+	$ sudo gpasswd -a "$USER" dialout
+
+
+### FreeBSD
+
+[todo]
 
 
 ### MacOS / Brew
@@ -265,9 +299,12 @@ Add optional pdf viewer and mqtt broker:
 
 	$ brew install evince rsync mosquitto
 
-Fetch and install Tex-Gyre OTF fonts from Gust:
+Install Tex Gyre fonts from Gust:
 
-	https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+	$ mkdir -p ~/.local/share/fonts
+	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
+	$ fc-cache -f
 
 
 ### Windows / MSYS2 (pacman)

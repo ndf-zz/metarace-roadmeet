@@ -33,6 +33,29 @@ echo_continue() {
   echo "  - $1"
 }
 
+get_fonts() {
+  echo "Install Fonts:"
+  if check_yesno "Download Tex-Gyre fonts from gust.org.pl?" ; then
+    if check_command unzip ; then
+      if check_command wget ; then
+        mkdir -p "$HOME/.local/share/fonts"
+        TMPF=$(mktemp -p . tg-XXXXXXXX.zip)
+        wget -nv --show-progress -O "$TMPF" https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+        unzip -q -j -d "$HOME/.local/share/fonts" "$TMPF"
+        fc-cache -f
+        rm "$TMPF"
+        echo_continue "Added Tex-Gyre Fonts"
+      else
+        check_continue "Missing wget, fonts not installed."
+      fi
+    else
+      check_continue "Missing unzip, fonts not installed."
+    fi
+  else
+    echo_continue "Skipped"
+  fi
+}
+
 sysup_apt() {
   echo "Synchronize Package Index:"
   sudo apt-get update
@@ -98,17 +121,6 @@ sysup_apk() {
     sudo rc-update add mosquitto default
     sudo rc-service mosquitto start
     echo_continue "Started MQTT Broker"
-    if check_command unzip ; then
-      if check_command wget ; then
-        mkdir -p "$HOME/.local/share/fonts"
-        TMPF=$(mktemp -p . tg-XXXXXXXX.zip)
-        wget -nv -O "$TMPF" https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
-        unzip -q -j -d "$HOME/.local/share/fonts" "$TMPF"
-        fc-cache -f
-        rm "$TMPF"
-        echo_continue "Added Tex-Gyre Fonts"
-      fi
-    fi
   else
     echo_continue "Skipped"
   fi
@@ -141,6 +153,7 @@ fi
 # check distribution via os-release if available
 ttygroup="unknown"
 pkgstyle="unknown"
+getfonts="no"
 if [ -e /etc/os-release ] ; then
   # This machine probably uses systemd, check distro and version
   . /etc/os-release
@@ -179,6 +192,7 @@ if [ -e /etc/os-release ] ; then
     "alpine")
       pkgstyle="apk"
       ttygroup="dialout"
+      getfonts="yes"
       echo_continue "$NAME $VERSION_ID"
     ;;
     "fedora")
@@ -190,6 +204,12 @@ if [ -e /etc/os-release ] ; then
       pkgstyle="emerge"
       ttygroup="dialout"
       echo_continue "$NAME $VERSION_ID"
+    ;;
+    "slackware")
+      pkgstyle="none"
+      ttygroup="dialout"
+      getfonts="yes"
+      echo_continue "$NAME $VERSION"
     ;;
     *)
       check_continue "$NAME $VERSION not recognised."
@@ -226,6 +246,9 @@ fi
 
 if [ "$pkgstyle" = "unknown" ] ; then
   # assume ok
+  true
+elif [ "$pkgstyle" = "none" ] ; then
+  # skipped by os-release
   true
 else
   # Don't update packages if sudo not available
@@ -275,6 +298,11 @@ else
   fi
 fi
 
+# if tex gyre not packaged, fetch with wget
+if [ "$getfonts" = "yes" ] ; then
+  get_fonts
+fi
+
 # check python interpreter version
 echo "Python Interpreter:"
 if check_command python3 ; then
@@ -320,7 +348,7 @@ echo_continue "Done"
 # install packages
 echo "Update Roadmeet From PyPI:"
 if [ -e "$VPATH/bin/pip3" ] ; then 
-  "$VPATH/bin/pip3" -q install metarace-roadmeet --upgrade
+  "$VPATH/bin/pip3" install metarace-roadmeet --upgrade
   echo_continue "$VPATH/bin/roadmeet"
 else
   echo_continue "Unable to install: Virtual env not setup."
@@ -358,7 +386,7 @@ Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
 __EOF__
   mv "$TMPF" "$SPATH/roadmeet.desktop"
-  echo_continue "$SPATH/roadmeet.desktop"
+  echo_continue "Added roadmeet.desktop"
   TMPF=$(mktemp -p "$SPATH")
   tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
@@ -373,9 +401,13 @@ Comment=Edit roadmeet default configuration
 Categories=Settings;
 __EOF__
   mv "$TMPF" "$SPATH/roadmeet-config.desktop"
-  echo_continue "$SPATH/roadmeet-config.desktop"
-  update-desktop-database -q "$XDGPATH"
-  echo_continue "MIME types cache"
+  echo_continue "Added roadmeet-config.desktop"
+  if check_command update-desktop-database ; then
+    update-desktop-database -q "$XDGPATH"
+    echo_continue "Updated MIME types cache"
+  else
+    echo_continue "MIME types cache not updated"
+  fi
 else
   echo_continue "Skipped"
 fi
