@@ -39,7 +39,7 @@ get_fonts() {
     if check_command unzip ; then
       if check_command wget ; then
         mkdir -p "$HOME/.local/share/fonts"
-        TMPF=$(mktemp -p . tg-XXXXXXXX.zip)
+        TMPF=$(mktemp -p . texgyreotf-XXXXXX)
         wget -nv --show-progress -O "$TMPF" https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
         unzip -q -j -d "$HOME/.local/share/fonts" "$TMPF"
         fc-cache -f
@@ -132,6 +132,12 @@ sysup_emerge() {
   echo_continue "Done"
 }
 
+sysup_pkg() {
+  echo "Install Packages:"
+  sudo pkg install wget unzip evince rsync mosquitto
+  echo_continue "Done"
+}
+
 # abort if not normal user
 if [ "$(id -u)" -eq 0 ]; then
   echo "Running as root, installation aborted."
@@ -151,6 +157,7 @@ else
 fi
 
 # check distribution via os-release if available
+PYTHON=python3
 ttygroup="unknown"
 pkgstyle="unknown"
 getfonts="no"
@@ -211,6 +218,13 @@ if [ -e /etc/os-release ] ; then
       getfonts="yes"
       echo_continue "$NAME $VERSION"
     ;;
+    "freebsd")
+      pkgstyle="pkg"
+      ttygroup="dialer"
+      getfonts="yes"
+      PYTHON=python3.9
+      echo_continue "$NAME $VERSION"
+    ;;
     *)
       check_continue "$NAME $VERSION not recognised."
     ;;
@@ -265,6 +279,9 @@ else
         "apk")
           sysup_apk
         ;;
+        "pkg")
+          sysup_pkg
+        ;;
         "pacman")
           sysup_pacman
         ;;
@@ -289,11 +306,19 @@ else
   if groups | grep -F "$ttygroup" >/dev/null 2>&1 ; then
     echo_continue "OK ($ttygroup)"
   else
-    if check_yesno "Add $USER to group $ttygroup?" ; then
-      sudo gpasswd -a "$USER" "$ttygroup"
-      echo_continue "Done"
+    if check_command sudo ; then
+      if check_yesno "Add $USER to group $ttygroup?" ; then
+        if [ "$pkgstyle" = "pkg" ] ; then
+          sudo pw group mod -n "$ttygroup" -m "$USER"
+        else
+          sudo gpasswd -a "$USER" "$ttygroup"
+        fi
+        echo_continue "Done"
+      else
+        echo_continue "Skipped"
+      fi
     else
-      echo_continue "Skipped"
+      check_continue "Add user to group $ttygroup for access to serial port."
     fi
   fi
 fi
@@ -305,23 +330,24 @@ fi
 
 # check python interpreter version
 echo "Python Interpreter:"
-if check_command python3 ; then
+if check_command "$PYTHON" ; then
   echo_continue "Present"
 else
   echo_continue "Python interpreter not found, installation aborted."
   exit
 fi
 echo "Python Version >= 3.9:"
-if python3 -c 'import sys
+if $PYTHON -c 'import sys
 print(sys.version_info>=(3,9))' | grep -F "True" >/dev/null ; then
   echo_continue "Yes"
 else
   echo_continue "Python version too old, installation aborted."
   exit
 fi
+
 # check for venv module
 echo "Python venv Module:"
-if python3 -c 'import venv' >/dev/null 2>&1 ; then
+if $PYTHON -c 'import venv' >/dev/null 2>&1 ; then
   echo_continue "Present"
 else
   echo_continue "Not available, installation aborted."
@@ -342,7 +368,7 @@ fi
 
 # re-build venv
 echo "Update Venv:"
-python3 -m venv --system-site-packages "$VPATH"
+$PYTHON -m venv --system-site-packages "$VPATH"
 echo_continue "Done"
 
 # install packages
@@ -366,6 +392,7 @@ metarace.init()'
   echo_continue "Created new defaults"
 fi
 
+# add desktop entries
 echo "Desktop Shortcuts:"
 if check_command update-desktop-database ; then
   XDGPATH="$HOME/.local/share/applications"

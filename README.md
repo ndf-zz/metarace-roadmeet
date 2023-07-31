@@ -193,7 +193,7 @@ in order to access serial ports:
 ### Gentoo Linux
 
 Install required system libraries, or select a
-suitable meta-package. For example, XFCE:
+suitable meta-package (eg XFCE):
 
 	# emerge --ask -n xfce-base/xfce4-meta x11-themes/gnome-themes-standard
 
@@ -256,8 +256,8 @@ in order to access serial ports:
 
 ### Slackware
 
-Install a desktop environment like XFCE.
-Python packages will be installed
+Install a desktop environment (eg XFCE),
+python packages will be installed
 as required by pip.
 
 Note: Slackware does not ship evince with the XFCE
@@ -284,7 +284,27 @@ in order to access serial ports:
 
 ### FreeBSD
 
-[todo]
+Install a desktop environment (eg XFCE), then
+install optional components with pkg:
+
+	# pkg install evince rsync mosquitto
+
+Add user to group **dialer** in order to
+access serial ports:
+
+	# pw group mod -n dialer -m op
+
+Install Tex Gyre fonts from Gust:
+
+	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
+	$ mkdir -p ~/.local/share/fonts
+	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
+	$ fc-cache -f
+
+Note: Use callout serial devices for decoder access. For example,
+a race result active decoder on the first USB serial port:
+
+	rru:/dev/cuaU0
 
 
 ### MacOS / Brew
