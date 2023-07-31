@@ -33,7 +33,7 @@ MONOFONT = Pango.FontDescription('Noto Mono')
 LOGVIEWFONT = Pango.FontDescription('Noto Mono 11')
 
 # Cell renderer styles
-STYLE_OBLIQUE = Pango.Style.OBLIQUE
+STYLE_ITALIC = Pango.Style.ITALIC
 STYLE_NORMAL = Pango.Style.NORMAL
 
 # Timer text
@@ -1131,8 +1131,7 @@ class optionSection(option):
         lbl.set_single_line_mode(True)
         lbl.set_halign(Gtk.Align.START)
         if hasattr(Pango.AttrList, 'from_string'):
-            lbl.set_attributes(
-                Pango.AttrList.from_string('0 -1 style oblique'))
+            lbl.set_attributes(Pango.AttrList.from_string('0 -1 style italic'))
         if row != 0:
             lbl.set_margin_top(15)
         lbl.show()

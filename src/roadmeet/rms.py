@@ -3586,7 +3586,7 @@ class rms:
         mb = model.get_value(iter, COL_MBUNCH)
         if mb is not None:
             cr.set_property('text', mb.rawtime(0))
-            cr.set_property('style', uiutil.STYLE_OBLIQUE)
+            cr.set_property('style', uiutil.STYLE_ITALIC)
         else:
             cr.set_property('style', uiutil.STYLE_NORMAL)
             if cb is not None:
@@ -3607,7 +3607,7 @@ class rms:
                     else:
                         et = seen[-1]
                     cr.set_property('text', '[' + et.rawtime(1) + ']')
-                    cr.set_property('style', uiutil.STYLE_OBLIQUE)
+                    cr.set_property('style', uiutil.STYLE_ITALIC)
                 else:
                     cr.set_property('text', '')
 

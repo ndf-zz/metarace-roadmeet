@@ -369,7 +369,7 @@ class irtt(rms):
                 cr.set_property('text', wt.rawtime(0))
             else:
                 cr.set_property('text', '')  # no info on start time
-            cr.set_property('style', uiutil.STYLE_OBLIQUE)
+            cr.set_property('style', uiutil.STYLE_ITALIC)
 
     def announce_rider(self,
                        place='',
@@ -547,7 +547,7 @@ class irtt(rms):
             st = model.get_value(iter, COL_TODSTART)
             if st is None:  # defer to wall start time
                 st = model.get_value(iter, COL_WALLSTART)
-                cr.set_property('style', uiutil.STYLE_OBLIQUE)
+                cr.set_property('style', uiutil.STYLE_ITALIC)
             else:
                 cr.set_property('style', uiutil.STYLE_NORMAL)
             et = self.getelapsed(iter)
