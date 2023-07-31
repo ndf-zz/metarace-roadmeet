@@ -225,6 +225,10 @@ if [ -e /etc/os-release ] ; then
       PYTHON=python3.9
       echo_continue "$NAME $VERSION"
     ;;
+    "msys2")
+      echo_continue "$NAME not supported by this installer."
+      exit
+    ;;
     *)
       check_continue "$NAME $VERSION not recognised."
     ;;

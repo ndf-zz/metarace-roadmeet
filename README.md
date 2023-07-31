@@ -329,4 +329,34 @@ Install Tex Gyre fonts from Gust:
 
 ### Windows / MSYS2 (pacman)
 
-[todo]
+> *Note*: Instructions below will yield a working roadmeet
+> with MSYS2, however, Windows users unwilling to run
+> a dedicated host system may have a better experience
+> running roadmeet from an emulator loaded with a
+> well-supported POSIX system like Debian Gnu/Linux or FreeBSD.
+
+Download and install MSYS2 from [msys2.org](https://www.msys2.org).
+
+From the mingw64 environment, install gtk and python libraries
+with pacman (the following assumes x86_64 as the target):
+
+	$ pacman -S --needed mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gobject-introspection
+	$ pacman -S --needed mingw-w64-x86_64-python-pip mingw-w64-x86_64-python-gobject
+	$ pacman -S --needed mingw-w64-x86_64-python-dateutil mingw-w64-x86_64-python-pyserial mingw-w64-x86_64-python-xlwt
+
+Then use pip to install roadmeet:
+
+	$ pip3 install metarace-roadmeet
+
+Optionally install Tex Gyre Fonts to the host:
+
+   - Download OTF fonts from [gust.org.pl](https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip)
+   - Extract and install fonts using Explorer
+
+Optionally install mosquitto to the mingw64 environment:
+
+	$ pacman -S mingw-w64-x86_64-mosquitto
+
+Roadmeet can be started from the .exe installed to the MINGW64
+bin folder, likely C:\msys64\mingw64\bin\roadmeet.exe. Mosquitto
+will need to be launched for telegraph connections to function.
