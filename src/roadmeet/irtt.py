@@ -86,6 +86,10 @@ COL_SERIES = 24
 _START_MATCH_THRESH = tod.tod('5.0')
 _FINISH_MATCH_THRESH = tod.tod('0.300')
 
+# factored time limits
+_MINFACTOR = tod.tod('0.4').timeval
+_MAXFACTOR = tod.tod('1.0').timeval
+
 # extended function key mappings
 key_abort = 'F5'  # + ctrl for clear/abort
 key_announce = 'F4'  # clear scratch
@@ -410,6 +414,29 @@ class irtt(rms):
                             ret = tod.tod(str(totdist / spd))
                             self.riders.set_value(iter, COL_DIST, int(dist))
                             break
+        return ret
+
+    def getfactored(self, iter, factor=None):
+        """Return a factored result for an iter"""
+        if factor is None:
+            _log.error('Missing required factor')
+            return None
+        if not isinstance(factor, tod.decimal.Decimal):
+            _log.error('Invalid factor type: %r', factor.__class__.__name__)
+            return None
+        if factor < _MINFACTOR or factor > _MAXFACTOR:
+            _log.error('Supplied factor %s outside limits', factor)
+            return None
+        ret = None
+        ft = self.riders.get_value(iter, COL_TODFINISH)
+        if ft is not None:
+            st = self.riders.get_value(iter, COL_TODSTART)
+            if st is None:  # defer to start time
+                st = self.riders.get_value(iter, COL_WALLSTART)
+            if st is not None:  # still none is error
+                pt = self.riders.get_value(iter, COL_TODPENALTY)
+                elap = tod.tod(factor * ((ft - st) + pt).timeval)
+                ret = elap.round(self.precision)
         return ret
 
     def getelapsed(self, iter, runtime=False):
@@ -1033,11 +1060,9 @@ class irtt(rms):
             catstr = cs
             cat = self.ridercat(riderdb.primary_cat(cs))
             if cat:
-                cbr = self.meet.rdb.get_rider(cat, 'cat')
-                if cbr is not None:
-                    catstr = cbr['title']
+                cbr = cat
             if plstr.isdigit():  # rider placed at finish
-                ## only show for a short while
+                # only show for a short while
                 to = self.arrivaltimeout
                 if to is None:
                     to = ARRIVALTIMEOUT
