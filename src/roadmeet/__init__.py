@@ -36,7 +36,7 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.3'
+VERSION = '1.13.4'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -479,12 +479,12 @@ class roadmeet:
         rep.strings['datestr'] = strops.promptstr('Date:', self.date)
         rep.strings['commstr'] = strops.promptstr('PCP:', self.pcp)
         rep.strings['orgstr'] = strops.promptstr('Organiser:', self.organiser)
-        if self.distance:
-            rep.strings['diststr'] = strops.promptstr(
-                'Distance:',
-                str(self.distance) + '\u2006km')
-        else:
-            rep.strings['diststr'] = self.diststr
+        diststr = self.diststr
+        if not diststr:
+            if self.distance:
+                diststr = strops.promptstr('Distance:',
+                                           '0.1f\u2006km' % (self.distance))
+        rep.strings['diststr'] = diststr
         if self.eventcode:
             rep.eventid = self.eventcode
         if self.prevlink:
@@ -1992,14 +1992,19 @@ class fakemeet(roadmeet):
         self.host = ''
         self.subtitle = ''
         self.date = ''
+        self.document = ''
         self.organiser = ''
         self.pcp = ''
         self.distance = None
+        self.diststr = ''
         self.linkbase = '.'
         self.provisionalstart = False
         self.indexlink = None
         self.nextlink = None
         self.prevlink = None
+        self.eventcode = ''
+        self.shortname = ''
+        self.mirrorfile = ''
 
     def cmd_announce(self, command, msg):
         return False
