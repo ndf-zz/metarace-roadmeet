@@ -129,6 +129,9 @@ To correct this, install gnome-tweaks and change the
 system font to one with fixed-width digits eg:
 Noto Sans Regular.
 
+Debugging messages can be viewed using journactl:
+
+	$ journalctl -f
 
 ### XFCE
 
@@ -149,6 +152,11 @@ added to the toolbar or triggered from a context menu.
 
 Following an automated install, you may need to log out
 and back in for the menu entries to be properly updated.
+
+Debugging messages are appended to ~/.xsession-errors,
+view with tail:
+
+	$ tail -f ~/.xsession-errors
 
 
 ## System-Specific Preparation
