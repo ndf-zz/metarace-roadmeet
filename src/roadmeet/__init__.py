@@ -483,7 +483,7 @@ class roadmeet:
         if not diststr:
             if self.distance:
                 diststr = strops.promptstr('Distance:',
-                                           '0.1f\u2006km' % (self.distance))
+                                           '%0.1f\u2006km' % (self.distance))
         rep.strings['diststr'] = diststr
         if self.eventcode:
             rep.eventid = self.eventcode
