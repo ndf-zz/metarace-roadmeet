@@ -189,6 +189,15 @@ _CONFIG_SCHEMA = {
         'hint': 'Report fastest lap time with categorised result',
         'default': False,
     },
+    'hcpcatres': {
+        'prompt': 'Handicap:',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'hcpcatres',
+        'subtext': 'Show group results?',
+        'hint': 'Display group placings on result report',
+        'default': False,
+    },
     'timelimit': {
         'prompt': 'Time Limit:',
         'control': 'short',
@@ -1594,6 +1603,8 @@ class rms:
         # check if a categorised report is required
         if self.etype == 'handicap':
             ret.extend(self.handicap_report())
+            if self.hcpcatres:
+                ret.extend(self.catresult_report())
         else:
             ret.extend(self.catresult_report())
 
@@ -4655,6 +4666,7 @@ class rms:
         self.points = {}
         self.pointscb = {}
         self.dofastestlap = False
+        self.hcpcatres = False
         self.autoexport = False
         self.timelimit = None
         self.passlabels = {}  # sector labels for mult passings
