@@ -161,6 +161,16 @@ _CONFIG_SCHEMA = {
         'attr': 'finishloop',
         'hint': 'Transponder loop/channel ID at finish line',
     },
+    'starttrig': {
+        'prompt': '',
+        'control': 'check',
+        'type': 'bool',
+        'defer': True,
+        'attr': 'starttrig',
+        'subtext': 'Map trigger to start?',
+        'hint': 'Assign finish loop trigger input to start line',
+        'default': False,
+    },
     'strictstart': {
         'prompt': 'Start:',
         'control': 'check',
@@ -1758,7 +1768,10 @@ class irtt(rms):
         chan = strops.chan2id(e.chan)
         if e.refid in ('', '255'):
             if self.finishloop is not None and chan in (self.finishloop, -1):
-                self.fin_trig(e)
+                if self.starttrig:
+                    self.start_trig(e)
+                else:
+                    self.fin_trig(e)
             elif self.startloop is not None and chan in (self.startloop, -1):
                 self.start_trig(e)
             else:
@@ -2746,6 +2759,7 @@ class irtt(rms):
 
         # properties
         self.strictstart = True
+        self.starttrig = False
         self.autoimpulse = False
         self.autoexport = False
         self.finishloop = None
