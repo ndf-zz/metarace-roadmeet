@@ -153,6 +153,13 @@ _CONFIG_SCHEMA = {
         'subtext': '(Cat laps override)',
         'hint': 'Default target number of laps for event',
     },
+    'passingsource': {
+        'prompt': 'Loop ID:',
+        'control': 'short',
+        'type': 'int',
+        'attr': 'passingsource',
+        'hint': 'Loop ID for valid passings',
+    },
     'autofinish': {
         'prompt': 'Finish:',
         'control': 'check',
@@ -436,7 +443,7 @@ class rms:
                 'curlap': -1,
                 'passlabels': {},
                 'catonlap': {},
-                'passingsource': [],
+                'passingsource': None,
                 'laptimes': [],
                 'startlist': '',
             }
@@ -455,9 +462,7 @@ class rms:
 
         self.passlabels = cr.get('rms', 'passlabels')
         self.catonlap = cr.get('rms', 'catonlap')
-        self.passingsource = []
-        for source in cr.get('rms', 'passingsource'):
-            self.passingsource.append(source.lower())  # force lower case
+        self.passingsource = cr.get('rms', 'passingsource')
 
         # check gapthresh
         if self.gapthresh != GAPTHRESH:
@@ -2774,10 +2779,11 @@ class rms:
             _log.info('Non-series rider: %s.%s', bib, ser)
             return False
 
-        # if there's a source filter set, discard any unknown sources
-        if len(self.passingsource) > 0:
-            if e.source.lower() not in self.passingsource:
-                _log.info('Invalid passing: %s:%s@%s/%s', bib, e.chan,
+        # if there's a channel id filter set, discard unknown channel
+        if self.passingsource is not None:
+            chan = strops.chan2id(e.chan)
+            if chan >= 0 and chan != self.passingsource:
+                _log.info('Invalid channel passing: %s:%s@%s/%s', bib, e.chan,
                           e.rawtime(2), e.source)
                 return False
 
@@ -3506,7 +3512,7 @@ class rms:
 
     def getstart(self, r):
         """Return a start offset"""
-        ret = None
+        ret = tod.ZERO
         if r[COL_STOFT] is not None:
             ret = r[COL_STOFT]
         else:
@@ -4341,10 +4347,24 @@ class rms:
                     # rider has a finish bunch
                     ldr = r
                     break
+
+        # fetch start stime offset
+        st = self.start
+        sof = tod.ZERO  # check this
+        if r[COL_STOFT] is not None:
+            sof = r[COL_STOFT]
+        elif rcat and rcat in self.catstarts:
+            sof = self.catstarts[rcat]
+
+        # determine elapsed time
+        _log.debug('lapsdown: passing=%r, st=%r, sof=%r', passing, st, sof)
+        et = passing - st + sof
+
         if ldr is not None:
             # compare laps
             if ldr[COL_LAPS] > 0 and ldr[COL_LAPS] > lr[COL_LAPS]:
-                lavg = tod.tod(bt.timeval / ldr[COL_LAPS])
+                #lavg = tod.tod(bt.timeval / ldr[COL_LAPS])
+                lavg = tod.tod(et.timeval / lr[COL_LAPS])
                 deficit = ldr[COL_LAPS] - lr[COL_LAPS]
                 lxtra = tod.tod(lavg.timeval * deficit)
                 lr[COL_RFTIME] = passing + lxtra
@@ -4655,7 +4675,7 @@ class rms:
         self.decisions = []
         self.hidecols = []
         self.cats = []
-        self.passingsource = []  # list of decoders we accept passings from
+        self.passingsource = None  # loop id no for valid passing
         self.autofinish = False  # true if finish is det by target
         self.catlaps = {}  # cache of cat lap counts
         self.catstarts = {}  # cache of cat start times
