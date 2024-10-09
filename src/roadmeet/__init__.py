@@ -875,8 +875,12 @@ class roadmeet:
             if self.nextlink:
                 rep.nextlink = '_'.join((self.nextlink, 'startlist'))
             rep.resultlink = ffile
-            for sec in self.curevent.startlist_report():
-                rep.add_section(sec)
+            if self.etype == 'irtt':
+                for sec in self.curevent.callup_report():
+                    rep.add_section(sec)
+            else:
+                for sec in self.curevent.startlist_report():
+                    rep.add_section(sec)
 
             lb = os.path.join(self.linkbase, filename)
             lt = ['pdf', 'xls']
