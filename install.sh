@@ -398,12 +398,12 @@ fi
 
 # add desktop entries
 echo "Desktop Shortcuts:"
-if check_command update-desktop-database ; then
-  XDGPATH="$HOME/.local/share/applications"
-  SPATH="$XDGPATH/metarace"
-  mkdir -p "$SPATH"
-  TMPF=$(mktemp -p "$SPATH")
-  tee "$TMPF" <<__EOF__ >/dev/null
+
+XDGPATH="$HOME/.local/share/applications"
+SPATH="$XDGPATH/metarace"
+mkdir -p "$SPATH"
+TMPF=$(mktemp -p "$SPATH")
+tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -416,10 +416,10 @@ Name=Roadmeet
 Comment=Timing and results for road cycling meets
 Categories=Utility;GTK;Sports;
 __EOF__
-  mv "$TMPF" "$SPATH/roadmeet.desktop"
-  echo_continue "Added roadmeet.desktop"
-  TMPF=$(mktemp -p "$SPATH")
-  tee "$TMPF" <<__EOF__ >/dev/null
+mv "$TMPF" "$SPATH/roadmeet.desktop"
+echo_continue "Added roadmeet.desktop"
+TMPF=$(mktemp -p "$SPATH")
+tee "$TMPF" <<__EOF__ >/dev/null
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -431,16 +431,13 @@ Name=Roadmeet Config
 Comment=Edit roadmeet default configuration
 Categories=Settings;
 __EOF__
-  mv "$TMPF" "$SPATH/roadmeet-config.desktop"
-  echo_continue "Added roadmeet-config.desktop"
-  if check_command update-desktop-database ; then
-    update-desktop-database -q "$XDGPATH"
-    echo_continue "Updated MIME types cache"
-  else
-    echo_continue "MIME types cache not updated"
-  fi
+mv "$TMPF" "$SPATH/roadmeet-config.desktop"
+echo_continue "Added roadmeet-config.desktop"
+if check_command update-desktop-database ; then
+  update-desktop-database -q "$XDGPATH"
+  echo_continue "Updated MIME types cache"
 else
-  echo_continue "Skipped"
+  echo_continue "MIME types cache not updated"
 fi
 
 echo
