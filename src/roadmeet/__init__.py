@@ -189,6 +189,15 @@ _CONFIG_SCHEMA = {
         'control': 'section',
         'prompt': 'Export',
     },
+    'doprint': {
+        'prompt': 'Reports:',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Print?',
+        'hint': 'Open print dialog when creating reports',
+        'attr': 'doprint',
+        'default': False,
+    },
     'mirrorcmd': {
         'prompt': 'Command:',
         'hint': 'Command to run if export script is enabled',
@@ -496,7 +505,7 @@ class roadmeet:
         if self.shortname:
             rep.shortname = self.shortname
 
-    def print_report(self, sections=[], provisional=False):
+    def print_report(self, sections=[], provisional=False, filename='output'):
         """Print the pre-formatted sections in a standard report."""
         rep = report.report()
         rep.provisional = provisional
@@ -504,26 +513,29 @@ class roadmeet:
         for sec in sections:
             rep.add_section(sec)
 
-        print_op = Gtk.PrintOperation.new()
-        print_op.set_allow_async(True)
-        print_op.set_print_settings(self.printprefs)
-        print_op.set_default_page_setup(self.pageset)
-        print_op.connect('begin_print', self.begin_print, rep)
-        print_op.connect('draw_page', self.draw_print_page, rep)
-        res = print_op.run(Gtk.PrintOperationAction.PREVIEW, None)
-        if res == Gtk.PrintOperationResult.APPLY:
-            self.printprefs = print_op.get_print_settings()
-            _log.debug('Updated print preferences')
-        elif res == Gtk.PrintOperationResult.IN_PROGRESS:
-            _log.debug('Print operation in progress')
+        if self.doprint:
+            print_op = Gtk.PrintOperation.new()
+            print_op.set_print_settings(self.printprefs)
+            print_op.set_default_page_setup(self.pageset)
+            print_op.connect('begin_print', self.begin_print, rep)
+            print_op.connect('draw_page', self.draw_print_page, rep)
+            res = print_op.run(Gtk.PrintOperationAction.PRINT_DIALOG, None)
+            if res == Gtk.PrintOperationResult.APPLY:
+                self.printprefs = print_op.get_print_settings()
+                _log.debug('Updated print preferences')
+            elif res == Gtk.PrintOperationResult.IN_PROGRESS:
+                _log.debug('Print operation in progress')
 
         # For convenience, also save copies to pdf and xls
-        ofile = 'output.pdf'
+        ofile = filename + '.pdf'
         with metarace.savefile(ofile, mode='b') as f:
             rep.output_pdf(f)
-        ofile = 'output.xls'
+        ofile = filename + '.xls'
         with metarace.savefile(ofile, mode='b') as f:
             rep.output_xls(f)
+
+        # Log completion
+        _log.info('Saved report to %s.pdf', filename)
         return False
 
     def begin_print(self, operation, context, rep):
@@ -621,7 +633,9 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.startlist_report()
             if sections:
-                self.print_report(sections, provisional=self.provisionalstart)
+                self.print_report(sections,
+                                  provisional=self.provisionalstart,
+                                  filename='startlist')
             else:
                 _log.info('Startlist - Nothing to print')
 
@@ -630,7 +644,9 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.callup_report()
             if sections:
-                self.print_report(sections, provisional=self.provisionalstart)
+                self.print_report(sections,
+                                  provisional=self.provisionalstart,
+                                  filename='callup')
             else:
                 _log.info('Callup - Nothing to print')
 
@@ -639,7 +655,7 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.signon_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, filename='signonsheet')
             else:
                 _log.info('Sign-on - Nothing to print')
 
@@ -648,21 +664,21 @@ class roadmeet:
         if self.curevent is not None:
             sections = self.curevent.analysis_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, filename='analysisreport')
 
     def menu_reports_camera_activate_cb(self, menuitem, data=None):
         """Generate the camera operator report."""
         if self.curevent is not None:
             sections = self.curevent.camera_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, filename='camerareport')
 
     def event_results_points_activate_cb(self, menuitem, data=None):
         """Generate the points tally report."""
         if self.curevent is not None:
             sections = self.curevent.points_report()
             if sections:
-                self.print_report(sections)
+                self.print_report(sections, filename='pointstally')
 
     def menu_reports_result_activate_cb(self, menuitem, data=None):
         """Generate the event result report."""
@@ -670,7 +686,8 @@ class roadmeet:
             sections = self.curevent.result_report()
             if sections:
                 self.print_report(sections,
-                                  self.curevent.timerstat != 'finished')
+                                  self.curevent.timerstat != 'finished',
+                                  filename='result')
 
     def menu_data_replace_activate_cb(self, menuitem, data=None):
         """Replace rider db from disk."""
@@ -1794,6 +1811,7 @@ class roadmeet:
         self.remoteenable = False
         self.lifexport = False
         self.resfiles = True
+        self.doprint = False
         self.announceresult = True
 
         # printer preferences
