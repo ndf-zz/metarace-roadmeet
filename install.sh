@@ -9,7 +9,8 @@ check_command() {
 }
 
 check_continue() {
-  echo "  - $1 Continue? [Enter]"
+  echo
+  echo "$1 Continue? [Enter]"
   read -r yesno
   if [ "$yesno" = "" ] ; then
     return 0
@@ -20,7 +21,8 @@ check_continue() {
 }
 
 check_yesno() {
-  echo "  - $1 [y/n]"
+  echo
+  echo "$1 [y/n]"
   read -r yesno
   if [ "$yesno" = "y" ] ; then
     return 0
@@ -34,7 +36,6 @@ echo_continue() {
 }
 
 get_fonts() {
-  echo "Install Fonts:"
   if check_yesno "Download Tex-Gyre fonts from gust.org.pl?" ; then
     if check_command unzip ; then
       if check_command wget ; then
@@ -65,8 +66,7 @@ sysup_apt() {
   sudo apt-get install -y python3-venv python3-pip python3-cairo python3-gi python3-gi-cairo python3-serial python3-paho-mqtt python3-dateutil python3-xlwt gir1.2-gtk-3.0 gir1.2-rsvg-2.0 gir1.2-pango-1.0
   echo_continue "Done"
 
-  echo "Install Optional Components:"
-  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+  if check_yesno "Install optional fonts, evince, rsync and MQTT broker?" ; then
     if [ -e "/etc/mx-version" ] ; then
       sudo apt-get install -y fonts-texgyre fonts-noto evince rsync
       check_continue "MX detected: MQTT broker not installed."
@@ -84,8 +84,7 @@ sysup_dnf() {
   sudo dnf -q -y install gtk3 gobject-introspection cairo-gobject python3-pip python3-cairo python3-pyserial python3-paho-mqtt python3-dateutil python3-xlwt
   echo_continue "Done"
 
-  echo "Install Optional Components:"
-  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+  if check_yesno "Install optional fonts, evince, rsync and MQTT broker?" ; then
     sudo dnf -q -y install google-noto-sans-fonts google-noto-mono-fonts google-noto-emoji-fonts texlive-tex-gyre evince rsync mosquitto
     sudo systemctl enable mosquitto.service
     echo_continue "Done"
@@ -99,8 +98,7 @@ sysup_pacman() {
   sudo pacman -S --noconfirm -q --needed python python-pip gtk3 python-pyserial python-dateutil python-xlwt python-paho-mqtt python-gobject python-cairo
   echo_continue "Done"
 
-  echo "Install Optional Components:"
-  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+  if check_yesno "Install optional fonts, evince, rsync and MQTT broker?" ; then
     sudo pacman -S --noconfirm -q --needed noto-fonts tex-gyre-fonts evince rsync mosquitto
     sudo systemctl enable mosquitto.service
     echo_continue "Done"
@@ -114,8 +112,7 @@ sysup_apk() {
   sudo apk add py3-pip py3-pyserial py3-dateutil py3-paho-mqtt py3-gobject3 py3-cairo 
   echo_continue "Done"
 
-  echo "Install Optional Components:"
-  if check_yesno "Install fonts, evince, rsync and MQTT broker?" ; then
+  if check_yesno "Install optional fonts, evince, rsync and MQTT broker?" ; then
     sudo apk add font-noto evince rsync mosquitto
     echo_continue "Packages"
     sudo rc-update add mosquitto default
@@ -269,10 +266,9 @@ elif [ "$pkgstyle" = "none" ] ; then
   # skipped by os-release
   true
 else
-  # Don't update packages if sudo not available
-  if check_command sudo ; then
-    echo "Install System Requirements:"
-    if check_yesno "Use $pkgstyle to install requirements?" ; then
+  if check_yesno "Use $pkgstyle to install requirements?" ; then
+    # Don't update packages if sudo not available
+    if check_command sudo ; then
       case "$pkgstyle" in
         "apt")
           sysup_apt
@@ -296,9 +292,9 @@ else
           echo_continue "Unknown package style - skipped"
         ;;
       esac
+    else
+      check_continue "sudo not available, install packages skipped."
     fi
-  else
-    check_continue "sudo not available, install packages skipped."
   fi
 fi
 
@@ -306,12 +302,12 @@ fi
 if [ "$ttygroup" = "unknown" ] ; then
   true
 else
-  echo "Serial Port Access:"
   if groups | grep -F "$ttygroup" >/dev/null 2>&1 ; then
+    echo "Serial Port Access:"
     echo_continue "OK ($ttygroup)"
   else
     if check_command sudo ; then
-      if check_yesno "Add $USER to group $ttygroup?" ; then
+      if check_yesno "Add $USER to group $ttygroup for serial port access?" ; then
         if [ "$pkgstyle" = "pkg" ] ; then
           sudo pw group mod -n "$ttygroup" -m "$USER"
         else
@@ -322,7 +318,7 @@ else
         echo_continue "Skipped"
       fi
     else
-      check_continue "Add user to group $ttygroup for access to serial port."
+      check_continue "Add user to group $ttygroup to access serial port."
     fi
   fi
 fi
