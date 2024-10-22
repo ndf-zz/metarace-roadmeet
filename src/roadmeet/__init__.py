@@ -53,6 +53,12 @@ ROADRACE_TYPES = {
     'irtt': 'Individual Time Trial',
     'trtt': 'Team Time Trial',
 }
+PRINT_TYPES = {
+    '': 'Save only',
+    'preview': 'Print Preview',
+    'dialog': 'Print Dialog',
+    'direct': 'Print'
+}
 _HANDLERS = {
     'null': decoder,
     'thbc': thbc,
@@ -191,12 +197,11 @@ _CONFIG_SCHEMA = {
     },
     'doprint': {
         'prompt': 'Reports:',
-        'control': 'check',
-        'type': 'bool',
-        'subtext': 'Print?',
-        'hint': 'Open print dialog when creating reports',
+        'control': 'choice',
         'attr': 'doprint',
-        'default': False,
+        'defer': True,
+        'options': PRINT_TYPES,
+        'default': 'preview',
     },
     'mirrorcmd': {
         'prompt': 'Command:',
@@ -514,12 +519,18 @@ class roadmeet:
             rep.add_section(sec)
 
         if self.doprint:
+            method = Gtk.PrintOperationAction.PREVIEW
+            if self.doprint == 'dialog':
+                method = Gtk.PrintOperationAction.PRINT_DIALOG
+            elif self.doprint == 'direct':
+                method = Gtk.PrintOperationAction.PRINT
+
             print_op = Gtk.PrintOperation.new()
             print_op.set_print_settings(self.printprefs)
             print_op.set_default_page_setup(self.pageset)
             print_op.connect('begin_print', self.begin_print, rep)
             print_op.connect('draw_page', self.draw_print_page, rep)
-            res = print_op.run(Gtk.PrintOperationAction.PRINT_DIALOG, None)
+            res = print_op.run(method, None)
             if res == Gtk.PrintOperationResult.APPLY:
                 self.printprefs = print_op.get_print_settings()
                 _log.debug('Updated print preferences')
@@ -986,7 +997,7 @@ class roadmeet:
         self._alttimer.status()
 
     def menu_timing_start_activate_cb(self, menuitem, data=None):
-        """Manually set event elapsed time via trigger."""
+        """Manually set event start/elapsed time via trigger."""
         if self.curevent is None:
             _log.info('No event open to set elapsed time on')
         else:
@@ -1811,7 +1822,7 @@ class roadmeet:
         self.remoteenable = False
         self.lifexport = False
         self.resfiles = True
-        self.doprint = False
+        self.doprint = 'preview'
         self.announceresult = True
 
         # printer preferences
