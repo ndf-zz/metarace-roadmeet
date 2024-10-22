@@ -367,7 +367,7 @@
                         <property name="visible">True</property>
                         <child>
                           <object class="GtkMenuItem" id="menu_timing_start">
-                            <property name="label">Set _Elapsed</property>
+                            <property name="label">Set S_tart</property>
                             <property name="visible">True</property>
                             <property name="use_underline">True</property>
                             <signal name="activate" handler="menu_timing_start_activate_cb"/>

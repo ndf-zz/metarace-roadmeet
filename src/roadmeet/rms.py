@@ -441,6 +441,7 @@ class rms:
                 'lapstart': None,
                 'lapfin': None,
                 'curlap': -1,
+                'onlap': 1,
                 'passlabels': {},
                 'catonlap': {},
                 'passingsource': None,
@@ -525,6 +526,7 @@ class rms:
         self.lapfin = cr.get_tod('rms', 'lapfin')
 
         self.curlap = cr.get_int('rms', 'curlap', -1)
+        self.onlap = cr.get_int('rms', 'onlap', 1)
         self.totlaps = cr.get_int('rms', 'totlaps', None)
         self.places = strops.reformat_placelist(cr.get('rms', 'places'))
         self.decisions = cr.get('rms', 'decisions')
@@ -556,15 +558,13 @@ class rms:
         if not oneseed:
             self.hidecolumn(SEEDCOLUMN)
 
-        if self.autofinish:
-            self.curlap = -1
+        if self.curlap is not None and self.curlap >= 0:
+            self.lapentry.set_text(str(self.curlap))
+        else:
             self.lapentry.set_text('')
+        if self.autofinish:
             self.lapentry.set_sensitive(False)
         else:
-            if self.curlap is not None and self.curlap >= 0:
-                self.lapentry.set_text(str(self.curlap))
-            else:
-                self.lapentry.set_text('')
             self.lapentry.set_sensitive(True)
 
         if self.totlaps is not None:
@@ -4281,11 +4281,13 @@ class rms:
             self.newstartdlg = dlg
 
             timent = b.get_object('time_entry')
+            timent.set_text('0.0')
             self.newstartent = timent
             timent.connect('activate', self.verify_timent)
 
             self.meet.timercb = self.new_start_trigger
-            b.get_object('now_button').connect('clicked', self.new_start_trig)
+            b.get_object('now_button').connect('button-press-event',
+                                               self.new_start_trig)
 
             response = dlg.run()
             self.newstartdlg = None
@@ -4396,7 +4398,8 @@ class rms:
         if r[COL_STOFT] is not None:
             sof = r[COL_STOFT]
         elif rcat and rcat in self.catstarts:
-            sof = self.catstarts[rcat]
+            if self.catstarts[rcat] is not None:
+                sof = self.catstarts[rcat]
 
         # determine elapsed time
         _log.debug('lapsdown: passing=%r, st=%r, sof=%r', passing, st, sof)
