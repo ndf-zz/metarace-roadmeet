@@ -2587,6 +2587,43 @@ class rms:
             self.recalculate()
         return False
 
+    def rms_context_lap_leader_cb(self, menuitem, data=None):
+        """Set event level lap times based on selected rider"""
+        if self.start is not None:
+            if self.timerstat != 'finished':
+                sel = self.view.get_selection().get_selected()
+                bib = None
+                if sel is not None:
+                    i = sel[1]
+                    r = Gtk.TreeModelRow(self.riders, i)
+                    if len(r[COL_RFSEEN]) > 0:
+                        self.newlapleader(r)
+                    else:
+                        _log.info('Lap leader ignored: No passings')
+                else:
+                    _log.info('Lap leader ignored: Empty selection')
+            else:
+                _log.info('Lap leader ignored: Event finsihed')
+        else:
+            _log.info('Lap leader ignored: Event not started')
+
+    def newlapleader(self, lr):
+        """Update event lap times"""
+        lapcount = len(lr[COL_RFSEEN])
+        lapstart = None
+        lapfin = None
+        if lapcount > 0:
+            lapfin = lr[COL_RFSEEN][-1]
+        if lapcount > 1:
+            lapstart = lr[COL_RFSEEN][-2]
+        self.lapstart = lapstart
+        self.lapfin = lapfin
+        self.curlap = lapcount
+        self.onlap = lapcount + 1
+        self.lapentry.set_text(str(self.curlap))
+        self.finish = None
+        _log.info('Updated lap leader from rider %s', lr[COL_BIB])
+
     def manpassing(self, biblist=''):
         """Register a manual passing, preserving order."""
         for bib in biblist.split():
@@ -2867,8 +2904,67 @@ class rms:
         # insert this passing in order
         lr[COL_RFSEEN].insert(ipos, e)
 
-        # update event model
-        return self.riderlap(bib, lr, rcat, e)
+        # update event model if rider still in race
+        if lr[COL_RFTIME] is None:
+            return self.riderlap(bib, lr, rcat, e)
+        else:
+            _log.info('Ignored finished rider: %s:%s@%s/%s', bib, e.chan,
+                      e.rawtime(2), e.source)
+
+        return False
+
+    def eventlap(self, bib, lr, rcat, e):
+        """Update event lap counts based on rider passing"""
+        onlap = False
+        if self.lapfin is None:
+            # lap finish armed, first rider with laps == curlap
+            # will be considered the leader, otherwise they are dropped
+            # NOTE: this overrides lap time guards
+            if lr[COL_LAPS] == self.curlap:
+                self.set_lap_finish(e)
+                self.meet.cmd_announce('redraw', 'timer')
+                onlap = True
+        else:
+            # check if passing is on this lap
+            if self.lapfin is not None:
+                curlapstart = self.lapfin
+                if e < curlapstart:
+                    # passing is for a previous event lap
+                    onlap = False
+                    _log.info('Passing on previous lap: %s:%s@%s/%s < %s', bib,
+                              e.chan, e.rawtime(2), e.source,
+                              curlapstart.rawtime(2))
+                else:
+                    if lr[COL_LAPS] == self.curlap:
+                        onlap = True
+                    elif lr[COL_LAPS] < self.curlap:
+                        if self.etype == 'criterium':
+                            # push them on to the current lap
+                            lr[COL_LAPS] = self.curlap
+                            onlap = True
+                        else:
+                            # rider is not on current event lap
+                            pass
+                    else:
+                        if e < curlapstart + self.minlap:
+                            # passing cannot be for a new lap yet
+                            if self.etype == 'criterium':
+                                # push them back to the current lap
+                                lr[COL_LAPS] = self.curlap
+                                onlap = True
+                            else:
+                                _log.warning('Invalid laps %r: %r / %r', bib,
+                                             lr[COL_LAPS], self.curlap)
+                        else:
+                            # otherwise this is the lap leader
+                            self.armlap()
+                            self.set_lap_finish(e)
+                            self.meet.cmd_announce('redraw', 'timer')
+                            onlap = True
+            else:
+                # event laps are not being tracked, no one is onlap
+                pass
+        return onlap
 
     def riderlap(self, bib, lr, rcat, e):
         """Process an accepted rider lap passing"""
@@ -2893,38 +2989,24 @@ class rms:
 
         # finishing rider path
         if self.timerstat == 'armfinish' or lapfinish:
-            if self.finish is None:  # implies lr[COL_RFTIME] is None
-                # in case finish is being triggered by a lap target,
-                # ensure that the event lap is armed and the final lap
-                # is recorded
-                if lapfinish:
-                    self.armlap()
-                    self.set_lap_finish(e)
-
-                # Then Announce first finish to scoreboard.
-                self.set_finish(e)
-                self.meet.cmd_announce('redraw', 'timer')
-            if lr[COL_RFTIME] is None:
-                if lr[COL_COMMENT] != 'wd':
-                    if lr[COL_PLACE] == '':
-                        lr[COL_RFTIME] = e
-                        self._dorecalc = True
-                    else:
-                        _log.error('Placed rider seen at finish: %s:%s@%s/%s',
-                                   bib, e.chan, e.rawtime(2), e.source)
-                    if lr[COL_INRACE]:
-                        lr[COL_LAPS] += 1
-                        if rcat in self.catonlap and lr[
-                                COL_LAPS] > self.catonlap[rcat]:
-                            self.catonlap[rcat] = lr[COL_LAPS]
-                            self.announcecatlap(rcat)
-                        if self.lapfin is None:
-                            self.set_lap_finish(e)
-                        self.announce_rider('', bib, lr[COL_NAMESTR],
-                                            lr[COL_CAT], e, lr[COL_LAPS])
-            else:
-                _log.info('Duplicate finish rider %s:%s@%s/%s', bib, e.chan,
-                          e.rawtime(2), e.source)
+            if lr[COL_COMMENT] != 'wd':
+                if lr[COL_PLACE] == '':
+                    lr[COL_RFTIME] = e
+                    self._dorecalc = True
+                else:
+                    _log.error('Placed rider seen at finish: %s:%s@%s/%s', bib,
+                               e.chan, e.rawtime(2), e.source)
+                if lr[COL_INRACE]:
+                    lr[COL_LAPS] += 1
+                    if rcat in self.catonlap and lr[COL_LAPS] > self.catonlap[
+                            rcat]:
+                        self.catonlap[rcat] = lr[COL_LAPS]
+                        self.announcecatlap(rcat)
+                    if self.lapfin is None:
+                        self.set_lap_finish(e)
+                    self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT],
+                                        e, lr[COL_LAPS])
+            self.eventlap(bib, lr, rcat, e)
         # end finishing rider path
 
         # lapping rider path
@@ -2951,61 +3033,13 @@ class rms:
                             # rider is on the current event lap
                             onlap = True
 
-                # event lap count handling
-                if self.lapfin is None:
-                    # lap finish armed, first rider with laps == curlap
-                    # will be considered the leader, otherwise they are dropped
-                    # NOTE: this overrides lap time guards
-                    if lr[COL_LAPS] == self.curlap:
-                        self.set_lap_finish(e)
-                        self.meet.cmd_announce('redraw', 'timer')
-                        onlap = True
-                else:
-                    # check if passing is on this lap
-                    if self.lapfin is not None:
-                        curlapstart = self.lapfin
-                        if e < curlapstart:
-                            # passing is for a previous event lap
-                            onlap = False
-                            _log.info(
-                                'Passing on previous lap: %s:%s@%s/%s < %s',
-                                bib, e.chan, e.rawtime(2), e.source,
-                                curlapstart.rawtime(2))
-                        else:
-                            if lr[COL_LAPS] == self.curlap:
-                                onlap = True
-                            elif lr[COL_LAPS] < self.curlap:
-                                if self.etype == 'criterium':
-                                    # push them on to the current lap
-                                    lr[COL_LAPS] = self.curlap
-                                    onlap = True
-                                else:
-                                    # rider is not on current event lap
-                                    pass
-                            else:
-                                if e < curlapstart + self.minlap:
-                                    # passing cannot be for a new lap yet
-                                    if self.etype == 'criterium':
-                                        # push them back to the current lap
-                                        lr[COL_LAPS] = self.curlap
-                                        onlap = True
-                                    else:
-                                        _log.warning(
-                                            'Invalid laps %r: %r / %r', bib,
-                                            lr[COL_LAPS], self.curlap)
-                                else:
-                                    # otherwise this is the lap leader
-                                    self.armlap()
-                                    self.set_lap_finish(e)
-                                    self.meet.cmd_announce('redraw', 'timer')
-                                    onlap = True
-                    else:
-                        # event laps are not being tracked, no one is onlap
-                        pass
+                self.eventlap(bib, lr, rcat, e)
+        else:
+            _log.debug('Ignored rider lap for timerstat=%s', self.timerstat)
 
-                # announce all rider passings
-                self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e,
-                                    lr[COL_LAPS])
+        # announce all rider passings
+        self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e,
+                            lr[COL_LAPS])
         return False
 
     def announce_rider(self, place, bib, namestr, cat, rftime, lap=None):
@@ -3370,6 +3404,11 @@ class rms:
 
     def set_finish(self, finish=None):
         """Set the finish time."""
+        if self.etype != 'handicap' and len(self.cats) > 1:
+            # Don't set event finish for multi-cat event
+            _log.debug('Set finish skipped for multi-cat event')
+            return
+
         if finish is not None:
             if type(finish) is not tod.tod:
                 _log.warning('Ignored invalid finish time %r', finish)
@@ -4300,16 +4339,6 @@ class rms:
         finally:
             self.meet.timercb = self.timertrig
             dlg.destroy()
-
-    #def treerow_selected(self, treeview, path, view_column, data=None):
-    #"""Select row, confirm only selected place"""
-    ## filter on running/armfinish
-    #if self.timerstat not in ('idle', 'armstart', 'finished'):
-    #if self.finish is not None:
-    #rbib = self.riders[path][COL_BIB]
-    #_log.info('Confirmed next place by tree selection: %r/%r',
-    #rbib, path)
-    #self.append_selected_place()
 
     def treeview_button_press(self, treeview, event):
         """Set callback for mouse press on model view."""

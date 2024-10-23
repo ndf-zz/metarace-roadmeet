@@ -139,6 +139,13 @@
       </object>
     </child>
     <child>
+      <object class="GtkMenuItem" id="rms_context_lapset">
+        <property name="label">Lap Leader</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rms_context_lap_leader_cb"/>
+      </object>
+    </child>
+    <child>
       <object class="GtkSeparatorMenuItem" id="rms_context_sep1">
         <property name="visible">True</property>
       </object>
