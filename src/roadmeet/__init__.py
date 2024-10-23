@@ -54,10 +54,10 @@ ROADRACE_TYPES = {
     'trtt': 'Team Time Trial',
 }
 PRINT_TYPES = {
-    '': 'Save only',
-    'preview': 'Print Preview',
+    '': 'Save to PDF',
+    'preview': 'Preview and Save to PDF',
     'dialog': 'Print Dialog',
-    'direct': 'Print'
+    'direct': 'Print Direct'
 }
 _HANDLERS = {
     'null': decoder,
@@ -143,6 +143,15 @@ _CONFIG_SCHEMA = {
         'attr': 'provisionalstart',
         'default': True,
     },
+    'doprint': {
+        'prompt': 'Reports:',
+        'control': 'choice',
+        'attr': 'doprint',
+        'defer': True,
+        'options': PRINT_TYPES,
+        'default': 'preview',
+        'hint': 'Ad-hoc report handling'
+    },
     'sectele': {
         'control': 'section',
         'prompt': 'Telegraph',
@@ -194,14 +203,6 @@ _CONFIG_SCHEMA = {
     'secexp': {
         'control': 'section',
         'prompt': 'Export',
-    },
-    'doprint': {
-        'prompt': 'Reports:',
-        'control': 'choice',
-        'attr': 'doprint',
-        'defer': True,
-        'options': PRINT_TYPES,
-        'default': 'preview',
     },
     'mirrorcmd': {
         'prompt': 'Command:',
@@ -524,29 +525,36 @@ class roadmeet:
                 method = Gtk.PrintOperationAction.PRINT_DIALOG
             elif self.doprint == 'direct':
                 method = Gtk.PrintOperationAction.PRINT
-
+            _log.debug('Running print method: %s', self.doprint)
             print_op = Gtk.PrintOperation.new()
             print_op.set_print_settings(self.printprefs)
             print_op.set_default_page_setup(self.pageset)
             print_op.connect('begin_print', self.begin_print, rep)
             print_op.connect('draw_page', self.draw_print_page, rep)
-            res = print_op.run(method, None)
+            print_op.set_allow_async(True)
+            res = print_op.run(method, self.window)
             if res == Gtk.PrintOperationResult.APPLY:
                 self.printprefs = print_op.get_print_settings()
                 _log.debug('Updated print preferences')
             elif res == Gtk.PrintOperationResult.IN_PROGRESS:
                 _log.debug('Print operation in progress')
+            elif res == Gtk.PrintOperationResult.ERROR:
+                printerr = print_op.get_error()
+                _log.error('Print operation error: %s', printerr.message)
+            else:
+                _log.error('Print operation cancelled')
 
-        # For convenience, also save copies to pdf and xls
-        ofile = filename + '.pdf'
-        with metarace.savefile(ofile, mode='b') as f:
-            rep.output_pdf(f)
-        ofile = filename + '.xls'
-        with metarace.savefile(ofile, mode='b') as f:
-            rep.output_xls(f)
+        if self.doprint not in ('dialog', 'direct'):
+            # Save copy to pdf and xls
+            ofile = filename + '.pdf'
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_pdf(f)
+            ofile = filename + '.xls'
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_xls(f)
+            # Log completion
+            _log.info('Saved report to %s.pdf', filename)
 
-        # Log completion
-        _log.info('Saved report to %s.pdf', filename)
         return False
 
     def begin_print(self, operation, context, rep):
