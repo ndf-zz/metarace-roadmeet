@@ -1562,19 +1562,19 @@ class roadmeet:
                     r['footer'] = new_text
             elif col == 4:
                 if new_text != r['target']:
-                    nt = strops.confopt_posint(new_text, None)
-                    if nt is not None:
-                        r['target'] = str(nt)
+                    nt = strops.confopt_posint(new_text, '')
+                    r['target'] = str(nt)
             elif col == 5:
                 if new_text != r['distance']:
-                    nt = strops.confopt_float(new_text, None)
-                    if nt is not None:
-                        r['distance'] = str(nt)
+                    nt = strops.confopt_float(new_text, '')
+                    r['distance'] = str(nt)
             elif col == 6:
                 if new_text != r['start']:
                     nt = tod.mktod(new_text)
                     if nt is not None:
                         r['start'] = nt.rawtime(0)
+                    else:
+                        r['start'] = ''
 
     def _editcol_cb(self, cell, path, new_text, col):
         """Callback for editing a transponder ID"""
