@@ -266,7 +266,7 @@ class rms:
                     if cat not in ('CAT', 'SPARE', 'TEAM', 'DS'):
                         self.cats.append(cat)
                     else:
-                        _log.warning('Invalid result category: %r', cat)
+                        _log.warning('Invalid result category: %s', cat)
         self.cats.append('')  # always include one empty cat
 
         # update reserved sources list with any cat finish labels
@@ -291,7 +291,7 @@ class rms:
         # load intermediates
         for i in cr.get(section, 'intermeds'):
             if i in self.reserved_sources:
-                _log.info('Ignoring reserved inter: %r', i)
+                _log.info('Ignoring reserved intermed: %r', i)
             else:
                 crkey = 'intermed_' + i
                 descr = ''
@@ -310,7 +310,7 @@ class rms:
                 if cr.has_option(crkey, 'places'):
                     places = strops.reformat_placelist(cr.get(crkey, 'places'))
                 if i not in self.intermeds:
-                    _log.debug('Adding inter %r: %r %r', i, descr, places)
+                    _log.debug('Adding intermed %r: %r %r', i, descr, places)
                     self.intermeds.append(i)
                     self.intermap[i] = {
                         'descr': descr,
@@ -320,7 +320,7 @@ class rms:
                         'show': doshow
                     }
                 else:
-                    _log.info('Ignoring duplicate inter: %r', i)
+                    _log.info('Ignoring duplicate intermed: %r', i)
 
         # load contest meta data
         tallyset = set()
@@ -942,7 +942,10 @@ class rms:
         if len(self.cats) > 1:
             _log.debug('Preparing categorised startlist for %r', self.cats)
             for c in self.cats:
-                _log.debug('Startlist cat %r', c)
+                if c:
+                    _log.debug('Startlist Cat %s', c)
+                else:
+                    _log.debug('Startlist Uncategorised')
                 ret.extend(self.startlist_report_gen(c))
         else:
             _log.debug('Preparing flat startlist')
@@ -1255,7 +1258,10 @@ class rms:
         return ret
 
     def single_catresult(self, cat):
-        _log.debug('Cat result for cat=%r', cat)
+        if cat:
+            _log.debug('Result Cat %s', cat)
+        else:
+            _log.debug('Result Uncategorised')
         ret = []
         allin = False
         catname = cat
@@ -1586,7 +1592,10 @@ class rms:
                     [None, 'Riders abandoning the event: ' + str(dnfcount)])
             residual = totcount - (fincount + dnfcount + dnscount + hdcount)
             if residual > 0:
-                _log.info('%r unaccounted for: %r', cat, residual)
+                if cat:
+                    _log.info('Cat %s unaccounted for: %r', cat, residual)
+                else:
+                    _log.info('Riders unaccounted for: %r', residual)
             ret.append(sec)
 
             # finish report title manipulation
@@ -2272,9 +2281,11 @@ class rms:
 
     def resettimer(self):
         """Reset event timer."""
-        _log.info('Reset event to idle')
+        _log.debug('Clear event timers')
         self.set_finish()
         self.set_start()
+        self.lapstart = None
+        self.lapfin = None
         self.clear_results()
         self.timerstat = 'idle'
         self.racestat = 'prerace'
@@ -2382,7 +2393,7 @@ class rms:
         # update curlap entry whatever happened
         self.lapentry.set_text(str(self.curlap))
 
-        # Write lap time fields
+        # write lap time fields
         lapstr = None
         if self.timerstat not in ('armfinish', 'finished'):
             self.meet.cmd_announce('bunches', 'laps')
@@ -2762,11 +2773,13 @@ class rms:
             st = self.start + stof
             nt = tod.now()
             if st < nt:
-                _log.debug('Cat %r has started', cat)
+                if cat:
+                    _log.debug('Cat %r has started', cat)
                 ret = True
             else:
-                _log.debug('Cat %r has not yet started: %s < %s', cat,
-                           nt.rawtime(1), st.rawtime(1))
+                if cat:
+                    _log.debug('Cat %r has not yet started: %s < %s', cat,
+                               nt.rawtime(1), st.rawtime(1))
         return ret
 
     def announcecatlap(self, acat=None):
@@ -2794,8 +2807,9 @@ class rms:
                                 str(target),
                                 str(target - onlap)
                             ]))
-                        _log.debug('Cat %r %r: %r/%r, %r to go', cat, prompt,
-                                   onlap, target, target - onlap)
+                        if cat:
+                            _log.warning('Cat %r %r: %r/%r, %r to go', cat,
+                                         prompt, onlap, target, target - onlap)
                     else:
                         _log.debug('No data for %r cat lap', cat)
 
@@ -2925,45 +2939,42 @@ class rms:
                 self.meet.cmd_announce('redraw', 'timer')
                 onlap = True
         else:
-            # check if passing is on this lap
-            if self.lapfin is not None:
-                curlapstart = self.lapfin
-                if e < curlapstart:
-                    # passing is for a previous event lap
-                    onlap = False
-                    _log.info('Passing on previous lap: %s:%s@%s/%s < %s', bib,
-                              e.chan, e.rawtime(2), e.source,
-                              curlapstart.rawtime(2))
-                else:
-                    if lr[COL_LAPS] == self.curlap:
+            curlapstart = self.lapfin
+            if e < curlapstart:
+                # passing is for a previous event lap
+                onlap = False
+                _log.info('Passing on previous lap: %s:%s@%s/%s < %s',
+                          bib, e.chan, e.rawtime(2), e.source,
+                          curlapstart.rawtime(2))
+            else:
+                if lr[COL_LAPS] == self.curlap:
+                    onlap = True
+                elif lr[COL_LAPS] < self.curlap:
+                    if self.etype == 'criterium':
+                        # push them on to the current lap
+                        lr[COL_LAPS] = self.curlap
                         onlap = True
-                    elif lr[COL_LAPS] < self.curlap:
+                    else:
+                        # rider is not on current event lap
+                        pass
+                else:
+                    if e < curlapstart + self.minlap:
+                        # passing cannot be for a new lap yet
                         if self.etype == 'criterium':
-                            # push them on to the current lap
+                            # push them back to the current lap
                             lr[COL_LAPS] = self.curlap
                             onlap = True
                         else:
-                            # rider is not on current event lap
-                            pass
+                            if self.curlap > 0:
+                                _log.warning(
+                                    'Rider/event lap mismatch %r: %r != %r',
+                                    bib, lr[COL_LAPS], self.curlap)
                     else:
-                        if e < curlapstart + self.minlap:
-                            # passing cannot be for a new lap yet
-                            if self.etype == 'criterium':
-                                # push them back to the current lap
-                                lr[COL_LAPS] = self.curlap
-                                onlap = True
-                            else:
-                                _log.warning('Invalid laps %r: %r / %r', bib,
-                                             lr[COL_LAPS], self.curlap)
-                        else:
-                            # otherwise this is the lap leader
-                            self.armlap()
-                            self.set_lap_finish(e)
-                            self.meet.cmd_announce('redraw', 'timer')
-                            onlap = True
-            else:
-                # event laps are not being tracked, no one is onlap
-                pass
+                        # otherwise this is the lap leader
+                        self.armlap()
+                        self.set_lap_finish(e)
+                        self.meet.cmd_announce('redraw', 'timer')
+                        onlap = True
         return onlap
 
     def riderlap(self, bib, lr, rcat, e):
@@ -3002,8 +3013,6 @@ class rms:
                             rcat]:
                         self.catonlap[rcat] = lr[COL_LAPS]
                         self.announcecatlap(rcat)
-                    if self.lapfin is None:
-                        self.set_lap_finish(e)
                     self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT],
                                         e, lr[COL_LAPS])
             self.eventlap(bib, lr, rcat, e)
@@ -3448,9 +3457,6 @@ class rms:
         self.meet.cmd_announce('laplbl', None)
         self.meet.stat_but.update('idle', 'Finished')
         self.meet.stat_but.set_sensitive(False)
-        if self.finish is None:
-            self.set_finish(tod.now())
-            _log.info('Finish time forced: %s', self.finish.rawtime())
 
     def info_time_edit_clicked_cb(self, button, data=None):
         """Run an edit times dialog to update event time."""
@@ -3907,7 +3913,8 @@ class rms:
                 pgroups.append('-'.join(cg))
 
         ret = ' '.join(pgroups)
-        _log.debug('Cat %r finish: %r', cat, ret)
+        if cat:
+            _log.debug('Cat %r finish: %r', cat, ret)
         return ret
 
     def assign_finish(self):
