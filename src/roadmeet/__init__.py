@@ -278,7 +278,7 @@ def mkdevice(portstr=None, curdev=None):
     devtype = 'null'
     if metarace.sysconf.has_option('decoder', 'default'):
         devtype = metarace.sysconf.get('decoder', 'default')
-        _log.debug('Default type set to %r from sysconf', devtype)
+        _log.debug('Default type set to %s from sysconf', devtype)
     (a, b, c) = portstr.partition(':')
     if b:
         a = a.lower()
@@ -348,6 +348,7 @@ class roadmeet:
                     subtext='Note: All result and timing data will be cleared.',
                     title='Reset Event?'):
                 self.curevent.resettimer()
+                _log.info('Reset event to idle')
 
     def menu_meet_properties_cb(self, menuitem, data=None):
         """Edit meet properties."""
@@ -467,7 +468,7 @@ class roadmeet:
                 conf = self.curevent.configfile
                 self.close_event()
                 backup = conf + '.bak'
-                _log.warning('Event type change, backing up old config to %r',
+                _log.warning('Event type change, config backed up to %s',
                              backup)
                 try:
                     if os.path.exists(backup):
@@ -581,7 +582,7 @@ class roadmeet:
 
     def menu_event_armstart_activate_cb(self, menuitem, data=None):
         """Default armstart handler."""
-        _log.info('Arm Start')
+        _log.debug('Arm start request')
         try:
             self.curevent.armstart()
         except Exception as e:
@@ -589,7 +590,7 @@ class roadmeet:
 
     def menu_event_armlap_activate_cb(self, menuitem, data=None):
         """Default armlap handler."""
-        _log.debug('Arm Lap')
+        _log.debug('Arm lap request')
         try:
             self.curevent.armlap()
         except Exception as e:
@@ -597,7 +598,7 @@ class roadmeet:
 
     def menu_event_armfin_activate_cb(self, menuitem, data=None):
         """Default armfin handler."""
-        _log.info('Arm Finish')
+        _log.debug('Arm finish request')
         try:
             self.curevent.armfinish()
         except Exception as e:
@@ -605,7 +606,7 @@ class roadmeet:
 
     def menu_event_finished_activate_cb(self, menuitem, data=None):
         """Default finished handler."""
-        _log.info('Finished')
+        _log.debug('Set finished request')
         try:
             self.curevent.set_finished()
         except Exception as e:
@@ -651,65 +652,72 @@ class roadmeet:
         """Generate a startlist."""
         if self.curevent is not None:
             sections = self.curevent.startlist_report()
-            if sections:
-                self.print_report(sections,
-                                  provisional=self.provisionalstart,
-                                  filename='startlist')
-            else:
-                _log.info('Startlist - Nothing to print')
+            if not sections:
+                _log.warning('Empty startlist')
+            self.print_report(sections,
+                              provisional=self.provisionalstart,
+                              filename='startlist')
 
     def menu_reports_callup_activate_cb(self, menuitem, data=None):
         """Generate a start line call-up."""
         if self.curevent is not None:
             sections = self.curevent.callup_report()
-            if sections:
-                self.print_report(sections,
-                                  provisional=self.provisionalstart,
-                                  filename='callup')
-            else:
-                _log.info('Callup - Nothing to print')
+            if not sections:
+                _log.warning('Empty callup')
+            self.print_report(sections,
+                              provisional=self.provisionalstart,
+                              filename='callup')
 
     def menu_reports_signon_activate_cb(self, menuitem, data=None):
         """Generate a sign on sheet."""
         if self.curevent is not None:
             sections = self.curevent.signon_report()
-            if sections:
-                self.print_report(sections, filename='signonsheet')
-            else:
-                _log.info('Sign-on - Nothing to print')
+            if not sections:
+                _log.warning('Empty signon')
+            self.print_report(sections, filename='signonsheet')
 
     def menu_reports_analysis_activate_cb(self, menuitem, data=None):
         """Generate the analysis report."""
         if self.curevent is not None:
             sections = self.curevent.analysis_report()
-            if sections:
-                self.print_report(sections, filename='analysisreport')
+            if not sections:
+                _log.warning('Empty analysis')
+            self.print_report(sections, filename='analysisreport')
 
     def menu_reports_camera_activate_cb(self, menuitem, data=None):
         """Generate the camera operator report."""
         if self.curevent is not None:
             sections = self.curevent.camera_report()
-            if sections:
-                self.print_report(sections, filename='camerareport')
+            if not sections:
+                _log.warning('Empty camera report')
+            self.print_report(sections, filename='camerareport')
 
     def event_results_points_activate_cb(self, menuitem, data=None):
         """Generate the points tally report."""
         if self.curevent is not None:
             sections = self.curevent.points_report()
-            if sections:
-                self.print_report(sections, filename='pointstally')
+            if not sections:
+                _log.warning('Empty points report')
+            self.print_report(sections, filename='pointstally')
 
     def menu_reports_result_activate_cb(self, menuitem, data=None):
         """Generate the event result report."""
         if self.curevent is not None:
             sections = self.curevent.result_report()
-            if sections:
-                self.print_report(sections,
-                                  self.curevent.timerstat != 'finished',
-                                  filename='result')
+            if not sections:
+                _log.warning('Empty result report')
+            self.print_report(sections,
+                              self.curevent.timerstat != 'finished',
+                              filename='result')
 
     def menu_data_replace_activate_cb(self, menuitem, data=None):
         """Replace rider db from disk."""
+        if not uiutil.questiondlg(
+                window=self.window,
+                question='Replace all rider, team and category entries?',
+                title='Replace riderdb?'):
+            _log.debug('Replace riders cancelled')
+            return False
         sfile = uiutil.chooseCsvFile(title='Select rider file to load from',
                                      parent=self.window,
                                      path='.')
@@ -717,11 +725,11 @@ class roadmeet:
             try:
                 self.rdb.clear(notify=False)
                 count = self.rdb.load(sfile)
-                _log.info('Loaded %d entries from %r', count, sfile)
+                _log.info('Loaded %d entries from %s', count, sfile)
             except Exception as e:
                 _log.error('%s loading riders: %s', e.__class__.__name__, e)
         else:
-            _log.debug('Import riders cancelled')
+            _log.debug('Replace riders cancelled')
 
     def menu_data_clear_activate_cb(self, menuitem, data=None):
         """Clear rider db."""
@@ -736,9 +744,9 @@ class roadmeet:
         if sfile is not None:
             try:
                 count = self.rdb.load(sfile, overwrite=True)
-                _log.info('Imported %d rider entries from %r', count, sfile)
+                _log.info('Imported %d entries from %s', count, sfile)
             except Exception as e:
-                _log.error('%s importing riders: %s', e.__class__.__name__, e)
+                _log.error('%s importing: %s', e.__class__.__name__, e)
         else:
             _log.debug('Import riders cancelled')
 
@@ -750,7 +758,7 @@ class roadmeet:
         if sfile is not None:
             try:
                 count = self.rdb.load_chipfile(sfile)
-                _log.info('Imported %d refids from chipfile %r', count, sfile)
+                _log.info('Imported %d refids from chipfile %s', count, sfile)
             except Exception as e:
                 _log.error('%s importing chipfile: %s', e.__class__.__name__,
                            e)
@@ -785,7 +793,7 @@ class roadmeet:
                         if start is not None:
                             self.curevent.starttime(start, bib, series)
                         count += 1
-            _log.info('Imported %d starters from %r', count, sfile)
+            _log.info('Imported %d starters from %s', count, sfile)
         else:
             _log.debug('Import startlist cancelled')
 
@@ -799,7 +807,7 @@ class roadmeet:
         if sfile is not None:
             try:
                 self.rdb.save(sfile)
-                _log.info('Export rider data to %r', sfile)
+                _log.info('Export rider data to %s', sfile)
             except Exception as e:
                 _log.error('%s exporting riders: %s', e.__class__.__name__, e)
         else:
@@ -815,7 +823,7 @@ class roadmeet:
         if sfile is not None:
             try:
                 count = self.rdb.save_chipfile(sfile)
-                _log.info('Exported %d refids to chipfile %r', count, sfile)
+                _log.info('Exported %d refids to chipfile %s', count, sfile)
             except Exception as e:
                 _log.error('%s exporting chipfile: %s', e.__class__.__name__,
                            e)
@@ -847,7 +855,7 @@ class roadmeet:
                         if r[i]:
                             opr[i] = str(r[i].timeval)
                     cw.writerow(opr)
-            _log.info('Export result to %r', rfilename)
+            _log.info('Export result to %s', rfilename)
 
     def menu_export_startlist_activate_cb(self, menuitem, data=None):
         """Extract startlist from current event."""
@@ -875,7 +883,7 @@ class roadmeet:
                         for r in self.curevent.startlist_gen(c):
                             cw.writerow(r)
 
-            _log.info('Export startlist to %r', rfilename)
+            _log.info('Export startlist to %s', rfilename)
         else:
             _log.info('Export startlist cancelled')
 
@@ -975,7 +983,7 @@ class roadmeet:
                 rep.output_html(f, linkbase=lb, linktypes=lt)
 
     def menu_data_results_cb(self, menuitem, data=None):
-        """Create live result report and export"""
+        """Create result report and export"""
         self.saveconfig()
         if self.curevent is None:
             return

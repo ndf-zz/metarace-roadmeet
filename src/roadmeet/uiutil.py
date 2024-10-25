@@ -726,7 +726,6 @@ def messagedlg(window=None,
         dlg.format_secondary_text(subtext)
     ret = False
     response = dlg.run()
-    _log.debug('Message dialog %r returned: %r', title, response)
     dlg.hide()
     if response == Gtk.ResponseType.OK:
         ret = True

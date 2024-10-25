@@ -455,7 +455,7 @@ class rms:
         cr.add_section('stagepenalty')
         cr.merge(metarace.sysconf, 'rms')
         if not cr.load(self.configfile):
-            _log.info('%r not read, loading defaults', self.configfile)
+            _log.info('Config %s not read, loading defaults', self.configfile)
         cr.export_section('rms', self)
 
         # load result categories
@@ -737,7 +737,7 @@ class rms:
             if r[COL_PENALTY] is not None:
                 cw.set('stagepenalty', bib, r[COL_PENALTY])
         cw.set('rms', 'id', EVENT_ID)
-        _log.debug('Saving event config %r', self.configfile)
+        _log.debug('Saving event config to %s', self.configfile)
         with metarace.savefile(self.configfile) as f:
             cw.write(f)
 
@@ -828,11 +828,11 @@ class rms:
                     (total, -strops.riderno_key(bib), -cnt,
                      [None, bib, r[COL_NAMESTR], bonstr, penstr, totstr]))
                 cnt += 1
+        sec = report.section('bonus')
+        sec.heading = 'Time Bonuses'
+        sec.units = 'sec'
         if len(aux) > 0:
             aux.sort(reverse=True)
-            sec = report.section('bonus')
-            sec.heading = 'Time Bonuses'
-            sec.units = 'sec'
             for r in aux:
                 sec.lines.append(r[3])
             if onebonus or onepenalty:
@@ -843,10 +843,8 @@ class rms:
                 if onepenalty:
                     phead = 'Penalties'
                 sec.colheader = [None, None, None, bhead, phead, 'Total']
-            ret.append(sec)
+        ret.append(sec)
 
-        if len(ret) == 0:
-            _log.warning('No data available for points report')
         return ret
 
     def reorder_startlist(self, callup=False):
@@ -880,7 +878,7 @@ class rms:
             _log.debug('Preparing categorised signon for %r', self.cats)
             for c in self.cats:
                 c = self.ridercat(c)
-                _log.debug('Preparing signon cat %r', c)
+                _log.debug('Signon Cat %s', c)
                 if True:
                     sec = report.signon_list('signon')
                     sec.heading = c
@@ -902,13 +900,13 @@ class rms:
                             sec.lines.append([cmt, r[COL_BIB], r[COL_NAMESTR]])
                     if len(sec.lines) > 0:
                         if c == '':
-                            _log.warning('%r uncategorised riders',
+                            _log.warning('%d uncategorised riders',
                                          len(sec.lines))
                         ret.append(sec)
                         ret.append(report.pagebreak(threshold=0.1))
                     else:
                         if c:
-                            _log.warning('No starters for category %r', c)
+                            _log.warning('No starters for category %s', c)
         else:
             _log.debug('Preparing flat signon')
             sec = report.signon_list('signon')
@@ -928,7 +926,7 @@ class rms:
         if len(self.cats) > 1:
             _log.debug('Preparing categorised callup for %r', self.cats)
             for c in self.cats:
-                _log.debug('Callup cat %r', c)
+                _log.debug('Callup Cat %s', c)
                 ret.extend(self.startlist_report_gen(c, callup=True))
         else:
             _log.debug('Preparing flat callup')
@@ -1067,7 +1065,7 @@ class rms:
         if cat or len(sec.lines) > 0 or len(self.cats) < 2:
             ret.append(sec)
             if uncat:
-                _log.warning('%r uncategorised riders', len(sec.lines))
+                _log.warning('%d uncategorised riders', len(sec.lines))
 
         return ret
 
@@ -1593,9 +1591,9 @@ class rms:
             residual = totcount - (fincount + dnfcount + dnscount + hdcount)
             if residual > 0:
                 if cat:
-                    _log.info('Cat %s unaccounted for: %r', cat, residual)
+                    _log.info('Cat %s unaccounted for: %d', cat, residual)
                 else:
-                    _log.info('Riders unaccounted for: %r', residual)
+                    _log.info('Riders unaccounted for: %d', residual)
             ret.append(sec)
 
             # finish report title manipulation
@@ -1657,7 +1655,7 @@ class rms:
                             word = word[0:-1]
                         rep = word
                         look = word.split(':', 1)[-1]
-                        _log.debug('Look up rider: %r', look)
+                        _log.debug('Look up rider: %s', look)
                         rid = self.meet.rdb.get_id(look)
                         if rid is not None:
                             rep = self.meet.rdb[rid].name_bib()
@@ -1669,7 +1667,7 @@ class rms:
                             word = word[0:-1]
                         rep = word
                         look = word.split(':', 1)[-1]
-                        _log.debug('Look up team: %r', look)
+                        _log.debug('Look up team: %s', look)
                         rid = self.meet.rdb.get_id(look, 'team')
                         if rid is not None:
                             rep = self.meet.rdb[rid][
@@ -1682,7 +1680,7 @@ class rms:
                             word = word[0:-1]
                         rep = word
                         look = word.split(':', 1)[-1]
-                        _log.debug('Look up ds: %r', look)
+                        _log.debug('Look up ds: %s', look)
                         rid = self.meet.rdb.get_id(look, 'ds')
                         if rid is not None:
                             rep = self.meet.rdb[rid].fitname(48)
@@ -1873,7 +1871,7 @@ class rms:
                 [None, 'Riders abandoning the event: ' + str(dnfcount)])
         residual = totcount - (fincount + dnfcount + dnscount + hdcount)
         if residual > 0:
-            _log.info('%r unaccounted for', residual)
+            _log.info('%s unaccounted for', residual)
         ret.append(sec)
 
         return ret
@@ -1920,9 +1918,9 @@ class rms:
                     self.intermap[acode]['places'] = rlist
                     self.recalculate()
                     self.intsprint(acode, rlist)
-                    _log.info('Intermediate %r == %r', acode, rlist)
+                    _log.info('Intermediate %s == %r', acode, rlist)
                 else:
-                    _log.error('Intermediate %r not updated', acode)
+                    _log.error('Intermediate %s not updated', acode)
             return False
         elif acode == 'fin':
             rlist = strops.reformat_placelist(rlist)
@@ -1980,7 +1978,7 @@ class rms:
 
     def query_rider(self, bib=None):
         """List info on selected rider in the scratchpad."""
-        _log.info('Query rider: %r', bib)
+        _log.info('Query rider: %s', bib)
         r = self.getrider(bib)
         if r is not None:
             ns = strops.truncpad(r[COL_NAMESTR] + ' ' + r[COL_CAT], 30)
@@ -2005,7 +2003,7 @@ class rms:
             if r[COL_RFTIME] is not None:
                 _log.info('Finish: %s', r[COL_RFTIME].timestr(1))
         else:
-            _log.info('%r not in startlist', bib)
+            _log.info('Rider %s not in startlist', bib)
 
     def startlist_gen(self, cat=''):
         """Generator function to export a startlist."""
@@ -2136,7 +2134,7 @@ class rms:
                                 ft = bt - sof
                                 lft = ft
                                 _log.debug(
-                                    'leader %r: %r laps, lap avg: %s, ft: %s',
+                                    'Leader %s: %d laps, lap avg: %s, ft: %s',
                                     bib, llaps, lavg.rawtime(6), ft.rawtime(0))
                             else:
                                 # do the faux down time
@@ -2149,7 +2147,7 @@ class rms:
                                     if bt < ft:
                                         # is this a valid finish time?
                                         _log.error(
-                                            '%r finish time %s ahead of cat leader %r: %s',
+                                            '%s finish time %s ahead of cat leader %s: %s',
                                             bib, ft.rawtime(0), lbib,
                                             lft.rawtime(0))
                                 ft = bt + lxtra - sof
@@ -2244,12 +2242,12 @@ class rms:
     def addrider(self, bib='', series=None):
         """Add specified rider to event model, return tree iter."""
         if series is not None and series != self.series:
-            _log.debug('Ignoring non-series rider: %r',
+            _log.debug('Ignoring non-series rider: %s',
                        strops.bibser2bibstr(bib, series))
             return None
 
         if bib and bib in self.ridernos:
-            _log.warning('Rider %r already in viewmodel', bib)
+            _log.info('Rider %s already in viewmodel', bib)
             return None
 
         if bib:
@@ -2378,16 +2376,16 @@ class rms:
             # sanity check onlap
             # once arm lap is done, curlap and onlap _should_ be same
             if self.onlap != self.curlap:
-                _log.debug('Cur/On lap mismatch %r/%r', self.curlap,
+                _log.debug('Lap mismatch: curlap=%d onlap=%d', self.curlap,
                            self.onlap)
                 if self.curlap == 1:
                     # assume this is an in-race correction
                     self.curlap = self.onlap
-                    _log.debug('Curlap set to %r from onlap', self.curlap)
+                    _log.debug('Curlap set to %d from onlap', self.curlap)
                 else:
                     # assume the curlap is set to the desired count
                     self.onlap = self.curlap
-                    _log.debug('Onlap set to %r from curlap', self.curlap)
+                    _log.debug('Onlap set to %d from curlap', self.curlap)
                 self.meet.cmd_announce('onlap', str(self.onlap))
 
         # update curlap entry whatever happened
@@ -2468,7 +2466,7 @@ class rms:
             i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.debug('Confirmed next place: %r/%s', selbib, selpath)
+            _log.debug('Confirmed next place: %s [%s]', selbib, selpath)
             nplaces = []
             # remove selected rider from places
             for placegroup in self.places.split():
@@ -2503,7 +2501,7 @@ class rms:
             i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Confirm places to: %r/%s', selbib, selpath)
+            _log.info('Confirm places to: %s [%s]', selbib, selpath)
             oplaces = self.places.split()
             nplaces = []
             atbreak = False
@@ -2539,7 +2537,7 @@ class rms:
             i = sel[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Clear places from: %r/%s', selbib, selpath)
+            _log.info('Clear places from: %s [%s]', selbib, selpath)
             nplaces = []
             found = False
             for placegroup in self.places.split():
@@ -2575,7 +2573,7 @@ class rms:
             i = sel[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
-            _log.info('Clear rider from places: %r/%s', selbib, selpath)
+            _log.info('Clear rider from places: %s [%s]', selbib, selpath)
             self.clear_place(selbib)
             self.recalculate()
 
@@ -2591,9 +2589,9 @@ class rms:
                     r[COL_MBUNCH] = None
                 r[COL_COMMENT] = code
                 recalc = True
-                _log.info('Rider %r did not finish with code: %r', bib, code)
+                _log.info('Rider %s did not finish with code: %s', bib, code)
             else:
-                _log.warning('Unregistered Rider %r unchanged', bib)
+                _log.warning('Unregistered rider %s unchanged', bib)
         if recalc:
             self.recalculate()
         return False
@@ -2661,9 +2659,9 @@ class rms:
                 if lr is not None:
                     r = self.meet.rdb[rider]
                     self.updaterider(lr, r)
-                    _log.debug('Updated single rider %r', rider)
+                    _log.debug('Updated single rider %s', rider)
                 else:
-                    _log.debug('Ignored update on non-starter %r', rider)
+                    _log.debug('Ignored update on non-starter %s', rider)
                 # a change in team may alter team data mapping
                 self.updateteam(rider)
             elif rider[1] == 'cat':
@@ -2674,7 +2672,7 @@ class rms:
                 # team changes may require recalc
                 self.updateteam(rider)
             else:
-                _log.debug('Ignore out of series rider %r', rider)
+                _log.debug('Ignore out of series rider %s', rider)
         else:
             _log.debug('Update all cats')
             self.load_cat_data()
@@ -2687,7 +2685,7 @@ class rms:
                     self.updaterider(lr, r)
                     count += 1
                 else:
-                    _log.debug('Ignored rider not in riderdb %r', bib)
+                    _log.debug('Ignored rider not in riderdb %s', bib)
             _log.debug('Updated %d riders', count)
             _log.debug('Update teams')
             self.updateteam()
@@ -2702,9 +2700,9 @@ class rms:
                 r[COL_COMMENT] = ''
                 r[COL_LAPS] = len(r[COL_RFSEEN])
                 recalc = True
-                _log.info('Rider %r returned to event', bib)
+                _log.info('Rider %s returned to event', bib)
             else:
-                _log.warning('Unregistered rider %r unchanged', bib)
+                _log.warning('Unregistered rider %s unchanged', bib)
         if recalc:
             self.recalculate()
         return False
@@ -2774,11 +2772,11 @@ class rms:
             nt = tod.now()
             if st < nt:
                 if cat:
-                    _log.debug('Cat %r has started', cat)
+                    _log.debug('Cat %s has started', cat)
                 ret = True
             else:
                 if cat:
-                    _log.debug('Cat %r has not yet started: %s < %s', cat,
+                    _log.debug('Cat %s has not yet started: %s < %s', cat,
                                nt.rawtime(1), st.rawtime(1))
         return ret
 
@@ -2808,10 +2806,10 @@ class rms:
                                 str(target - onlap)
                             ]))
                         if cat:
-                            _log.warning('Cat %r %r: %r/%r, %r to go', cat,
+                            _log.warning('Cat %s %r: %d/%d, %d to go', cat,
                                          prompt, onlap, target, target - onlap)
                     else:
-                        _log.debug('No data for %r cat lap', cat)
+                        _log.debug('No data for Cat %s laps', cat)
 
     def timertrig(self, e):
         """Process transponder passing event."""
@@ -2845,7 +2843,7 @@ class rms:
         spcat = r.primary_cat()
         if self.allowspares and spcat == 'SPARE' and self.timerstat in (
                 'running', 'armfinish'):
-            _log.warning('Adding spare bike: %r', bib)
+            _log.warning('Adding spare bike: %s', bib)
             self.addrider(bib)
 
         # fetch event info for rider
@@ -2967,7 +2965,7 @@ class rms:
                         else:
                             if self.curlap > 0:
                                 _log.warning(
-                                    'Rider/event lap mismatch %r: %r != %r',
+                                    'Rider/event lap mismatch %s: %d != %d',
                                     bib, lr[COL_LAPS], self.curlap)
                     else:
                         # otherwise this is the lap leader
@@ -3224,7 +3222,7 @@ class rms:
                         ])
                     idx += 1
                 else:
-                    _log.warning('Duplicate no. %r in places', bib)
+                    _log.warning('Duplicate in places: %s', bib)
         if len(lines) > 0:
             sec = report.section('inter' + acode)
             sec.heading = descr
@@ -3267,7 +3265,7 @@ class rms:
                             [rank, bib, r[COL_NAMESTR], r[COL_CAT], ''])
                     idx += 1
                 else:
-                    _log.warning('Duplicate no. % in places', bib)
+                    _log.warning('Duplicate in places: %s', bib)
         GLib.timeout_add_seconds(25, self.reannounce_lap)
 
     def todempty(self, val):
@@ -3506,7 +3504,7 @@ class rms:
                     GLib.idle_add(self.armlap)
             _log.info('Manually adjusted event times')
         else:
-            _log.debug('Edit times: no change.')
+            _log.debug('Edit times: No change')
 
     def editcol_cb(self, cell, path, new_text, col):
         """Edit column callback."""
@@ -3860,18 +3858,18 @@ class rms:
             if no != 'x':
                 # repetition? - already in place set?
                 if no in placeset:
-                    _log.error('Duplicate no in places: %r', no)
+                    _log.error('Duplicate in places: %s', no)
                     ret = False
                 placeset.add(no)
                 # rider in the model?
                 lr = self.getrider(no)
                 if lr is None:
-                    _log.error('Non-starter in places: %r', no)
+                    _log.error('Non-starter in places: %s', no)
                     ret = False
                 else:
                     # rider still in the event?
                     if not lr[COL_INRACE]:
-                        _log.info('DNF/DNS rider in places: %r', no)
+                        _log.info('DNF/DNS in places: %r', no)
                         if dnf:
                             ret = False
             else:
@@ -3914,7 +3912,7 @@ class rms:
 
         ret = ' '.join(pgroups)
         if cat:
-            _log.debug('Cat %r finish: %r', cat, ret)
+            _log.debug('Cat %s finish: %s', cat, ret)
         return ret
 
     def assign_finish(self):
@@ -3933,7 +3931,7 @@ class rms:
                     xfer[bib] = str(curplace)
                     idx += 1
                 else:
-                    _log.warning('Duplicate no. %r in finish places', bib)
+                    _log.warning('Duplicate in finish places: %s', bib)
 
         # scan model once
         for r in self.riders:
@@ -3942,7 +3940,7 @@ class rms:
                 if r[COL_INRACE]:
                     r[COL_PLACE] = xfer[bib]
                 else:
-                    _log.warning('DNF Rider %r in finish places', bib)
+                    _log.warning('DNF in finish places: %s', bib)
                 del (xfer[bib])
                 if not xfer:
                     break
@@ -3953,7 +3951,7 @@ class rms:
                 ri = self.addrider(bib)
                 if ri is not None:
                     lr = Gtk.TreeModelRow(self.riders, ri)
-                    _log.info('Added non-starter from finish places: %r', bib)
+                    _log.info('Added non-starter from finish places: %s', bib)
                     lr[COL_PLACE] = xfer[bib]
 
     def assign_places(self, contest):
@@ -3998,7 +3996,7 @@ class rms:
                     placeset.add(bib)
                     r = self.getrider(bib)
                     if r is None:
-                        _log.error('Invalid rider %r ignored in %r places',
+                        _log.error('Invalid rider %s ignored in %s places',
                                    bib, contest)
                         break
                     idx += 1
@@ -4046,7 +4044,7 @@ class rms:
                                 else:
                                     self.pointscb[tally][bib][curplace] += 1
                 else:
-                    _log.warning('Duplicate no. %r in %r places', bib, contest)
+                    _log.warning('Duplicate in %s places: %s', contest, bib)
 
     def decode_limit(self, limitstr, elap=None):
         """Decode a limit and finish time into raw bunch time."""
@@ -4338,7 +4336,7 @@ class rms:
             response = dlg.run()
             self.newstartdlg = None
             if response == 1:  # id 1 set in glade for "Apply"
-                _log.info('Start time updated: %r', self.start.rawtime(2))
+                _log.info('Start time updated: %s', self.start.rawtime(2))
             else:
                 _log.info('Set elapsed time cancelled')
         except Exception as e:
@@ -4438,7 +4436,6 @@ class rms:
                 sof = self.catstarts[rcat]
 
         # determine elapsed time
-        _log.debug('lapsdown: passing=%r, st=%r, sof=%r', passing, st, sof)
         et = passing - st + sof
 
         if ldr is not None:
@@ -4503,7 +4500,7 @@ class rms:
                         tv = dr[col]
                         dr[col] = sr[col]
                         sr[col] = tv
-                    _log.info('Swap riders %r <=> %r', srcbib, dstbib)
+                    _log.info('Swap riders %s <=> %s', srcbib, dstbib)
                     # If srcrider was a spare bike, remove the spare and patch
                     if spare:
                         ac = [t for t in sr[COL_RFSEEN]]
@@ -4511,11 +4508,11 @@ class rms:
                         dr[COL_RFSEEN] = [t for t in sorted(ac)]
                         dr[COL_LAPS] = len(dr[COL_RFSEEN])
                         self.delrider(srcbib)
-                        _log.debug('Spare bike %r removed', srcbib)
+                        _log.debug('Spare bike %s removed', srcbib)
                     # If dstrider is a spare bike, leave it in place
                     self.recalculate()
                 else:
-                    _log.error('Invalid rider swap %r <=> %r', srcbib, dstbib)
+                    _log.error('Invalid rider swap %s <=> %s', srcbib, dstbib)
             else:
                 _log.info('Swap to same rider ignored')
         else:
@@ -4702,10 +4699,10 @@ class rms:
             i = sel[1]
             selbib = self.riders.get_value(i, COL_BIB)
             if change == 'delete':
-                _log.info('Delete rider: %r', selbib)
+                _log.info('Delete rider: %s', selbib)
                 self.delrider(selbib)
             elif change == 'clear finish':
-                _log.info('Clear rider %r finish time', selbib)
+                _log.info('Clear rider %s finish time', selbib)
                 self.riders.set_value(i, COL_RFTIME, None)
                 self.riders.set_value(i, COL_MBUNCH, None)
                 self.recalculate()
@@ -4714,7 +4711,7 @@ class rms:
                 if splits is not None and len(splits) > 0:
                     nf = splits[-1]
                     _log.info(
-                        'Set raw finish for rider %r to last passing: %s',
+                        'Set raw finish for rider %s to last passing: %s',
                         selbib, nf.rawtime(2))
                     self.riders.set_value(i, COL_RFTIME, nf)
                     self.recalculate()
@@ -4736,7 +4733,7 @@ class rms:
         rstr = ''
         if self.readonly:
             rstr = 'readonly '
-        _log.debug('Init %r event', rstr)
+        _log.debug('Init %s event', rstr)
 
         self.recalclock = threading.Lock()
         self._dorecalc = False
