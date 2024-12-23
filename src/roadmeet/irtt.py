@@ -17,7 +17,6 @@ from gi.repository import Gdk
 
 import metarace
 from metarace import tod
-from metarace import eventdb
 from metarace import riderdb
 from metarace import strops
 from metarace import countback
@@ -2248,96 +2247,6 @@ class irtt(rms):
                     ret += '-' + bibstr
                 fp = r[COL_PLACE]
         return ret
-
-    def assign_places(self, contest):
-        """Transfer points and bonuses into the named contest."""
-        # fetch context meta infos
-        src = self.contestmap[contest]['source']
-        if src not in RESERVED_SOURCES and src not in self.intermeds:
-            _log.info('Invalid inter source %r in contest %r', src, contest)
-            return
-        countbackwinner = False  # for stage finish only track winner in cb
-        category = self.contestmap[contest]['category']
-        tally = self.contestmap[contest]['tally']
-        bonuses = self.contestmap[contest]['bonuses']
-        points = self.contestmap[contest]['points']
-        allsrc = self.contestmap[contest]['all_source']
-        allpts = 0
-        allbonus = tod.ZERO
-        if allsrc:
-            if len(points) > 0:
-                allpts = points[0]
-            if len(bonuses) > 0:
-                allbonus = bonuses[0]
-        placestr = ''
-        if src == 'fin':
-            placestr = self.get_placelist()
-            _log.info('Using placestr %r', placestr)
-            if tally in ('sprint', 'crit'):  # really only for sprints/crits
-                countbackwinner = True
-        elif src == 'reg':
-            placestr = self.get_startlist()
-        elif src == 'start':
-            placestr = self.get_starters()
-        else:
-            placestr = self.intermap[src]['places']
-        placeset = set()
-        idx = 0
-        for placegroup in placestr.split():
-            curplace = idx + 1
-            for bib in placegroup.split('-'):
-                if bib not in placeset:
-                    placeset.add(bib)
-                    b, s = strops.bibstr2bibser(bib)
-                    r = self.getrider(b, s)
-                    if r is None:
-                        _log.error('Invalid rider %r ignored in %r places',
-                                   bib, contest)
-                        break
-                    idx += 1
-                    if allsrc:  # all listed places get same pts/bonus..
-                        if allbonus is not tod.ZERO:
-                            if bib in self.bonuses:
-                                self.bonuses[bib] += allbonus
-                            else:
-                                self.bonuses[bib] = allbonus
-                        if tally and tally in self.points and allpts != 0:
-                            if bib in self.points[tally]:
-                                self.points[tally][bib] += allpts
-                            else:
-                                self.points[tally][bib] = allpts
-                                self.pointscb[tally][
-                                    bib] = countback.countback()
-                            # No countback for all_source entries
-                    else:  # points/bonus as per config
-                        if len(bonuses) >= curplace:  # bonus is vector
-                            if bib in self.bonuses:
-                                self.bonuses[bib] += bonuses[curplace - 1]
-                            else:
-                                self.bonuses[bib] = bonuses[curplace - 1]
-                        if tally and tally in self.points:
-                            if len(points) >= curplace:  # points vector
-                                if bib in self.points[tally]:
-                                    self.points[tally][bib] += points[curplace
-                                                                      - 1]
-                                else:
-                                    self.points[tally][bib] = points[curplace -
-                                                                     1]
-                            if bib not in self.pointscb[tally]:
-                                self.pointscb[tally][
-                                    bib] = countback.countback()
-                            if countbackwinner:  # stage finish
-                                if curplace == 1:  # winner only at finish
-                                    self.pointscb[tally][bib][0] += 1
-                            else:  # intermediate/other
-                                if tally == 'climb':  # climbs countback on category winners only
-                                    if curplace == 1:
-                                        self.pointscb[tally][bib][
-                                            category] += 1
-                                else:
-                                    self.pointscb[tally][bib][curplace] += 1
-                else:
-                    _log.warning('Duplicate no. %r in %r places', bib, contest)
 
     def getiter(self, bib, series=''):
         """Return temporary iterator to model row."""
