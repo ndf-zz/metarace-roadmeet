@@ -914,6 +914,8 @@ class roadmeet:
             self.report_strings(rep)
             if self.provisionalstart:
                 rep.set_provisional(True)
+            if self.indexlink:
+                rep.indexlink = self.indexlink
             if self.prevlink:
                 rep.prevlink = '_'.join((self.prevlink, 'startlist'))
             if self.nextlink:
@@ -955,6 +957,8 @@ class roadmeet:
             rep.add_section(sec)
         filename = ffile
         rep.startlink = sfile
+        if self.indexlink:
+            rep.indexlink = self.indexlink
         if self.prevlink:
             rep.prevlink = '_'.join((self.prevlink, 'result'))
         if self.nextlink:
