@@ -990,6 +990,7 @@ class rms:
         catname = ''
         subhead = ''
         footer = ''
+        secid = 'startlist'
         uncat = False
         if cat is not None:
             catname = cat
@@ -998,9 +999,11 @@ class rms:
                 catname = dbr['title']
                 subhead = dbr['subtitle']
                 footer = dbr['footer']
+                secid = 'startlist-' + cat.lower()
             if cat == '':
                 catname = 'Uncategorised Riders'
                 uncat = True
+                secid = 'startlist-uncategorised'
         else:
             cat = ''  # match all riders
 
@@ -1015,7 +1018,7 @@ class rms:
                     catcache[c] = catnm
 
         ret = []
-        sec = report.twocol_startlist('startlist')
+        sec = report.twocol_startlist(secid)
         if callup:
             sec.heading = 'Call-up'
         else:
