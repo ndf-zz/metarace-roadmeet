@@ -1624,10 +1624,19 @@ class rms:
             ret.extend(self.catresult_report())
 
         # show all intermediates here
-        for i in self.intermeds:
-            im = self.intermap[i]
-            if im['places'] and im['show']:
-                ret.extend(self.int_report(i))
+        if self.intermeds:
+            catcache = {'': None}
+            for c in self.meet.rdb.listcats(self.series):
+                if c != '':
+                    catnm = c
+                    dbr = self.meet.rdb.get_rider(c, 'cat')
+                    if dbr is not None:
+                        catnm = dbr['title']
+                    catcache[c] = catnm
+            for i in self.intermeds:
+                im = self.intermap[i]
+                if im['places'] and im['show']:
+                    ret.extend(self.int_report(i, catcache))
 
         # append a decisions section
         ret.append(self.decision_section())
@@ -3178,7 +3187,7 @@ class rms:
             else:
                 _log.info('No valid times available')
 
-    def int_report(self, acode):
+    def int_report(self, acode, catcache):
         """Return report sections for the named intermed."""
         ret = []
         if acode not in self.intermeds:
@@ -3208,6 +3217,10 @@ class rms:
                     if r is not None:
                         cs = r[COL_CAT]
                         rcat = self.ridercat(riderdb.primary_cat(cs))
+                        cstr = rcat
+                        # in handicap result, cat overrides UCIID
+                        if cstr.upper() in catcache:
+                            cstr = catcache[cstr.upper()]
                         xtra = None
                         if dotime:
                             bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
@@ -3220,7 +3233,7 @@ class rms:
                             if curplace <= len(points):
                                 xtra = str(points[curplace - 1])
                         lines.append([
-                            str(curplace) + '.', bib, r[COL_NAMESTR], rcat,
+                            str(curplace) + '.', bib, r[COL_NAMESTR], cstr,
                             None, xtra
                         ])
                     idx += 1
