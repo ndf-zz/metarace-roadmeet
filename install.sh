@@ -219,7 +219,7 @@ if [ -e /etc/os-release ] ; then
       pkgstyle="pkg"
       ttygroup="dialer"
       getfonts="yes"
-      PYTHON=python3.9
+      PYTHON=python3.11
       echo_continue "$NAME $VERSION"
     ;;
     "msys2")
@@ -336,9 +336,9 @@ else
   echo_continue "Python interpreter not found, installation aborted."
   exit
 fi
-echo "Python Version >= 3.9:"
+echo "Python Version >= 3.11:"
 if $PYTHON -c 'import sys
-print(sys.version_info>=(3,9))' | grep -F "True" >/dev/null ; then
+print(sys.version_info>=(3,11))' | grep -F "True" >/dev/null ; then
   echo_continue "Yes"
 else
   echo_continue "Python version too old, installation aborted."
@@ -395,6 +395,7 @@ fi
 # add desktop entries
 echo "Desktop Shortcuts:"
 
+# WSL wants: /usr/share/applications
 XDGPATH="$HOME/.local/share/applications"
 SPATH="$XDGPATH/metarace"
 mkdir -p "$SPATH"

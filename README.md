@@ -30,10 +30,10 @@ Edit default configuration:
 
 ## Requirements
 
-   - Python >= 3.9
+   - Python >= 3.11
    - PyGObject
    - Gtk >= 3.0
-   - metarace > 2.1
+   - metarace >= 2.1.8
    - tex-gyre fonts (optional, recommended)
    - evince (optional, recommended)
    - rsync (optional)
@@ -323,9 +323,9 @@ Install system requirements:
 
 	$ brew install python@3.11 gtk+3 librsvg pygobject3
 
-Add optional pdf viewer and mqtt broker:
+Add optional pdf viewer, rsync, wget and mqtt broker:
 
-	$ brew install evince rsync mosquitto
+	$ brew install evince rsync mosquitto wget
 
 Install Tex Gyre fonts from Gust:
 
@@ -334,6 +334,7 @@ Install Tex Gyre fonts from Gust:
 	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
 	$ fc-cache -f
 
+Install roadmeet as per Manual Installation above.
 
 ### Windows / MSYS2 (pacman)
 

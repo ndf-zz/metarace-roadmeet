@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metarace-roadmeet"
-version = "1.13.5"
+version = "1.13.6"
 description = "Timing and result application for road cycling events"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 keywords = ["roadrace", "timetrial", "transponder"]
 authors = [
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "metarace>=2.1.4",
+    "metarace>=2.1.8",
 ]
 [project.urls]
 homepage = "https://github.com/ndf-zz/metarace-roadmeet"
