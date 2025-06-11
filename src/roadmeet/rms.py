@@ -4452,20 +4452,19 @@ class rms:
                 sof = self.catstarts[rcat]
 
         # determine elapsed time
-        et = passing - st + sof
+        et = passing - (st + sof)
 
         if ldr is not None:
             # compare laps
             if ldr[COL_LAPS] > 0 and ldr[COL_LAPS] > lr[COL_LAPS]:
-                #lavg = tod.tod(bt.timeval / ldr[COL_LAPS])
                 lavg = tod.tod(et.timeval / lr[COL_LAPS])
                 deficit = ldr[COL_LAPS] - lr[COL_LAPS]
                 lxtra = tod.tod(lavg.timeval * deficit)
                 lr[COL_RFTIME] = passing + lxtra
                 _log.debug(
-                    'Leader %r: %d laps, avg=%s, Rider %r: deficit=%d, xtra=%s, pass=%s, fin=%s, ',
-                    ldr[COL_BIB], ldr[COL_LAPS],
-                    lavg.rawtime(1), lr[COL_BIB], deficit, lxtra.rawtime(1),
+                    'Leader %r: %d laps, Rider %r: %d laps, avg=%s, deficit=%d, xtra=%s, pass=%s, fin=%s, ',
+                    ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB], lr[COL_LAPS],
+                    lavg.rawtime(1), deficit, lxtra.rawtime(1),
                     passing.rawtime(1), lr[COL_RFTIME].rawtime(1))
 
                 self._dorecalc = True
