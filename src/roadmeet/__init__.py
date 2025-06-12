@@ -546,13 +546,13 @@ class roadmeet:
                 _log.error('Print operation cancelled')
 
         if self.doprint not in ('dialog', 'direct'):
-            # Save copy to pdf and xls
+            # Save copy to pdf and xlsx
             ofile = filename + '.pdf'
             with metarace.savefile(ofile, mode='b') as f:
                 rep.output_pdf(f)
-            ofile = filename + '.xls'
+            ofile = filename + '.xlsx'
             with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xls(f)
+                rep.output_xlsx(f)
             # Log completion
             _log.info('Saved report to %s.pdf', filename)
 
@@ -929,14 +929,14 @@ class roadmeet:
                     rep.add_section(sec)
 
             lb = os.path.join(self.linkbase, filename)
-            lt = ['pdf', 'xls']
+            lt = ['pdf', 'xlsx']
             rep.canonical = '.'.join([lb, 'json'])
             ofile = os.path.join(self.exportpath, filename + '.pdf')
             with metarace.savefile(ofile, mode='b') as f:
                 rep.output_pdf(f)
-            ofile = os.path.join(self.exportpath, filename + '.xls')
+            ofile = os.path.join(self.exportpath, filename + '.xlsx')
             with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xls(f)
+                rep.output_xlsx(f)
             ofile = os.path.join(self.exportpath, filename + '.json')
             with metarace.savefile(ofile) as f:
                 rep.output_json(f)
@@ -964,7 +964,7 @@ class roadmeet:
         if self.nextlink:
             rep.nextlink = '_'.join((self.nextlink, 'result'))
         lb = os.path.join(self.linkbase, filename)
-        lt = ['pdf', 'xls']
+        lt = ['pdf', 'xlsx']
         rep.canonical = '.'.join([lb, 'json'])
 
         # announce to telegraph if enabled
@@ -976,9 +976,9 @@ class roadmeet:
             ofile = os.path.join(self.exportpath, filename + '.pdf')
             with metarace.savefile(ofile, mode='b') as f:
                 rep.output_pdf(f)
-            ofile = os.path.join(self.exportpath, filename + '.xls')
+            ofile = os.path.join(self.exportpath, filename + '.xlsx')
             with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xls(f)
+                rep.output_xlsx(f)
             ofile = os.path.join(self.exportpath, filename + '.json')
             with metarace.savefile(ofile) as f:
                 rep.output_json(f)
