@@ -142,15 +142,20 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 # check operating system
+WSL=""
+if [ -n "$WSL_DISTRO_NAME" ] ; then
+  echo "Detected Windows Subsystem for Linux"
+  WSL=" (WSL)"
+fi
 echo "Operating System:"
 OSINFO="unknown"
 if check_command uname ; then
   OSINFO=$(uname -o)
 fi
 if [ "$OSINFO" = "unknown" ] ; then
-  check_continue "Unknown OS."
+  check_continue "Unknown OS${WSL}."
 else
-  echo_continue "$OSINFO"
+  echo_continue "$OSINFO$WSL"
 fi
 
 # check distribution via os-release if available

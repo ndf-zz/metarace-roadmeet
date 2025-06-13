@@ -5,12 +5,16 @@ import os
 import gi
 import logging
 from importlib.resources import files
+from contextlib import suppress
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
+
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk
 
 gi.require_version('Pango', '1.0')
 from gi.repository import Pango
@@ -39,6 +43,10 @@ STYLE_NORMAL = Pango.Style.NORMAL
 # Timer text
 FIELDWIDTH = '00h00:00.0000'
 ARMTEXT = '       0.0   '
+
+# Screen Height Limits
+MAX_HEIGHT_FACTOR = 0.9  # Limit window natural height to 90% of screen
+MAX_HEIGHT_MIN = 520  # Min natural height in case screen info is degenerate
 
 # Button indications
 _button_images = {
@@ -1138,6 +1146,32 @@ class optionSection(option):
         return 1
 
 
+def get_monitor_height(widget=None):
+    """Return the monitor height"""
+    monitor = None
+    display = Gdk.Display.get_default()
+
+    if widget is not None:
+        # use widget to select monitor
+        window = widget.get_window()
+        monitor = display.get_monitor_at_window(window)
+    else:
+        # try using pointer to find monitor
+        x = 0
+        y = 0
+        with suppress(Exception):
+            seat = display.get_default_seat()
+            pointer = seat.get_pointer()
+            position = pointer.get_position()
+            x = position.x
+            y = position.y
+        _log.debug('Looking for a monitor near [%d, %d]', x, y)
+        monitor = display.get_monitor_at_point(x, y)
+
+    geometry = monitor.get_geometry()
+    return monitor.get_geometry().height
+
+
 def options_dlg(window=None, title='Options', sections={}):
     """Build and display an option editor for the provided sections
 
@@ -1215,8 +1249,14 @@ def options_dlg(window=None, title='Options', sections={}):
 
     # build dialog
     modal = window is not None
+    max_height = MAX_HEIGHT_FACTOR * get_monitor_height(window)
     dlg = Gtk.Dialog(title=title, modal=modal, destroy_with_parent=True)
     dlg.set_transient_for(window)
+    geom = Gdk.Geometry()
+    geom.max_height = int(max(MAX_HEIGHT_MIN, max_height))
+    geom.max_width = -1
+    _log.debug('Set dialog max height hint to: %d', geom.max_height)
+    dlg.set_geometry_hints(None, geom, Gdk.WindowHints.MAX_SIZE)
     dlg.add_buttons("Cancel", 2, "OK", 0)
     dlg.set_default_response(0)
 
