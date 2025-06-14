@@ -36,7 +36,7 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.6'
+VERSION = '1.13.7'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -2168,6 +2168,12 @@ def edit_defaults():
     return 0
 
 
+def loadmeet():
+    """Select meet folder with chooser dialog"""
+    return uiutil.chooseFolder(title='Open Meet Folder',
+                               path=metarace.DATA_PATH)
+
+
 def createmeet():
     """Create a new empty meet folder"""
     ret = None
@@ -2221,10 +2227,12 @@ def main():
             doconfig = True
             configpath = metarace.DEFAULTS_PATH
             _log.debug('Edit defaults, configpath: %r', configpath)
+        elif sys.argv[1] == '--create':
+            configpath = createmeet()
         else:
             configpath = sys.argv[1]
     else:
-        configpath = createmeet()
+        configpath = loadmeet()
     configpath = metarace.config_path(configpath)
     if configpath is None:
         _log.debug('Missing path, command: %r', sys.argv)

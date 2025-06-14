@@ -517,6 +517,25 @@ def about_dlg(window, version=None):
     dlg.destroy()
 
 
+def chooseFolder(title='',
+                 mode=Gtk.FileChooserAction.SELECT_FOLDER,
+                 parent=None,
+                 path=None):
+    ret = None
+    modal = parent is not None
+    dlg = Gtk.FileChooserNative(title=title, modal=modal)
+    dlg.set_transient_for(parent)
+    dlg.set_action(mode)
+    if path is not None:
+        dlg.set_current_folder(path)
+    response = dlg.run()
+    if response == Gtk.ResponseType.ACCEPT:
+        ret = dlg.get_filename()
+    _log.debug('Open folder returns: %r (%r)', ret, response)
+    dlg.destroy()
+    return ret
+
+
 def chooseCsvFile(title='',
                   mode=Gtk.FileChooserAction.OPEN,
                   parent=None,
