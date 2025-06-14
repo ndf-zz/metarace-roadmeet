@@ -1368,6 +1368,7 @@ class rms:
                         else:
                             pass  # dead heat in cat
                         lsrc = psrc
+                        fincount += 1
                     else:
                         lp = ''
                     plcnt += 1
@@ -1440,7 +1441,6 @@ class rms:
                                             dstr = '[' + et.rawtime(0) + ']'
 
                     if bt is not None:
-                        fincount += 1  # for accounting, use bunch time
                         timed = True
                         # compute elapsed
                         et = bt
@@ -1493,7 +1493,7 @@ class rms:
                     pstr = comment
                 if placed or timed or virtual:
                     sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
-                    ## and look up pilots?
+                    # and look up pilots?
                     if cat in ('MB', 'WB'):
                         sec.even = True  # twocol result
                         # lookup pilot
@@ -1592,6 +1592,9 @@ class rms:
                 sec.lines.append(
                     [None, 'Riders abandoning the event: ' + str(dnfcount)])
             residual = totcount - (fincount + dnfcount + dnscount + hdcount)
+            _log.debug(
+                'Residual: %d, tot: %d, fin: %d, dnf: %d, dns: %d, hd: %d',
+                residual, totcount, fincount, dnfcount, dnscount, hdcount)
             if residual > 0:
                 if cat:
                     _log.info('Cat %s unaccounted for: %d', cat, residual)
