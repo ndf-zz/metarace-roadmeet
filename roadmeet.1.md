@@ -3,7 +3,7 @@ title: ROADMEET
 section: 1
 header: Road Cycle Race Tool
 footer: roadmeet 1.13
-date: July, 2023
+date: June, 2025
 ---
 
 # NAME
@@ -13,6 +13,8 @@ roadmeet - timing and results for road cycling races
 # SYNOPSIS
 
 roadmeet [*PATH*]
+
+roadmeet \--create
 
 roadmeet \--edit-default
 
@@ -32,13 +34,19 @@ Recognised event types:
 
 *PATH* may be the path of the meet folder,
 or any file contained within the meet folder.
-If no *PATH* is specified, roadmeet will create
-a new meet folder and open it.
+If no *PATH* is specified, roadmeet will prompt
+user to select a meet path, and then open it.
+
+If the \--create option is supplied,
+an empty road meet folder is created and opened.
 
 If the \--edit-default option is supplied,
 a default configuration editor is run.
 
 # OPTIONS
+
+\--crate
+: Create empty meet folder and open
 
 \--edit-default
 : Edit default configuration
@@ -86,4 +94,4 @@ Online user manual and event examples:
 Git repository: <https://github.com/ndf-zz/metarace-roadmeet>
 
 # COPYRIGHT
-Copyright (c) 2023 Nathan Fraser License: MIT
+Copyright (c) 2025 ndf-zz License: MIT

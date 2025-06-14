@@ -506,8 +506,7 @@ def about_dlg(window, version=None):
     if version:
         vtxt = 'Application: ' + version + '; ' + vtxt
     dlg.set_version(vtxt)
-    dlg.set_copyright(
-        'Copyright \u00a9 2012-2023 Nathan Fraser and contributors')
+    dlg.set_copyright('Copyright \u00a9 2012-2025 ndf-zz and contributors')
     dlg.set_comments('Road cycle race result handler')
     dlg.set_license_type(Gtk.License.MIT_X11)
     dlg.set_license(metarace.LICENSETEXT)

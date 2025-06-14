@@ -9,13 +9,17 @@ ad-hoc time trial events.
 
 ## Usage
 
-Create a new meet and open it:
+Choose meet folder and open:
 
 	$ roadmeet
 
 Open an existing road meet:
 
 	$ roadmeet PATH
+
+Create empty meet folder and open it:
+
+	$ roadmeet --create
 
 Edit default configuration:
 
@@ -32,8 +36,8 @@ Edit default configuration:
 
    - Python >= 3.11
    - PyGObject
-   - Gtk >= 3.0
-   - metarace >= 2.1.8
+   - Gtk >= 3.22
+   - metarace >= 2.1.9
    - tex-gyre fonts (optional, recommended)
    - evince (optional, recommended)
    - rsync (optional)
@@ -43,74 +47,20 @@ Edit default configuration:
 ## Automated Installation
 
 For semi-automated installation on common unix-like
-desktop systems, download the [install script](install.sh)
+desktop systems, download the metarace install script
 and run with sh:
 
-	$ sh install.sh
+	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/metarace-install.sh
+	$ sh metarace-install.sh
 
+For installation on Windows systems, a powershell script
+is provided to install metarace applications under a
+WSL Debian container:
 
-## Manual Installation
-
-Install system requirements for your OS (See
-[System-Specific Preparation](#system-specific-preparaton)
-below) then prepare a metarace runtime directory
-and virtual env as follows:
-
-	$ mkdir -p ~/Documents/metarace
-	$ python3 -m venv --system-site-packages ~/Documents/metarace/venv
-
-Install roadmeet to the virtual env, or run from
-source using one of the following methods:
-
-
-### Install From PyPI With Pip
-
-Use pip in your virtual env to download and install
-roadmeet along with any required python packages
-from the Python Package Index:
-
-	$ ~/Documents/metarace/venv/bin/pip3 install metarace-roadmeet
-
-Create a new empty roadmeet:
-
-	$ ~/Documents/metarace/venv/bin/roadmeet
-
-
-### Install From Wheel
-
-Download the roadmeet wheel from github and verify signature:
-
-	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.3/metarace_roadmeet-1.13.3-py3-none-any.whl
-	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.3/metarace_roadmeet-1.13.3-py3-none-any.whl.asc
-	$ gpg --verify metarace_roadmeet-1.13.3-py3-none-any.whl.asc
-
-Use pip in your virtual env to install the roadmeet wheel:
-
-	$ ~/Documents/metarace/venv/bin/pip3 install ./metarace_roadmeet-1.13.2-py3-none-any.whl
-
-Create a new empty roadmeet:
-
-	$ ~/Documents/metarace/venv/bin/roadmeet
-
-
-### Run From Source Tree
-
-Activate the virtual env, optionally install
-any required libraries, clone the repository
-and run roadmeet directly:
-
-	$ source ~/Documents/metarace/venv/bin/activate
-	(venv) $ pip3 install metarace
-	(venv) $ git clone https://github.com/ndf-zz/metarace-roadmeet.git
-	(venv) $ cd metarace-roadmeet/src
-	(venv) $ python3 -m roadmeet
+	wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/wsl-install.ps1
 
 
 ## Post-Installation Notes
-
-Run roadmeet once to initialise a metarace shared configuration:
-
-	$ ~/Documents/metarace/venv/bin/roadmeet
 
 Optionally configure defaults for new meets and library options:
 
@@ -159,7 +109,64 @@ view with tail:
 	$ tail -f ~/.xsession-errors
 
 
-## System-Specific Preparation
+## Manual Installation
+
+Install system requirements for your OS (See
+[System-Specific Preparation](#system-specific-preparaton)
+below) then prepare a metarace runtime directory
+and virtual env as follows:
+
+	$ mkdir -p ~/Documents/metarace
+	$ python3 -m venv --system-site-packages ~/Documents/metarace/venv
+
+Install roadmeet to the virtual env, or run from
+source using one of the following methods:
+
+
+### Install From PyPI With Pip
+
+Use pip in your virtual env to download and install
+roadmeet along with any required python packages
+from the Python Package Index:
+
+	$ ~/Documents/metarace/venv/bin/pip3 install metarace-roadmeet
+
+Create a new empty roadmeet:
+
+	$ ~/Documents/metarace/venv/bin/roadmeet --create
+
+
+### Install From Wheel
+
+Download the roadmeet wheel from github and verify signature:
+
+	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.7/metarace_roadmeet-1.13.7-py3-none-any.whl
+	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.3/metarace_roadmeet-1.13.7-py3-none-any.whl.asc
+	$ gpg --verify metarace_roadmeet-1.13.7-py3-none-any.whl.asc
+
+Use pip in your virtual env to install the roadmeet wheel:
+
+	$ ~/Documents/metarace/venv/bin/pip3 install ./metarace_roadmeet-1.13.7-py3-none-any.whl
+
+Create a new empty roadmeet:
+
+	$ ~/Documents/metarace/venv/bin/roadmeet --create
+
+
+### Run From Source Tree
+
+Activate the virtual env, optionally install
+any required libraries, clone the repository
+and run roadmeet directly:
+
+	$ source ~/Documents/metarace/venv/bin/activate
+	(venv) $ pip3 install metarace
+	(venv) $ git clone https://github.com/ndf-zz/metarace-roadmeet.git
+	(venv) $ cd metarace-roadmeet/src
+	(venv) $ python3 -m roadmeet
+
+
+## System-Specific Preparation Notes
 
 ### Debian 11+, Ubuntu, Mint, MX (apt)
 
@@ -317,33 +324,31 @@ a race result active decoder on the first USB serial port:
 
 ### MacOS / Brew
 
-*Untested*
+[TBC]
 
-Install system requirements:
-
-	$ brew install python@3.11 gtk+3 librsvg pygobject3
-
-Add optional pdf viewer, rsync, wget and mqtt broker:
-
-	$ brew install evince rsync mosquitto wget
-
-Install Tex Gyre fonts from Gust:
-
-	$ wget https://www.gust.org.pl/projects/e-foundry/tex-gyre/whole/tg2_501otf.zip
-	$ mkdir -p ~/.local/share/fonts
-	$ unzip -j -d ~/.local/share/fonts tg2_501otf.zip
-	$ fc-cache -f
-
-Install roadmeet as per Manual Installation above.
 
 ### Windows / WSL
 
-Install the Windows Subsystem for Linux, then prepare a debian
-image at a windows command prompt:
+Install VirtualMachinePlatform and Windows Subsystem for Linux
+with Powershell:
 
-	wsl.exe --install -d Debian
+	Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart
+	wsl --install --no-distribution
 
-Once complete, run the installer from the Debian command line:
+Reboot computer, then prepare a Debian container:
 
-	$ sh install.sh
+	wsl --install -d Debian
+
+In the Debian shell, install wget, cups and thunar:
+
+	$ sudo apt-get install wget cups thunar
+
+Add your user to the lpadmin group:
+
+	$ sudo gpasswd -a "$USER" "lpadmin
+
+Download the installer and run with sh:
+
+	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/metarace-install.sh
+        $ sh metarace-install.sh
 
