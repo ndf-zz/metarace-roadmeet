@@ -2,10 +2,14 @@
 """Gtk user interface helper functions"""
 
 import os
+import sys
 import gi
 import logging
+import json
+import threading
 from importlib.resources import files
 from contextlib import suppress
+from subprocess import run
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
@@ -30,6 +34,25 @@ _log.setLevel(logging.DEBUG)
 
 # Resources package
 RESOURCE_PKG = 'roadmeet.ui'
+
+# Allowed automatic update packages
+_ALLOWED_UPDATES = (
+    'metarace-trackmeet',
+    'metarace-roadmeet',
+    'metarace-tagreg',
+    'metarace-ttstart',
+    'metarace',
+)
+_UPDATE_PROC = {
+    'check': {
+        'thread': None,
+        'lock': threading.Lock()
+    },
+    'run': {
+        'thread': None,
+        'lock': threading.Lock()
+    },
+}
 
 # Font-overrides
 DIGITFONT = Pango.FontDescription('Noto Mono Medium 22')
@@ -496,6 +519,163 @@ def builder(resource=None):
     return ret
 
 
+def do_update_done(status=None):
+    """Report update result."""
+    if status is not None:
+        if status:
+            _log.warning('Update complete - restart required')
+        else:
+            _log.info('Update not required')
+    else:
+        _log.warning('Unable to complete update')
+
+    _UPDATE_PROC['run']['lock'].release()
+    return None
+
+
+def do_update(packages=None):
+    """Trigger update with a completion callback."""
+    if not _UPDATE_PROC['run']['lock'].acquire(False):
+        _log.info('Update/check already in progress')
+        return None
+    tp = threading.Thread(target=run_update,
+                          kwargs={
+                              'packages': packages,
+                              'callback': do_update_done,
+                          },
+                          daemon=True)
+    tp.start()
+    _UPDATE_PROC['run']['thread'] = tp
+    return None
+
+
+def do_update_check_done(updates=None, window=None):
+    """Report update check result and optionally start install."""
+    if updates is not None:
+        if updates:
+            _log.info('Updated packages available to install')
+            msg = ['New packages available to install:', '']
+            for p in updates:
+                msg.append(' - %s %s => %s' % p)
+            if questiondlg(window=window,
+                           question='Install updates?',
+                           subtext='\n'.join(msg),
+                           title='Updated Packages Available'):
+                GLib.idle_add(do_update, updates)
+            else:
+                _log.info('Updates not installed')
+        else:
+            _log.info('Installation up to date')
+    else:
+        _log.warning('Unable to check for updates')
+
+    _UPDATE_PROC['check']['lock'].release()
+    return None
+
+
+def run_update(packages=[], callback=None):
+    """Update packages in virtual env using pip"""
+    ret = None
+    try:
+        if packages:
+            if sys.prefix == sys.base_prefix:
+                raise RuntimeError('Not in virtual env, update aborted')
+
+            venv = os.path.join(metarace.DATA_PATH, 'venv')
+            if not sys.prefix == venv:
+                raise RuntimeError('Outside data path, update aborted')
+
+            _log.info('Updating packages: %s', ', '.join(
+                (p[0] for p in packages)))
+            cmd = [
+                os.path.join(venv, 'bin', 'pip'),
+                'install',
+                '-U',
+                '--no-color',
+                '--progress-bar',
+                'off',
+            ]
+            cmd.extend((p[0] for p in packages))
+            res = run(cmd, encoding='utf-8', capture_output=True)
+            if res.stdout:
+                _log.debug('pip install output:')
+                for l in res.stdout.split('\n'):
+                    if l.rstrip():
+                        _log.debug(' %s', l)
+            _log.info('Update complete')
+            ret = True
+        else:
+            _log.info('No updates to install')
+            ret = False
+    except Exception as e:
+        _log.error('%s updating: %s', e.__class__.__name__, e)
+    finally:
+        if callback is not None:
+            GLib.idle_add(callback, ret)
+
+
+def do_update_check(window=None):
+    """Trigger update check with a completion callback."""
+    if not _UPDATE_PROC['check']['lock'].acquire(False):
+        _log.info('Update/check already in progress')
+        return None
+    tp = threading.Thread(target=run_update_check,
+                          kwargs={
+                              'callback': do_update_check_done,
+                              'window': window
+                          },
+                          daemon=True)
+    tp.start()
+    _UPDATE_PROC['check']['thread'] = tp
+    return None
+
+
+def run_update_check(callback=None, window=None):
+    """Check for updated packages using pip"""
+    ret = None
+    try:
+        if sys.prefix == sys.base_prefix:
+            raise RuntimeError('Not in virtual env, update aborted')
+
+        venv = os.path.join(metarace.DATA_PATH, 'venv')
+        if not sys.prefix == venv:
+            raise RuntimeError('Outside data path, update aborted')
+
+        _log.info('Checking for updates on Python Package Index')
+        cmd = (
+            os.path.join(venv, 'bin', 'pip'),
+            'list',
+            '-l',
+            '--format',
+            'json',
+            '--outdated',
+            '--exclude',
+            'pip',
+            '--exclude',
+            'setuptools',
+        )
+        res = run(cmd, encoding='utf-8', capture_output=True)
+        if res.stdout:
+            ret = []
+            updates = json.loads(res.stdout)
+            for package in updates:
+                name = package['name']
+                version = package['version']
+                latest_version = package['latest_version']
+                if name and name in _ALLOWED_UPDATES:
+                    ret.append((
+                        name,
+                        version,
+                        latest_version,
+                    ))
+                    _log.debug('%s %s -> %s', name, version, latest_version)
+    except Exception as e:
+        _log.error('%s checking for updates: %s', e.__class__.__name__, e)
+    finally:
+        if callback is not None:
+            GLib.idle_add(callback, ret, window)
+
+
 def about_dlg(window, version=None):
     """Display shared about dialog."""
     modal = window is not None
@@ -511,9 +691,16 @@ def about_dlg(window, version=None):
     dlg.set_license_type(Gtk.License.MIT_X11)
     dlg.set_license(metarace.LICENSETEXT)
     dlg.set_wrap_license(True)
-    dlg.run()
+    # if running from an installer venv, enable the update button
+    if sys.prefix != sys.base_prefix:
+        dlg.add_button("Update", 5)
+    response = dlg.run()
     dlg.hide()
     dlg.destroy()
+    if response == 5:
+        _log.debug('Check for updates...')
+        GLib.idle_add(do_update_check, window)
+    return None
 
 
 def chooseFolder(title='',

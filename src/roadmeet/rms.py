@@ -1124,7 +1124,8 @@ class rms:
                 rcat = r[COL_CAT]
                 ecat = self.ridercat(riderdb.primary_cat(rcat))
                 catstart = None
-                if ecat in self.catstarts and self.etype != 'cross':
+                if ecat in self.catstarts and self.etype not in ('cross',
+                                                                 'handicap'):
                     catstart = self.catstarts[ecat]
                 laplist = []
                 if r[COL_RFTIME] is not None:
