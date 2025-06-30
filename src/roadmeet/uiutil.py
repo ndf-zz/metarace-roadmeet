@@ -784,6 +784,7 @@ def mkviewcoltxt(view=None,
                  minwidth=None,
                  charwidth=None,
                  bgcol=None,
+                 style=None,
                  fontdesc=None,
                  wrap=None,
                  fixed=False,
@@ -813,6 +814,8 @@ def mkviewcoltxt(view=None,
     j = Gtk.TreeViewColumn(header, i, text=colno)
     if bgcol is not None:
         j.add_attribute(i, 'background', bgcol)
+    if style is not None:
+        j.add_attribute(i, 'style', style)
     if halign is not None:
         j.set_alignment(halign)
     if fixed:
@@ -1377,7 +1380,7 @@ def get_monitor_height(widget=None):
     return monitor.get_geometry().height
 
 
-def options_dlg(window=None, title='Options', sections={}):
+def options_dlg(window=None, title='Options', sections={}, action=False):
     """Build and display an option editor for the provided sections
 
       sections={
@@ -1421,6 +1424,8 @@ def options_dlg(window=None, title='Options', sections={}):
     Return value is a dict of dicts with one tuple per key:
 
         "section": {"key": (changed, oldval, newval), ...}, ...
+
+    If action is True, OK/Cancel status is returned in res['action']
 
     Note: section controls return (False, None, None)
     """
@@ -1529,6 +1534,8 @@ def options_dlg(window=None, title='Options', sections={}):
                 if not o.validate():
                     _log.warning('Invalid value for option %r ignored', key)
                 res[section][key] = (o.changed(), o.get_prev(), o.get_value())
+    if action:
+        res['action'] = retval
 
     dlg.destroy()
     return res
