@@ -106,7 +106,7 @@ class statButton(Gtk.Box):
         self.__curbg = 'idle'
         self.__image = Gtk.Image.new_from_pixbuf(srcbuf)
         self.__image.show()
-        self.__label = Gtk.Label.new(u'--')
+        self.__label = Gtk.Label.new('--')
         self.__label.set_width_chars(12)
         self.__label.set_single_line_mode(True)
         self.__label.show()
@@ -1515,8 +1515,8 @@ def options_dlg(window=None, title='Options', sections={}, action=False):
 
     # change report
     res = {}
-    if retval == 2:
-        # on cancel, reset all values and report no changes
+    if retval != 0:  # escape/cancel
+        # reset all values and report no changes
         for section in omap:
             res[section] = {}
             sec = omap[section]['options']
