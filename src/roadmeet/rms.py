@@ -3541,44 +3541,15 @@ class rms:
         else:
             _log.error('Invalid lap count')
 
-    def editname_cb(self, cell, path, new_text, col):
+    def _editname_cb(self, cell, path, new_text, col):
         """Edit the rider name if possible."""
-        old_text = self.riders[path][col].lower()
+        old_text = self.riders[path][col]
         if new_text and old_text != new_text:
-            first = []
-            last = []
-            org = []
-            inorg = False
-            for namebit in new_text.split():
-                if namebit.startswith('('):
-                    inorg = True
-                if inorg:
-                    org.append(namebit.replace('(', '').replace(')', ''))
-                    if namebit.endswith(')'):
-                        inorg = False
-                elif first:
-                    last.append(namebit)
-                else:
-                    first.append(namebit)
-            r = self.meet.rdb.get_rider(self.riders[path][COL_BIB],
-                                        self.series)
-            if r is not None:
-                notify = False
-                if first:
-                    r.set_value('first', ' '.join(first))
-                    notify = True
-                if last:
-                    r.set_value('last', ' '.join(last))
-                    notify = True
-                if org:
-                    r.set_value('org', ' '.join(org))
-                    notify = True
-                if notify:
-                    r.notify()
-            else:
-                _log.debug('Rider %s not found in riders list',
-                           self.riders[path][COL_BIB])
-                self.riders[path][col] = new_text
+            self.riders[path][col] = new_text
+            dbr = self.meet.rdb.get_rider(self.riders[path][COL_BIB],
+                                          self.series)
+            if dbr is not None:
+                dbr.rename(new_text)
 
     def editcat_cb(self, cell, path, new_text, col):
         """Edit the cat field if valid."""
@@ -4864,7 +4835,7 @@ class rms:
                                 COL_NAMESTR,
                                 expand=True,
                                 maxwidth=500,
-                                cb=self.editname_cb)
+                                cb=self._editname_cb)
             uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, cb=self.editcat_cb)
             uiutil.mkviewcoltxt(t, 'Com', COL_COMMENT, cb=self.editcol_cb)
             uiutil.mkviewcolbool(t, 'In', COL_INRACE, width=50)
