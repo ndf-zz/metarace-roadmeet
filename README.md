@@ -37,7 +37,7 @@ Edit default configuration:
    - Python >= 3.11
    - PyGObject
    - Gtk >= 3.22
-   - metarace >= 2.1.9
+   - metarace >= 2.1.10
    - tex-gyre fonts (optional, recommended)
    - evince (optional, recommended)
    - rsync (optional)
@@ -140,13 +140,13 @@ Create a new empty roadmeet:
 
 Download the roadmeet wheel from github and verify signature:
 
-	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.7/metarace_roadmeet-1.13.7-py3-none-any.whl
-	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.3/metarace_roadmeet-1.13.7-py3-none-any.whl.asc
-	$ gpg --verify metarace_roadmeet-1.13.7-py3-none-any.whl.asc
+	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.8/metarace_roadmeet-1.13.8-py3-none-any.whl
+	$ wget https://github.com/ndf-zz/metarace-roadmeet/releases/download/v1.13.8/metarace_roadmeet-1.13.8-py3-none-any.whl.asc
+	$ gpg --verify metarace_roadmeet-1.13.8-py3-none-any.whl.asc
 
 Use pip in your virtual env to install the roadmeet wheel:
 
-	$ ~/Documents/metarace/venv/bin/pip3 install ./metarace_roadmeet-1.13.7-py3-none-any.whl
+	$ ~/Documents/metarace/venv/bin/pip3 install ./metarace_roadmeet-1.13.8-py3-none-any.whl
 
 Create a new empty roadmeet:
 
@@ -350,5 +350,5 @@ Add your user to the lpadmin group:
 Download the installer and run with sh:
 
 	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/metarace-install.sh
-        $ sh metarace-install.sh
+	$ sh metarace-install.sh
 
