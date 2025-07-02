@@ -667,6 +667,22 @@
       </object>
     </child>
     <child>
+      <object class="GtkMenuItem" id="rider_addevt">
+        <property name="label">Add to Event</property>
+        <property name="sensitive">False</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rider_add_event_cb"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="rider_delevt">
+        <property name="label">Remove from Event</property>
+        <property name="sensitive">False</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rider_del_event_cb"/>
+      </object>
+    </child>
+    <child>
       <object class="GtkMenuItem" id="rider_del">
         <property name="label">Delete</property>
         <property name="visible">True</property>
@@ -681,7 +697,7 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="rider_add">
-        <property name="label">Add</property>
+        <property name="label">Add New</property>
         <property name="visible">True</property>
         <signal name="activate" handler="rider_add_cb"/>
       </object>

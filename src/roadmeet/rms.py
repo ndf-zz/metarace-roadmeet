@@ -984,7 +984,7 @@ class rms:
                 if missing:
                     _log.warning('Categories missing target lap count: %s',
                                  ', '.join(missing))
-        _log.debug('Re-load result cats: %r', self.cats)
+        _log.debug('Re-load result cat data for: %r', self.cats)
 
     def startlist_report_gen(self, cat=None, callup=False):
         catname = ''
@@ -3554,11 +3554,11 @@ class rms:
     def editcat_cb(self, cell, path, new_text, col):
         """Edit the cat field if valid."""
         new_text = ' '.join(new_text.strip().upper().split())
+        self.riders[path][col] = new_text
         r = self.meet.rdb.get_rider(self.riders[path][COL_BIB], self.series)
         if r is not None:
             # note: this will generate a rider change callback
             r['cat'] = new_text
-        self.riders[path][col] = new_text
 
     def editseed_cb(self, cell, path, new_text, col):
         """Edit the lap field if valid."""
@@ -3640,6 +3640,50 @@ class rms:
             else:
                 _log.info('Result categories cleared')
         return False
+
+    def addcat(self, cat, reload=True):
+        """Add category to event result"""
+        cat = cat.upper()
+        if cat not in self.cats:
+            self.cats.remove('')
+            self.cats.append(cat)
+            self.loadcats(self.cats)
+            if reload:
+                self.load_cat_data()
+        else:
+            _log.debug('Cat %s already in event result', cat)
+
+    def delcat(self, cat, reload=True):
+        """Remove category from event result"""
+        cat = cat.upper()
+        if cat in self.cats:
+            self.cats.remove('')
+            self.cats.remove(cat)
+            self.loadcats(self.cats)
+            if reload:
+                self.load_cat_data()
+        else:
+            _log.debug('Cat %s not in event result', cat)
+        pass
+
+    def changecat(self, oldcat, newcat, reload=True):
+        """Alter category code event result"""
+        oldcat = oldcat.upper()
+        newcat = newcat.upper()
+        if oldcat in self.cats:
+            if newcat not in self.cats:
+                self.cats.remove('')
+                idx = self.cats.index(oldcat)
+                self.cats[idx] = newcat
+                self.loadcats(self.cats)
+                if reload:
+                    self.load_cat_data()
+            else:
+                _log.debug('Cat %s already in event result', newcat)
+                self.delcat(oldcat, reload)
+        else:
+            _log.debug('Cat %s not in event result', oldcat)
+        pass
 
     def getbunch_iter(self, iter):
         """Return a 'bunch' string for the rider."""

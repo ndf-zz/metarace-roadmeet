@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
 
 import sys
@@ -1447,20 +1448,25 @@ class roadmeet:
         """Return a handle to the rider with the suplied refid or None."""
         ret = None
         refid = refid.lower()
-        if u'riderno:' in refid:
-            rno, rser = strops.bibstr2bibser(refid.split(':')[-1])
-            ret = self.rdb.get_rider(rno, rser)
         if refid in self._tagmap:
             ret = self.rdb[self._tagmap[refid]]
+        elif 'riderno:' in refid:
+            rno, rser = strops.bibstr2bibser(refid.split(':')[-1])
+            ret = self.rdb.get_rider(rno, rser)
         return ret
 
     def ridercb(self, rider):
         """Handle a change in the rider model"""
         if rider is not None:
             r = self.rdb[rider]
-            # note: duplicate ids mangle series, so use series from rider
+            summary = r.summary()
+            style = 0
+            if rider != r.get_id():
+                summary = 'Duplicate ' + summary
+                style = 2
             series = r['series'].lower()
             if series != 'cat':
+                # update refid maps
                 otag = None
                 ntag = r['refid'].lower()
                 if rider in self._maptag:
@@ -1474,25 +1480,25 @@ class roadmeet:
                         self._maptag[rider] = ntag
                         self._tagmap[ntag] = rider
                     _log.debug('Updated tag map %r = %r', ntag, rider)
-                found = False
+
+                # update rider
                 for lr in self._rlm:
                     if lr[7] == rider:
-                        lr[2] = r.fitname(64)
-                        lr[3] = r['org']
+                        lr[0] = r.get_bibstr()
+                        lr[1] = style
+                        lr[2] = r.listname()
                         lr[4] = r['cat']
                         lr[5] = r['refid']
-                        lr[6] = htlib.escape(r.summary())
-                        found = True
+                        lr[6] = htlib.escape(summary)
                         break
-                if not found:
+                else:
                     lr = [
-                        rider[0], series,
-                        r.fitname(64), r['org'], r['cat'], r['refid'],
-                        htlib.escape(r.summary()), rider
+                        r.get_bibstr(), style,
+                        r.listname(), '', r['cat'], r['refid'],
+                        htlib.escape(summary), rider
                     ]
                     self._rlm.append(lr)
             else:
-                found = False
                 for lr in self._clm:
                     if lr[7] == rider:
                         lr[1] = r['title']
@@ -1501,22 +1507,28 @@ class roadmeet:
                         lr[4] = r['target']
                         lr[5] = r['distance']
                         lr[6] = r['start']
+                        lr[8] = style
                         found = True
                         break
-                if not found:
+                else:
                     lr = [
                         rider[0], r['title'], r['subtitle'], r['footer'],
-                        r['target'], r['distance'], r['start'], rider
+                        r['target'], r['distance'], r['start'], rider, style
                     ]
                     self._clm.append(lr)
         else:
             # assume entire map has to be rebuilt
-            self._tagmap = {}
-            self._maptag = {}
+            self._tagmap.clear()
+            self._maptag.clear()
             self._rlm.clear()
             self._clm.clear()
             for r in self.rdb:
                 dbr = self.rdb[r]
+                summary = dbr.summary()
+                style = 0
+                if r != dbr.get_id():
+                    summary = 'Duplicate ' + summary
+                    style = 2
                 # note: duplicate ids mangle series, so use series from rider
                 series = dbr['series'].lower()
                 if series != 'cat':
@@ -1525,15 +1537,15 @@ class roadmeet:
                         self._tagmap[refid] = r
                         self._maptag[r] = refid
                     rlr = [
-                        r[0], series,
-                        dbr.fitname(64), dbr['org'], dbr['cat'], dbr['refid'],
-                        htlib.escape(dbr.summary()), r
+                        dbr.get_bibstr(), style,
+                        dbr.listname(), '', dbr['cat'], dbr['refid'],
+                        htlib.escape(summary), r
                     ]
                     self._rlm.append(rlr)
                 else:
                     rlr = [
                         r[0], dbr['title'], dbr['subtitle'], dbr['footer'],
-                        dbr['target'], dbr['distance'], dbr['start'], r
+                        dbr['target'], dbr['distance'], dbr['start'], r, style
                     ]
                     self._clm.append(rlr)
             _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
@@ -1559,8 +1571,8 @@ class roadmeet:
     def _catcol_cb(self, cell, path, new_text, col):
         """Callback for editing category info"""
         new_text = new_text.strip()
-        bib = self._clm[path][0]
         self._clm[path][col] = new_text
+        bib = self._clm[path][0]
         r = self.rdb.get_rider(bib, 'cat')
         if r is not None:
             if col == 1:
@@ -1588,18 +1600,25 @@ class roadmeet:
                     else:
                         r['start'] = ''
 
+    def _editname_cb(self, cell, path, new_text, col):
+        """Update a rdb by name entry"""
+        old_text = self._rlm[path][2]
+        if old_text != new_text:
+            self._rlm[path][2] = new_text
+            dbr = self.rdb[self._rlm[path][7]]
+            _log.debug('Updating %s %s detail', dbr.get_label(), dbr.get_id())
+            dbr.rename(new_text)
+
     def _editcol_cb(self, cell, path, new_text, col):
-        """Callback for editing a transponder ID"""
+        """Callback for editing categories or transponder ID"""
         new_text = new_text.strip()
-        bib = self._rlm[path][0]
-        series = self._rlm[path][1]
         self._rlm[path][col] = new_text
-        r = self.rdb.get_rider(bib, series)
+        rId = self._rlm[path][7]
+        r = None
+        if rId in self.rdb:
+            r = self.rdb[rId]
         if r is not None:
-            if col == 3:
-                if new_text != r['org']:
-                    r['org'] = new_text
-            elif col == 4:
+            if col == 4:
                 if new_text.upper() != r['cat']:
                     r['cat'] = new_text.upper()
             elif col == 5:
@@ -1623,15 +1642,21 @@ class roadmeet:
                         self._cur_rider_sel = r[7]
                         self._rider_menu_edit.set_sensitive(True)
                         self._rider_menu_del.set_sensitive(True)
+                        self._rider_menu_addevt.set_sensitive(True)
+                        self._rider_menu_delevt.set_sensitive(True)
                     else:
                         _log.error('Invalid selection ignored')
                         self._cur_rider_sel = None
                         self._rider_menu_edit.set_sensitive(False)
                         self._rider_menu_del.set_sensitive(False)
+                        self._rider_menu_addevt.set_sensitive(False)
+                        self._rider_menu_delevt.set_sensitive(False)
                 else:
                     self._cur_rider_sel = None
                     self._rider_menu_edit.set_sensitive(False)
                     self._rider_menu_del.set_sensitive(False)
+                    self._rider_menu_addevt.set_sensitive(False)
+                    self._rider_menu_delevt.set_sensitive(False)
                 self._rider_menu.popup_at_pointer(None)
                 return True
         return False
@@ -1647,6 +1672,7 @@ class roadmeet:
         short = 'Create New %s' % (rtype)
         res = uiutil.options_dlg(window=self.window,
                                  title=short,
+                                 action=True,
                                  sections={
                                      'rdb': {
                                          'title': 'Rider',
@@ -1654,16 +1680,12 @@ class roadmeet:
                                          'object': dbr,
                                      },
                                  })
-        chg = False
-        for k in res['rdb']:
-            if res['rdb'][k][0]:
-                chg = True
-                break
-        if chg:
-            rider = self.rdb.add_rider(dbr, overwrite=False)
-            GLib.idle_add(self.select_row, rider)
+        if res['action'] == 0:  # OK
+            rider = self.rdb.add_rider(dbr, overwrite=False, notify=False)
+            self.ridercb(rider)
+            GLib.idle_add(self.select_rider, rider, priority=GLib.PRIORITY_LOW)
 
-    def select_row(self, rider):
+    def select_rider(self, rider):
         """Select rider view model if possible"""
         if rider in self.rdb:
             rdb = self.rdb[rider]
@@ -1686,134 +1708,235 @@ class roadmeet:
         """Edit properties of currently selected entry in riderdb"""
         if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
             doreopen = False
-            rider = self._cur_rider_sel
-            dbr = self.rdb[rider]
+            oldId = self._cur_rider_sel
+            dbr = self.rdb[oldId]
+            wasDupe = False
+            if oldId != dbr.get_id():
+                _log.debug('Editing duplicate %r stored as %r', dbr.get_id(),
+                           oldId)
+                wasDupe = True
             schema = dbr.get_schema()
-            rtype = schema['rtype']['prompt']
-            short = 'Edit %s %s' % (rtype, dbr.get_bibstr())
+            label = dbr.get_label()
+            short = 'Edit %s %s' % (label, dbr.get_bibstr())
             res = uiutil.options_dlg(window=self.window,
                                      title=short,
+                                     action=True,
                                      sections={
                                          'rdb': {
-                                             'title': 'Rider',
+                                             'title': label,
                                              'schema': schema,
                                              'object': dbr,
                                          },
                                      })
-            if rtype == 'Team':
-                # Patch the org value which is not visible, without notify
-                dbr.set_value('org', dbr['no'].upper())
-            if res['rdb']['no'][0] or res['rdb']['series'][0]:
-                # change of number or series requires some care
-                self._cur_rider_sel = None
-                newrider = self.rdb.add_rider(dbr,
-                                              notify=False,
-                                              overwrite=False)
-                if rtype == 'Category':
-                    if uiutil.questiondlg(
-                            window=self.window,
-                            question='Update rider categories?',
-                            subtext=
-                            'Riders in the old category will be updated to the new one',
-                            title='Update Cats?'):
-                        self.rdb.update_cats(res['rdb']['no'][1],
-                                             res['rdb']['no'][2],
-                                             notify=False)
-                        # and current event
-                        if self.curevent is not None:
-                            if res['rdb']['no'][1].upper(
-                            ) in self.curevent.cats:
-                                nc = []
-                                for c in self.curevent.cats:
-                                    if c == res['rdb']['no'][1].upper():
-                                        nc.append(res['rdb']['no'][2].upper())
-                                    else:
-                                        nc.append(c)
-                                self.curevent.loadcats(nc)
+            if res['action'] == 0:  # OK
+                if res['rdb']['no'][0] or res['rdb']['series'][0]:
+                    # Change of number or series
+                    self._cur_rider_sel = None  # selected row will be removed
+                    backupDbr = None  # save a backup in case rider no exists
+                    restoreDbr = None  # restore duplicate if primary avail
+                    restoreIdx = None
+                    newId = dbr.get_id()
+
+                    # Check for an existing entry with new ID
+                    delDest = False  # delete dst from events before adding src
+                    if newId in self.rdb:
+                        backupDbr = self.rdb[newId]
+                        self.rdb.del_rider(newId, notify=False)
+                        _log.debug(
+                            'New ID %r exists, flag removal of duplicate',
+                            newId)
+                        delDest = True
+
+                    # Check for restore of duplicate back to original
+                    moveSrc = True  # replace src in events with dst
+                    if not wasDupe:
+                        # Is there another entry in the rdb with this id?
+                        for idx, r in self.rdb.items():
+                            chkId = r.get_id()
+                            # unless entry is self
+                            # Note: not wasDupe implies oldId == dbr.get_id()
+                            if idx != oldId and chkId == oldId:
+                                # Yes, restore backup, leave id in meet
+                                # Note: No need to notify, events are closed
+                                #       name will be updated on reload
+                                moveSrc = False
+                                restoreDbr = r
+                                restoreIdx = idx  # index != id in this case
+                                break
+
+                    # Remove oldId from index
+                    self.rdb.del_rider(oldId, notify=False)
+
+                    # Add modified rider back into index
+                    self.rdb.add_rider(dbr, notify=False, overwrite=False)
+
+                    # Restore duplicate if oldId was freed up
+                    if restoreDbr is not None:
+                        _log.debug('Restore backup %s %s %r',
+                                   restoreDbr.get_label(),
+                                   restoreDbr.get_bibstr(), restoreIdx)
+                        self.rdb.del_rider(restoreIdx, notify=False)
+                        self.rdb.add_rider(restoreDbr,
+                                           notify=False,
+                                           overwrite=False)
+
+                    # Convert backup rider into a new duplicate entry
+                    if backupDbr is not None:
+                        _log.debug('Save copy of duplicate rider: %s',
+                                   backupDbr.get_id())
+                        self.rdb.add_rider(backupDbr,
+                                           notify=False,
+                                           overwrite=False)
+
+                    # Handle changes in event
+                    oldSeries = res['rdb']['series'][1]
+                    newSeries = res['rdb']['series'][2]
+                    oldNo = res['rdb']['no'][1]
+                    newNo = res['rdb']['no'][2]
+
+                    if oldSeries == 'cat' or newSeries == 'cat':
+                        if oldSeries != 'cat' and moveSrc:
+                            if self.curevent is not None:
+                                self.curevent.delrider(oldNo, oldSeries)
+                        elif newSeries != 'cat' and moveSrc:
+                            if self.curevent is not None:
+                                self.curevent.delcat(oldNo, reload=False)
                                 doreopen = True
-                else:
-                    # update curevent
-                    if self.curevent is not None:
-                        if self.curevent.getrider(res['rdb']['no'][1],
-                                                  res['rdb']['series'][1]):
-                            # rider was in event, add new one
-                            self.curevent.addrider(dbr['no'], dbr['series'])
-                            if self.curevent.timerstat == 'idle':
-                                self.curevent.delrider(res['rdb']['no'][1],
-                                                       res['rdb']['series'][1])
-                            else:
+                        else:
+                            self.rdb.update_cats(oldNo, newNo, notify=False)
+                            if self.curevent is not None:
+                                self.curevent.changecat(oldNo,
+                                                        newNo,
+                                                        reload=False)
+                                doreopen = True
+                    else:
+                        if self.curevent is not None:
+                            if delDest:
+                                self.curevent.delrider(newNo, newSeries)
+                            if moveSrc:
                                 _log.warning(
-                                    'Changed rider number %r => %r, check data',
-                                    res['rdb']['no'][1], res['rdb']['no'][2])
+                                    '%s %s added to event, check result',
+                                    dbr.get_label(), dbr.get_bibstr())
+                                self.curevent.delrider(oldNo, oldSeries)
+                                self.curevent.addrider(newNo, newSeries)
+                            else:
+                                self.curevent.addrider(newNo, newSeries)
+                            doreopen = True
 
-                # del triggers a global notify
-                del (self.rdb[rider])
+                    # Notify without idling
+                    self.ridercb(None)
 
-                # then try to select the modified row
-                GLib.idle_add(self.select_row, newrider)
+                    # then try to select the modified row
+                    GLib.idle_add(self.select_rider,
+                                  newId,
+                                  priority=GLib.PRIORITY_LOW)
 
-                # then reopen curevent if flagged after notify
-                if doreopen:
-                    GLib.idle_add(self.event_reload)
-            else:
-                # notify meet and event of any changes, once
-                for k in res['rdb']:
-                    if res['rdb'][k][0]:
-                        dbr.notify()
-                        break
+                    # reopen curevent if flagged after notify
+                    if doreopen:
+                        GLib.idle_add(self.event_reload)
+                else:
+                    for k in res['rdb']:
+                        if res['rdb'][k][0]:
+                            # notify via meet since id may be a duplicate
+                            self._rcb(oldId)
+                            break
 
     def rider_lookup_cb(self, menuitem, data=None):
         _log.info('Rider lookup not yet enabled')
 
+    def rider_add_event_cb(self, menuitem, data=None):
+        """Add currently selected entry to event"""
+        if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
+            if self.curevent is not None:
+                selId = self._cur_rider_sel
+                dbr = self.rdb[selId]
+                series = dbr['series'].lower()
+                if series == 'cat':
+                    cat = dbr['no'].upper()
+                    self.curevent.addcat(cat, reload=True)
+                else:
+                    self.curevent.addrider(dbr['no'], series)
+
+    def rider_del_event_cb(self, menuitem, data=None):
+        """Delete currently selected entry from event"""
+        if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
+            if self.curevent is not None:
+                selId = self._cur_rider_sel
+                dbr = self.rdb[selId]
+                series = dbr['series'].lower()
+                if series == 'cat':
+                    cat = dbr['no'].upper()
+                    self.curevent.delcat(cat, reload=True)
+                else:
+                    self.curevent.delrider(dbr['no'], series)
+
     def rider_delete_cb(self, menuitem, data=None):
         """Delete currently selected entry from riderdb"""
         if self._cur_rider_sel is not None and self._cur_rider_sel in self.rdb:
-            dbr = self.rdb[self._cur_rider_sel]
-            tv = []
-            series = dbr['series']
-            if series == 'cat':
-                tv.append('Category')
-                tv.append(dbr['no'].upper())
-                tv.append(':')
-                tv.append(dbr['first'])
-            elif series == 'team':
-                tv.append('Team')
-                tv.append(dbr['no'].upper())
-                tv.append(':')
-                tv.append(dbr['first'])
-            elif series == 'ds':
-                tv.append('DS')
-                tv.append(dbr.listname())
-            elif series == 'spare':
-                tv.append('Spare Bike')
-                tv.append(dbr['no'])
-                tv.append(dbr['org'])
-            else:
-                tv.append('Rider')
-                tv.append(dbr.get_bibstr())
-                tv.append(dbr.listname())
-                if dbr['cat']:
-                    tv.append(dbr['cat'].upper())
-            short = ' '.join(tv[0:2])
-            text = 'Delete %s?' % (short)
-            info = 'This action will permanently delete %s' % (' '.join(tv))
+            doreopen = False
+            selId = self._cur_rider_sel
+            dbr = self.rdb[selId]
+            series = dbr['series'].lower()
+            wasDupe = False
+            summary = dbr.summary()
+            if selId != dbr.get_id():
+                _log.debug('Removing duplicate %r stored as %r', dbr.get_id(),
+                           selId)
+                summary = 'Duplicate ' + summary
+                wasDupe = True
+            delId = dbr.get_id()
+            riderNo = dbr['no']
             if uiutil.questiondlg(window=self.window,
-                                  question=text,
-                                  subtext=info,
-                                  title='Delete?'):
-                if self.curevent is not None:
-                    if series == 'cat':
-                        cat = dbr['no'].upper()
-                        if cat in self.curevent.cats:
-                            _log.warning('Deleted cat %s in open event', cat)
-                    elif series not in ('ds', 'spare', 'team'):
-                        self.curevent.delrider(dbr['no'], series)
-                        _log.info('Remove rider %s from event', short)
-                del (self.rdb[self._cur_rider_sel])
-                _log.info('Deleted %s', short)
+                                  question='Delete %s from meet?' %
+                                  (summary, ),
+                                  title='Delete from Riderdb'):
                 self._cur_rider_sel = None
+                if wasDupe:
+                    # Remove selection
+                    self.rdb.del_rider(selId, notify=False)
+                    _log.info('Duplicate %s %s removed', dbr.get_label(),
+                              dbr.resname_bib())
+                else:
+                    # Is there another entry in the rdb with this id?
+                    for idx, r in self.rdb.items():
+                        chkId = r.get_id()
+                        # unless entry is self
+                        if idx != selId and chkId == selId:
+                            # Yes, restore backup duplicate, leave id in meet
+                            # Note: No need to notify since events are closed
+                            #       name will be updated on reload
+                            self.rdb.del_rider(selId, notify=False)
+                            self.rdb.del_rider(idx, notify=False)
+                            self.rdb.add_rider(r, notify=False)
+                            GLib.idle_add(self.select_rider,
+                                          chkId,
+                                          priority=GLib.PRIORITY_LOW)
+                            _log.info('Restored duplicate %s %s',
+                                      r.get_label(), r.resname_bib())
+                            break
+                    else:
+                        # Remove rider id from event
+                        if self.curevent is not None:
+                            if series == 'cat':
+                                cat = dbr['no'].upper()
+                                self.curevent.delcat(cat, reload=False)
+                                doreopen = True
+                            else:
+                                self.curevent.delrider(dbr['no'], series)
+                                _log.debug('Removed %s %s from event',
+                                           dbr.get_label(), dbr.resname_bib())
+
+                        # Remove entry from index
+                        self.rdb.del_rider(selId, notify=False)
+                        _log.info('Removed %s %s from meet', dbr.get_label(),
+                                  dbr.resname_bib())
+                self.ridercb(None)
+
+                # reopen curevent if flagged after notify
+                if doreopen:
+                    GLib.idle_add(self.event_reload)
             else:
-                _log.debug('Rider delete aborted')
+                _log.debug('Delete aborted')
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
@@ -1915,6 +2038,8 @@ class roadmeet:
         self._rider_menu_edit = b.get_object('rider_edit')
         self._rider_menu_lookup = b.get_object('rider_lookup')
         self._rider_menu_del = b.get_object('rider_del')
+        self._rider_menu_delevt = b.get_object('rider_delevt')
+        self._rider_menu_addevt = b.get_object('rider_addevt')
         self._cur_rider_sel = None
         self._cur_model = None
 
@@ -1941,10 +2066,10 @@ class roadmeet:
 
         # Build a rider list store and view
         self._rlm = Gtk.ListStore(
-            str,  # no 0
-            str,  # series 1
+            str,  # BIB.series 0
+            int,  # text style 1
             str,  # name 2 
-            str,  # org 3
+            str,  # rsvd
             str,  # categories 4
             str,  # Refid 5
             str,  # tooltip 6
@@ -1954,10 +2079,14 @@ class roadmeet:
         t.set_reorderable(True)
         t.set_rules_hint(True)
         t.set_tooltip_column(6)
-        uiutil.mkviewcoltxt(t, 'No.', 0, calign=1.0)
-        uiutil.mkviewcoltxt(t, 'Ser', 1, calign=0.0)
-        uiutil.mkviewcoltxt(t, 'Rider', 2, expand=True)
-        uiutil.mkviewcoltxt(t, 'Org', 3, cb=self._editcol_cb)
+        uiutil.mkviewcoltxt(t, 'No.', 0, calign=1.0, style=1)
+        uiutil.mkviewcoltxt(t,
+                            'Rider',
+                            2,
+                            expand=True,
+                            cb=self._editname_cb,
+                            style=1)
+        #uiutil.mkviewcoltxt(t, 'Org', 3, cb=self._editcol_cb)
         uiutil.mkviewcoltxt(t, 'Cats', 4, width=80, cb=self._editcol_cb)
         uiutil.mkviewcoltxt(t, 'Refid', 5, width=80, cb=self._editcol_cb)
         t.show()
@@ -1975,19 +2104,31 @@ class roadmeet:
             str,  # Distance 5
             str,  # Start Offset 6
             object,  # Rider ref 7
+            int,  # Text style 8
         )
         t = Gtk.TreeView(self._clm)
         t.set_reorderable(True)
         t.set_rules_hint(True)
-        uiutil.mkviewcoltxt(t, 'ID', 0, calign=0.0, width=40)
-        uiutil.mkviewcoltxt(t, 'Title', 1, width=140, cb=self._catcol_cb)
-        uiutil.mkviewcoltxt(t, 'Subtitle', 2, expand=True, cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t, 'ID', 0, calign=0.0, width=40, style=8)
+        uiutil.mkviewcoltxt(t,
+                            'Title',
+                            1,
+                            width=140,
+                            cb=self._catcol_cb,
+                            style=8)
+        uiutil.mkviewcoltxt(t,
+                            'Subtitle',
+                            2,
+                            expand=True,
+                            cb=self._catcol_cb,
+                            style=8)
         uiutil.mkviewcoltxt(t,
                             'Footer',
                             3,
                             width=140,
                             maxwidth=140,
-                            cb=self._catcol_cb)
+                            cb=self._catcol_cb,
+                            style=8)
         uiutil.mkviewcoltxt(t,
                             'Laps',
                             4,

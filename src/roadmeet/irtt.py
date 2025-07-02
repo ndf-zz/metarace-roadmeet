@@ -1012,9 +1012,6 @@ class irtt(rms):
                 dbr = self.meet.rdb.get_rider(bib, series)
                 if dbr is not None:
                     ucicode = dbr['uci id']
-                #if not ucicode and cat == u'':
-                ## Rider may have a typo in cat, show the catlist
-                #ucicode = cs
                 comment = ''
                 bstr = bib.upper()
                 stxt = ''

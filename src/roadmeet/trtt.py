@@ -690,7 +690,7 @@ class trtt(rms):
                         fincount += 1
                         if r[COL_PLACE] != '':
                             # in trtt this is arrival
-                            #comment = r[COL_PLACE] + u'.'
+                            #comment = r[COL_PLACE] + '.'
                             placed = True
                             pset = True
 
@@ -1470,7 +1470,6 @@ class trtt(rms):
             self.meet.action_combo.get_active_iter(), 0)
         if curact == 'fin':
             self.meet.action_entry.set_text(self.places)
-        #_log.debug(u'Event status: %r', self.racestat)
         self.calcset = True
         return False  # allow idle add
 
