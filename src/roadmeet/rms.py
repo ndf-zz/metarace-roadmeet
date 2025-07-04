@@ -1036,12 +1036,16 @@ class rms:
             if cat == rcat:
                 ucicode = None
                 name = r[COL_NAMESTR]
+                note = ''
                 dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
                 if dbr is not None:
                     ucicode = dbr['uci id']
+                    note = dbr['note']
                 comment = ''
                 if callup:
                     comment = str(rcnt + 1) + '.'
+                    if note:
+                        ucicode = '[%s]' % (note, )
                 if not r[COL_INRACE]:
                     cmt = r[COL_COMMENT]
                     if cmt == 'dns':
@@ -2288,8 +2292,8 @@ class rms:
         lr[COL_SHORTNAME] = r.fitname(24)
         lr[COL_CAT] = r['cat']
         if lr[COL_SEED] == 0:
-            # Import seed from notes column if int
-            seed = strops.confopt_posint(r['notes'])
+            # Import seed if int
+            seed = strops.confopt_posint(r['seed'])
             if seed is not None:
                 lr[COL_SEED] = seed
 
