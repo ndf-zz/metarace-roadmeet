@@ -37,7 +37,7 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.8'
+VERSION = '1.13.9'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -922,7 +922,7 @@ class roadmeet:
             if self.nextlink:
                 rep.nextlink = '_'.join((self.nextlink, 'startlist'))
             rep.resultlink = ffile
-            if self.etype == 'irtt':
+            if self.etype in ('irtt', 'cross'):
                 for sec in self.curevent.callup_report():
                     rep.add_section(sec)
             else:
@@ -956,6 +956,11 @@ class roadmeet:
             rep.reportstatus = 'final'
         for sec in self.curevent.result_report():
             rep.add_section(sec)
+
+        # If Analysis possible, dump it with the default export
+        if self.etype in ('cross', 'circuit'):
+            for sec in self.curevent.analysis_report():
+                rep.add_section(sec)
         filename = ffile
         rep.startlink = sfile
         if self.indexlink:
@@ -1359,7 +1364,9 @@ class roadmeet:
         """Publish obj to command as JSON"""
         if self.anntopic:
             topic = '/'.join((self.anntopic, command))
-            self.announce.publish_json(obj, topic)
+            self.announce.publish_json(obj,
+                                       topic,
+                                       cls=jsonconfig._configEncoder)
 
     def rider_announce(self, rvec, command='rider'):
         """Issue a serialised rider vector to announcer."""
@@ -1572,33 +1579,33 @@ class roadmeet:
         """Callback for editing category info"""
         new_text = new_text.strip()
         self._clm[path][col] = new_text
-        bib = self._clm[path][0]
-        r = self.rdb.get_rider(bib, 'cat')
-        if r is not None:
-            if col == 1:
-                if new_text != r['title']:
-                    r['title'] = new_text
-            elif col == 2:
-                if new_text != r['subtitle']:
-                    r['subtitle'] = new_text
-            elif col == 3:
-                if new_text != r['footer']:
-                    r['footer'] = new_text
-            elif col == 4:
-                if new_text != r['target']:
-                    nt = strops.confopt_posint(new_text, '')
-                    r['target'] = str(nt)
-            elif col == 5:
-                if new_text != r['distance']:
-                    nt = strops.confopt_float(new_text, '')
-                    r['distance'] = str(nt)
-            elif col == 6:
-                if new_text != r['start']:
-                    nt = tod.mktod(new_text)
-                    if nt is not None:
-                        r['start'] = nt.rawtime(0)
-                    else:
-                        r['start'] = ''
+        cId = self._clm[path][7]
+        c = self.rdb[cId]
+        cat = c['id']
+        if col == 1:
+            if new_text != c['title']:
+                c['title'] = new_text
+        elif col == 2:
+            if new_text != c['subtitle']:
+                c['subtitle'] = new_text
+        elif col == 3:
+            if new_text != c['footer']:
+                c['footer'] = new_text
+        elif col == 4:
+            if new_text != c['target']:
+                nt = strops.confopt_posint(new_text, '')
+                c['target'] = str(nt)
+        elif col == 5:
+            if new_text != c['distance']:
+                nt = strops.confopt_posfloat(new_text, '')
+                c['distance'] = str(nt)
+        elif col == 6:
+            # always re-write start offset to enforce formatting
+            nt = tod.mktod(new_text)
+            if nt is not None:
+                c['start'] = nt.rawtime(0)
+            else:
+                c['start'] = ''
 
     def _editname_cb(self, cell, path, new_text, col):
         """Update a rdb by name entry"""
