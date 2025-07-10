@@ -952,15 +952,23 @@ class roadmeet:
         # Set provisional status
         if self.curevent.timerstat != 'finished':
             rep.set_provisional(True)
+            # Place lap times ahead of result
+            if self.etype in ('cross', 'circuit'):
+                for sec in self.curevent.analysis_report():
+                    rep.add_section(sec)
         else:
             rep.reportstatus = 'final'
+
+        # Add body of report
         for sec in self.curevent.result_report():
             rep.add_section(sec)
 
-        # If Analysis possible, dump it with the default export
-        if self.etype in ('cross', 'circuit'):
-            for sec in self.curevent.analysis_report():
-                rep.add_section(sec)
+        if self.curevent.timerstat == 'finished':
+            # Place lap times after result
+            if self.etype in ('cross', 'circuit'):
+                for sec in self.curevent.analysis_report():
+                    rep.add_section(sec)
+
         filename = ffile
         rep.startlink = sfile
         if self.indexlink:

@@ -49,6 +49,8 @@ COL_STOFT = 12  # start time 'offset' - only reported in result
 COL_BONUS = 13
 COL_PENALTY = 14
 COL_RFSEEN = 15  # list of tods this rider 'seen' by rfid
+COL_LAPCOLOUR = 16  # bgcolour for lap cell
+COL_SEEN = 17  # flag for any rf passing detected
 
 # listview column nos (used for hiding)
 CATCOLUMN = 2
@@ -96,6 +98,14 @@ _DNFLABELS = {
     'outside time limit': 'otl',
     'disqualify': 'dsq',
 }
+_COLOURMAP = (
+    'green',
+    'orange',
+    'blue',
+    'red',
+    'grey',
+)
+_COLOURMAPLEN = 4
 
 RESERVED_SOURCES = [
     'fin',  # finished stage
@@ -494,6 +504,8 @@ class rms:
                         nr[COL_INRACE] = strops.confopt_bool(ril[1])
                     if lr > 2:
                         nr[COL_LAPS] = strops.confopt_posint(ril[2])
+                        nr[COL_LAPCOLOUR] = _COLOURMAP[nr[COL_LAPS] %
+                                                       _COLOURMAPLEN]
                     if lr > 3:
                         evtseed = strops.confopt_posint(ril[3], 0)
                         if evtseed > 0:
@@ -778,19 +790,18 @@ class rms:
             sec.units = 'pt'
             tallytot = 0
             aux = []
-            for bib in self.points[tally]:
+            for i, bib in enumerate(self.points[tally]):
                 r = self.getrider(bib)
                 tallytot += self.points[tally][bib]
-                aux.append((self.points[tally][bib], self.pointscb[tally][bib],
-                            -strops.riderno_key(bib), -cnt, [
-                                None, r[COL_BIB], r[COL_NAMESTR],
-                                strops.truncpad(str(self.pointscb[tally][bib]),
-                                                16,
-                                                ellipsis=True), None,
-                                str(self.points[tally][bib])
-                            ]))
-                cnt += 1
-            aux.sort(reverse=True)
+                aux.append(
+                    (-self.points[tally][bib], -self.pointscb[tally][bib],
+                     strops.riderno_key(bib), i,
+                     (None, r[COL_BIB], r[COL_NAMESTR],
+                      strops.truncpad(str(self.pointscb[tally][bib]),
+                                      16,
+                                      ellipsis=True), None,
+                      str(self.points[tally][bib]))))
+            aux.sort()
             for r in aux:
                 sec.lines.append(r[4])
             _log.debug('Total points for %r: %r', tally, tallytot)
@@ -825,14 +836,14 @@ class rms:
                     penstr = str(-(penalty.as_seconds()))
                 totstr = str(total.as_seconds())
                 aux.append(
-                    (total, -strops.riderno_key(bib), -cnt,
+                    (-total, strops.riderno_key(bib), cnt,
                      [None, bib, r[COL_NAMESTR], bonstr, penstr, totstr]))
                 cnt += 1
         sec = report.section('bonus')
         sec.heading = 'Time Bonuses'
         sec.units = 'sec'
         if len(aux) > 0:
-            aux.sort(reverse=True)
+            aux.sort()
             for r in aux:
                 sec.lines.append(r[3])
             if onebonus or onepenalty:
@@ -853,22 +864,18 @@ class rms:
         aux = []
         cnt = 0
         if callup:
-            for r in self.riders:
+            for i, r in enumerate(self.riders):
                 rseed = 9999
-                if r[COL_SEED] > 0:
+                if r[COL_SEED] != 0:
                     rseed = r[COL_SEED]
-                riderno = strops.riderno_key(r[COL_BIB])
-                aux.append((rseed, riderno, cnt))
-                cnt += 1
+                aux.append((rseed, strops.riderno_key(r[COL_BIB]), i))
         else:
-            for r in self.riders:
-                riderno = strops.riderno_key(r[COL_BIB])
-                aux.append((riderno, 0, cnt))
-                cnt += 1
+            for i, r in enumerate(self.riders):
+                aux.append((strops.riderno_key(r[COL_BIB]), 0, i))
         if len(aux) > 1:
             aux.sort()
             self.riders.reorder([a[2] for a in aux])
-        return cnt
+        return len(self.riders)
 
     def signon_report(self):
         """Return a signon report."""
@@ -1076,12 +1083,90 @@ class rms:
 
         return ret
 
+    def laptime_report(self, precision=0):
+        """Return laptime report"""
+        if self.timerstat == 'idle':
+            _log.debug('Event is idle - laptime report skipped')
+            return ()
+
+        self.recalculate()
+        sec = report.laptimes()
+        sec.heading = 'Lap Times'
+        sec.colheader = ['', '', '', 'lap', '']
+        sec.precision = precision
+        maxcount = 0
+        oneavg = False
+        sec.start = tod.ZERO
+        if self.start is not None:
+            sec.start = self.start
+        if self.maxfinish is not None:
+            # make sure slowest lap is displayed with lap lines
+            sec.finish = self.maxfinish + tod.tod('1.0')
+        sec.laptimes = self.laptimes
+        _log.debug('finish: %s, maxfinish: %s', sec.finish.rawtime(0),
+                   self.maxfinish.rawtime(0))
+        for r in self.riders:
+            # add each rider, even when there is no info to display
+            rdata = {}
+            rdata['no'] = r[COL_BIB]
+            rdata['name'] = ''
+            rdata['cat'] = ''
+            rdata['count'] = r[COL_LAPS]
+            rdata['place'] = r[COL_PLACE]
+            rdata['elapsed'] = None
+            rdata['average'] = None
+            rdata['laps'] = []
+            if not r[COL_INRACE]:
+                rdata['place'] = r[COL_COMMENT]
+            if rdata['place'] != 'dns':
+                dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
+                if dbr is not None:
+                    rdata['name'] = dbr.fitname(4, trunc=False)
+                    rdata['cat'] = dbr.primary_cat()
+                catstart = tod.ZERO
+                if rdata['cat'] in self.catstarts:
+                    if self.catstarts[rdata['cat']] is not None:
+                        catstart = self.catstarts[rdata['cat']]
+                rdata['start'] = sec.start + catstart
+                rft = None
+                minet = rdata['start'] + self.minlap
+                if r[COL_RFTIME] is not None:
+                    rft = r[COL_RFTIME]
+                elif r[COL_RFSEEN] and r[COL_RFSEEN][-1] is not None:
+                    if r[COL_RFSEEN][-1] > minet:
+                        rft = r[COL_RFSEEN][-1]
+                relap = None
+                if rft is not None:
+                    relap = rft - rdata['start']
+                    lasttime = rdata['start']
+                    for split in r[COL_RFSEEN]:
+                        if split > lasttime and split <= rft:
+                            rdata['laps'].append(
+                                (split - lasttime).round(precision))
+                            lasttime = split
+                    maxcount = max(maxcount, len(rdata['laps']))
+                if relap is not None and rdata['count'] and rdata['count'] > 1:
+                    rdata['elapsed'] = relap.round(precision)
+                    at = tod.mktod(relap.timeval / rdata['count'])
+                    rdata['average'] = at.round(precision)
+                    oneavg = True
+
+                sec.lines.append(rdata)
+        if oneavg:
+            sec.colheader[4] = 'avg'
+        if maxcount > 0:
+            sec.colheader.extend([str(i + 1) for i in range(0, maxcount)])
+        return (sec, )
+
     def analysis_report(self):
         """Return an analysis report."""
         # temporary fall through to camera report
-        return self.camera_report()
+        if self.etype in ('cross', 'circuit'):
+            return self.laptime_report()
+        else:
+            return self.camera_report(title='Analysis')
 
-    def camera_report(self):
+    def camera_report(self, title='Judges Report', mode='judging'):
         """Return the judges (camera) report."""
         # Note: camera report treats all riders as a single blob
         ret = []
@@ -1091,30 +1176,32 @@ class rms:
         dnscount = 0
         dnfcount = 0
         fincount = 0
+        doavg = False
         lcomment = ''
         insertgap = True
         if self.timerstat != 'idle':
-            sec = report.judgerep('judging')
-            sec.heading = 'Judges Report'
+            sec = report.judgerep(mode)
+            sec.heading = title
+            lcount = 0
             if self.etype == 'cross':
-                sec.colheader = [
-                    '', 'no', 'rider', 'lap', 'finish', 'lap avg', 'passings'
-                ]
+                sec.colheader = ['', '', '', '', 'lap', '']
             else:
                 sec.colheader = [
-                    '', 'no', 'rider', 'lap', 'finish', 'rftime', 'passings'
+                    '', '', '', 'lap', 'finish', 'rftime', 'passings'
                 ]
             if self.start is not None:
                 sec.start = self.start
-            if self.finish is not None:
+            if self.maxfinish is not None:
                 sec.finish = self.maxfinish + tod.tod('0.1')
             sec.laptimes = self.laptimes
             first = True
+            mincatstart = tod.MAX
             ft = None
             lt = None
             lrf = None
             lplaced = None
             ltimed = None
+            maxlapcnt = 0
             for r in self.riders:
                 totcount += 1
                 marker = ' '
@@ -1126,19 +1213,39 @@ class rms:
                 photo = False
                 rbib = r[COL_BIB]
                 rcat = r[COL_CAT]
+                rname = r[COL_NAMESTR]
+                dbr = self.meet.rdb.get_rider(rbib, self.series)
+                if dbr is not None:
+                    # force name shortening on all riders
+                    rname = dbr.fitname(4, trunc=False)
+                    rcat = dbr.primary_cat()
                 ecat = self.ridercat(riderdb.primary_cat(rcat))
-                catstart = None
-                if ecat in self.catstarts and self.etype not in ('cross',
-                                                                 'handicap'):
-                    catstart = self.catstarts[ecat]
+                catstart = tod.ZERO
+                if ecat in self.catstarts and self.etype not in ('handicap'):
+                    if self.catstarts[ecat] is not None:
+                        catstart = self.catstarts[ecat]
+
+                if catstart < mincatstart:
+                    mincatstart = catstart
+
+                rstart = None
+                notbefore = None
+                if self.start is not None:
+                    rstart = self.start
+                    if catstart is not None:
+                        rstart += catstart
+                    notbefore = rstart + self.minlap
                 laplist = []
-                if r[COL_RFTIME] is not None:
+                if notbefore is not None:
                     for lt in r[COL_RFSEEN]:
-                        if lt <= r[COL_RFTIME]:
-                            laplist.append(lt)
-                else:
-                    # include all captured laps
-                    laplist = r[COL_RFSEEN]
+                        if lt > notbefore:
+                            if r[COL_RFTIME] is not None:
+                                if lt <= r[COL_RFTIME]:
+                                    laplist.append(lt)
+                            else:
+                                laplist.append(lt)
+                maxlapcnt = max(maxlapcnt, len(laplist))
+
                 if r[COL_INRACE]:
                     comment = str(totcount)
                     bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
@@ -1159,10 +1266,13 @@ class rms:
                                         sec.lines[-1][8] = True
                             if self.start is not None:
                                 et = r[COL_RFTIME] - self.start
+                                if catstart is not None:
+                                    et -= catstart
                                 if self.etype == 'cross':
                                     if r[COL_LAPS] > 0:
                                         al = tod.mktod(et.timeval /
                                                        r[COL_LAPS])
+                                        doavg = True
                                         es = al.rawtime(1)
                                 else:
                                     es = et.rawtime(2)
@@ -1189,7 +1299,7 @@ class rms:
                         lt = bt
                         # sep placed and unplaced
                         insertgap = False
-                        if lplaced and placed != lplaced:
+                        if mode == 'judging' and lplaced and placed != lplaced:
                             sec.lines.append([None, None, None])
                             sec.lines.append(
                                 [None, None, 'Riders not yet placed'])
@@ -1199,17 +1309,26 @@ class rms:
                         if r[COL_COMMENT].strip() != '':
                             comment = r[COL_COMMENT].strip()
                         else:
-                            comment = '____'
+                            if mode != 'laptimes':
+                                comment = '____'
 
+                    # suppress finish time on cross
+                    if self.etype == 'cross':
+                        bs = None
                     # sep timed and untimed
-                    if not insertgap and ltimed and ltimed != timed:
+                    if mode == 'judging' and not insertgap and ltimed and ltimed != timed:
                         sec.lines.append([None, None, None])
                         sec.lines.append(
                             [None, None, 'Riders not seen at finish.'])
                         insertgap = True
                     ltimed = timed
+
+                    # suppress rank if mode is laptimes:
+                    if mode == 'laptimes':
+                        comment = ''
+
                     sec.lines.append([
-                        comment, rbib, r[COL_NAMESTR],
+                        comment, rbib, rname,
                         str(r[COL_LAPS]), bs, es, laplist, placed, photo,
                         catstart, rcat
                     ])
@@ -1232,24 +1351,33 @@ class rms:
                         else:
                             es = r[COL_RFTIME].rawtime(2)
                     sec.lines.append([
-                        comment, rbib, r[COL_NAMESTR],
+                        comment, rbib, rname,
                         str(r[COL_LAPS]), None, es, laplist, True, False,
                         catstart, rcat
                     ])
                 first = False
-
+            if self.etype == 'cross':
+                if doavg:
+                    sec.colheader[5] = 'avg'
+                if maxlapcnt > 0:
+                    sec.colheader.extend(
+                        [str(i + 1) for i in range(0, maxlapcnt)])
             ret.append(sec)
-            sec = report.section('judgesummary')
-            sec.lines.append([None, None, 'Total riders: ' + str(totcount)])
-            sec.lines.append([None, None, 'Did not start: ' + str(dnscount)])
-            sec.lines.append([None, None, 'Did not finish: ' + str(dnfcount)])
-            sec.lines.append([None, None, 'Finishers: ' + str(fincount)])
-            residual = totcount - (fincount + dnfcount + dnscount)
-            if residual > 0:
+            if mode == 'judging':
+                sec = report.section('judgesummary')
                 sec.lines.append(
-                    [None, None, 'Unaccounted for: ' + str(residual)])
-            if len(sec.lines) > 0:
-                ret.append(sec)
+                    [None, None, 'Total riders: ' + str(totcount)])
+                sec.lines.append(
+                    [None, None, 'Did not start: ' + str(dnscount)])
+                sec.lines.append(
+                    [None, None, 'Did not finish: ' + str(dnfcount)])
+                sec.lines.append([None, None, 'Finishers: ' + str(fincount)])
+                residual = totcount - (fincount + dnfcount + dnscount)
+                if residual > 0:
+                    sec.lines.append(
+                        [None, None, 'Unaccounted for: ' + str(residual)])
+                if len(sec.lines) > 0:
+                    ret.append(sec)
         else:
             _log.warning('Event is idle, report not available')
         return ret
@@ -1258,8 +1386,12 @@ class rms:
         """Return a categorised event result report."""
         _log.debug('Categorised result report')
         ret = []
+        first = True
         for cat in self.cats:
+            if not first and cat:
+                ret.append(report.pagebreak())
             ret.extend(self.single_catresult(cat))
+            first = False
 
         return ret
 
@@ -1579,7 +1711,7 @@ class rms:
                 fts = ''
                 if ftr is not None:
                     fts = ftr[COL_SHORTNAME]
-                ftstr = flap.rawtime(0)
+                ftstr = flap.round(0).rawtime(0)  # round to match laptime rep
                 if flap < tod.tod(60):
                     ftstr += ' sec'
                 fmsg = 'Fastest lap: {} {} {} on lap {:d}'.format(
@@ -1597,9 +1729,6 @@ class rms:
                 sec.lines.append(
                     [None, 'Riders abandoning the event: ' + str(dnfcount)])
             residual = totcount - (fincount + dnfcount + dnscount + hdcount)
-            _log.debug(
-                'Residual: %d, tot: %d, fin: %d, dnf: %d, dns: %d, hd: %d',
-                residual, totcount, fincount, dnfcount, dnscount, hdcount)
             if residual > 0:
                 if cat:
                     _log.info('Cat %s unaccounted for: %d', cat, residual)
@@ -1615,7 +1744,6 @@ class rms:
                 cv.append(catname)
                 rsec.heading = ': '.join(cv)
                 rsec.subheading = subhead
-            ret.append(report.pagebreak())
         return ret
 
     def result_report(self):
@@ -1633,6 +1761,7 @@ class rms:
 
         # show all intermediates here
         if self.intermeds:
+            ret.append(report.pagebreak())
             catcache = {'': None}
             for c in self.meet.rdb.listcats(self.series):
                 if c != '':
@@ -1647,6 +1776,8 @@ class rms:
                     ret.extend(self.int_report(i, catcache))
 
         # append a decisions section
+        if self.decisions:
+            ret.append(report.pagebreak())
         ret.append(self.decision_section())
 
         return ret
@@ -2216,6 +2347,8 @@ class rms:
             r[COL_INRACE] = True
             r[COL_PLACE] = ''
             r[COL_LAPS] = 0
+            r[COL_LAPCOLOUR] = _COLOURMAP[-1]
+            r[COL_SEEN] = _COLOURMAP[-1]
             r[COL_RFSEEN] = []
             r[COL_RFTIME] = None
             r[COL_CBUNCH] = None
@@ -2273,7 +2406,7 @@ class rms:
         if bib:
             nr = [
                 bib, '', '', '', '', True, '', 0, 0, None, None, None, None,
-                None, None, []
+                None, None, [], _COLOURMAP[-1], _COLOURMAP[-1]
             ]
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is None:
@@ -2719,6 +2852,7 @@ class rms:
                 r[COL_INRACE] = True
                 r[COL_COMMENT] = ''
                 r[COL_LAPS] = len(r[COL_RFSEEN])
+                r[COL_LAPCOLOUR] = _COLORMAP[r[COL_LAPS] % _COLOURMAPLEN]
                 recalc = True
                 _log.info('Rider %s returned to event', bib)
             else:
@@ -2881,6 +3015,7 @@ class rms:
                 return False
 
         # log passing of rider before further processing
+        lr[COL_SEEN] = _COLOURMAP[0]
         if not lr[COL_INRACE]:
             _log.warning('Withdrawn rider: %s:%s@%s/%s', bib, e.chan,
                          e.rawtime(2), e.source)
@@ -2981,6 +3116,8 @@ class rms:
                         if self.etype == 'criterium':
                             # push them back to the current lap
                             lr[COL_LAPS] = self.curlap
+                            lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] %
+                                                           _COLOURMAPLEN]
                             onlap = True
                         else:
                             if self.curlap > 0:
@@ -3027,6 +3164,8 @@ class rms:
                                e.chan, e.rawtime(2), e.source)
                 if lr[COL_INRACE]:
                     lr[COL_LAPS] += 1
+                    lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] %
+                                                   _COLOURMAPLEN]
                     if rcat in self.catonlap and lr[COL_LAPS] > self.catonlap[
                             rcat]:
                         self.catonlap[rcat] = lr[COL_LAPS]
@@ -3042,6 +3181,7 @@ class rms:
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
                 # rider in the event, not yet finished: increment own lap count
                 lr[COL_LAPS] += 1
+                lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] % _COLOURMAPLEN]
                 onlap = False
 
                 # category and target lap counting
@@ -3098,6 +3238,8 @@ class rms:
                 for r in self.riders:
                     if r[COL_INRACE]:
                         r[COL_LAPS] = newlap - 1
+                        r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] %
+                                                      _COLOURMAPLEN]
             else:
                 # correct all rider lap counts, saturated at desired lap
                 for r in self.riders:
@@ -3106,6 +3248,7 @@ class rms:
                         if olap > newlap - 1:
                             olap = newlap - 1
                     r[COL_LAPS] = olap
+                    r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] % _COLOURMAPLEN]
             if self.lapfin is not None:
                 self.curlap = newlap - 1
             else:
@@ -3121,6 +3264,7 @@ class rms:
                 maxlap = 0
                 for r in self.riders:
                     r[COL_LAPS] = len(r[COL_RFSEEN])
+                    r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] % _COLOURMAPLEN]
                     maxlap = max(r[COL_LAPS] + 1, maxlap)
             self.onlap = maxlap
             if self.etype in ('criterium', 'circuit', 'cross'):
@@ -3544,6 +3688,8 @@ class rms:
             self.riders[path][col] = int(new_text)
         else:
             _log.error('Invalid lap count')
+        self.riders[path][COL_LAPCOLOUR] = _COLOURMAP[self.riders[path][col] %
+                                                      _COLOURMAPLEN]
 
     def _editname_cb(self, cell, path, new_text, col):
         """Edit the rider name if possible."""
@@ -3737,13 +3883,6 @@ class rms:
                 seen = model.get_value(iter, COL_RFSEEN)
                 if len(seen) > 0:
                     if self.start:
-                        # show elapsed on the rider!
-                        # except perhaps for cx
-                        #if len(seen) > 1:
-                        # show last lap time
-                        #et = seen[-1] - seen[-2]
-                        #else:
-                        # show elapsed
                         et = seen[-1] - self.start
                     else:
                         et = seen[-1]
@@ -4160,6 +4299,12 @@ class rms:
                 rlaps = 0
                 rftime = tod.MAX
                 lastpass = tod.MAX
+                rplace = r[COL_COMMENT]
+
+            # flag any manually edited riders as 'seen'
+            if rplace:
+                r[COL_SEEN] = _COLOURMAP[0]
+
             if self.etype in ('road', 'criterium'):
                 # partition into seen and not seen
                 if r[COL_INRACE]:
@@ -4545,6 +4690,8 @@ class rms:
                         ac.extend(dr[COL_RFSEEN])
                         dr[COL_RFSEEN] = [t for t in sorted(ac)]
                         dr[COL_LAPS] = len(dr[COL_RFSEEN])
+                        dr[COL_LAPCOLOUR] = _COLOURMAP[dr[COL_LAPS] %
+                                                       _COLOURMAPLEN]
                         self.delrider(srcbib)
                         _log.debug('Spare bike %s removed', srcbib)
                     # If dstrider is a spare bike, leave it in place
@@ -4855,6 +5002,8 @@ class rms:
             object,  # gobject.TYPE_PYOBJECT,  # BONUS = 13
             object,  # gobject.TYPE_PYOBJECT,  # PENALTY = 14
             object,  # gobject.TYPE_PYOBJECT  # RFSEEN = 15
+            str,  # LAPCOLOUR = 16
+            str,  # SEEN = 17
         )
 
         b = uiutil.builder('rms.ui')
@@ -4877,7 +5026,7 @@ class rms:
         self.context_menu = None
         if ui:
             self.frame.connect('destroy', self.shutdown)
-            uiutil.mkviewcoltxt(t, 'No.', COL_BIB, calign=1.0)
+            uiutil.mkviewcoltxt(t, 'No.', COL_BIB, calign=1.0, bgcol=COL_SEEN)
             uiutil.mkviewcoltxt(t,
                                 'Rider',
                                 COL_NAMESTR,
@@ -4891,7 +5040,8 @@ class rms:
                                 'Lap',
                                 COL_LAPS,
                                 width=40,
-                                cb=self.editlap_cb)
+                                cb=self.editlap_cb,
+                                bgcol=COL_LAPCOLOUR)
             uiutil.mkviewcoltxt(t,
                                 'Seed',
                                 COL_SEED,
@@ -4907,7 +5057,7 @@ class rms:
                                 cb=self.showbunch_cb,
                                 editcb=self.editbunch_cb,
                                 width=50)
-            uiutil.mkviewcoltxt(t, 'Place', COL_PLACE, calign=0.5, width=50)
+            uiutil.mkviewcoltxt(t, 'Fin', COL_PLACE, calign=0.5, width=50)
             t.show()
             b.get_object('event_result_win').add(t)
             self.context_menu = b.get_object('rms_context')
