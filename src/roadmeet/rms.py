@@ -179,6 +179,15 @@ _CONFIG_SCHEMA = {
         'hint': 'Automatically finish riders on target lap',
         'default': True,
     },
+    'autoarm': {
+        'prompt': '',
+        'control': 'check',
+        'type': 'bool',
+        'attr': 'autoarm',
+        'subtext': 'Automatically arm finish?',
+        'hint': 'Automatically arm finish on arrival of first finisher',
+        'default': False,
+    },
     'autoexport': {
         'prompt': 'Export:',
         'control': 'check',
@@ -437,6 +446,8 @@ class rms:
         self.cats = []
         if self.etype == 'criterium':
             _CONFIG_SCHEMA['showdowntimes']['default'] = False
+        elif self.etype == 'cross':
+            _CONFIG_SCHEMA['autoarm']['default'] = True
         cr = jsonconfig.config({
             'rms': {
                 'start': None,
@@ -3145,11 +3156,11 @@ class rms:
             else:
                 targetlap = self.totlaps
             if targetlap and lr[COL_LAPS] >= targetlap - 1:
-                lapfinish = True  # arm just this rider
-                if self.etype == 'cross':
+                lapfinish = True  # flag this rider as finished
+                if self.autoarm:  # also arm finish if configured
                     doarm = True
 
-        # for cross events when targets apply, armfinish is set automatically
+        # when targets apply, automatically arm finish if configured
         if doarm and lapfinish and self.timerstat != 'armfinish':
             self.armfinish()
 
@@ -4940,6 +4951,7 @@ class rms:
         self.cats = []
         self.passingsource = None  # loop id no for valid passing
         self.autofinish = False  # true if finish is det by target
+        self.autoarm = False  # arm finish on first arrival
         self.catlaps = {}  # cache of cat lap counts
         self.catstarts = {}  # cache of cat start times
         self.catplaces = {}
