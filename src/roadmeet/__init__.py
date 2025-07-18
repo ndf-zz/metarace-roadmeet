@@ -8,6 +8,7 @@ import metarace
 from metarace import htlib
 import csv
 import os
+import threading
 from time import sleep
 
 gi.require_version("GLib", "2.0")
@@ -28,7 +29,7 @@ from metarace.decoder import decoder
 from metarace.decoder.rru import rru, _CONFIG_SCHEMA as _RRU_SCHEMA
 from metarace.decoder.rrs import rrs, _CONFIG_SCHEMA as _RRS_SCHEMA
 from metarace.decoder.thbc import thbc, _CONFIG_SCHEMA as _THBC_SCHEMA
-from metarace.timy import timy, _CONFIG_SCHEMA as _TIMY_SCHEMA
+from metarace.timy import timy, _TIMER_LOG_LEVEL, _CONFIG_SCHEMA as _TIMY_SCHEMA
 from metarace import strops
 from metarace import report
 
@@ -37,7 +38,7 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.9'
+VERSION = '1.13.10'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -56,7 +57,8 @@ ROADRACE_TYPES = {
 }
 PRINT_TYPES = {
     '': 'Save to PDF',
-    'preview': 'Preview and Save to PDF',
+    'pdfpreview': 'Preview and Save to PDF',
+    'preview': 'Preview',
     'dialog': 'Print Dialog',
     'direct': 'Print Direct'
 }
@@ -237,6 +239,24 @@ _CONFIG_SCHEMA = {
         'subtext': 'Build results on export?',
         'hint': 'Build result files with export',
         'attr': 'resfiles',
+        'default': True,
+    },
+    'resarrival': {
+        'prompt': '',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Include arrivals?',
+        'hint': 'Include arrivals on result export',
+        'attr': 'resarrival',
+        'default': False,
+    },
+    'resdetail': {
+        'prompt': '',
+        'control': 'check',
+        'type': 'bool',
+        'subtext': 'Include lap/split times?',
+        'hint': 'Include lap/split time detail with result export',
+        'attr': 'resdetail',
         'default': True,
     },
     'lifexport': {
@@ -517,22 +537,35 @@ class roadmeet:
         """Print the pre-formatted sections in a standard report."""
         rep = report.report()
         rep.provisional = provisional
+        rep.id = filename
         self.report_strings(rep)
         for sec in sections:
             rep.add_section(sec)
 
+        if self.doprint not in ('preview', 'dialog', 'direct'):
+            # Save a copy to pdf and xlsx
+            ofile = filename + '.pdf'
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_pdf(f)
+            ofile = filename + '.xlsx'
+            with metarace.savefile(ofile, mode='b') as f:
+                rep.output_xlsx(f)
+            # Log completion
+            _log.info('Saved report to %s.pdf', filename)
+
         if self.doprint:
+            # report preparation complete, trigger
             method = Gtk.PrintOperationAction.PREVIEW
             if self.doprint == 'dialog':
                 method = Gtk.PrintOperationAction.PRINT_DIALOG
             elif self.doprint == 'direct':
                 method = Gtk.PrintOperationAction.PRINT
-            _log.debug('Running print method: %s', self.doprint)
             print_op = Gtk.PrintOperation.new()
             print_op.set_print_settings(self.printprefs)
             print_op.set_default_page_setup(self.pageset)
             print_op.connect('begin_print', self.begin_print, rep)
             print_op.connect('draw_page', self.draw_print_page, rep)
+            print_op.connect('done', self.finish_print, rep)
             print_op.set_allow_async(True)
             res = print_op.run(method, self.window)
             if res == Gtk.PrintOperationResult.APPLY:
@@ -545,22 +578,17 @@ class roadmeet:
                 _log.error('Print operation error: %s', printerr.message)
             else:
                 _log.error('Print operation cancelled')
-
-        if self.doprint not in ('dialog', 'direct'):
-            # Save copy to pdf and xlsx
-            ofile = filename + '.pdf'
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_pdf(f)
-            ofile = filename + '.xlsx'
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xlsx(f)
-            # Log completion
-            _log.info('Saved report to %s.pdf', filename)
-
+            self._print_report_thread = None
+            self._print_report_rep = None
         return False
+
+    def finish_print(self, operation, context, rep):
+        """Notify print completion."""
+        _log.log(report._LOGLEVEL_TEMP, 'Printing %s done.', rep.id)
 
     def begin_print(self, operation, context, rep):
         """Set print pages and units."""
+        _log.log(report._LOGLEVEL_TEMP, 'Printing %s ...', rep.id)
         rep.start_gtkprint(context.get_cairo_context())
         operation.set_use_full_page(True)
         operation.set_n_pages(rep.get_pages())
@@ -569,6 +597,8 @@ class roadmeet:
     def draw_print_page(self, operation, context, page_nr, rep):
         """Draw to the nominated page."""
         rep.set_context(context.get_cairo_context())
+        _log.log(report._LOGLEVEL_TEMP, 'Printing %s page %d/%d', rep.id,
+                 page_nr + 1, rep.get_pages())
         rep.draw_page(page_nr)
 
     def menu_meet_quit_cb(self, menuitem, data=None):
@@ -888,134 +918,171 @@ class roadmeet:
         else:
             _log.info('Export startlist cancelled')
 
-    def export_result_maker(self):
-        if self.mirrorfile:
-            filebase = self.mirrorfile
-        else:
-            filebase = '.'
-        if filebase in ('', '.'):
-            filebase = ''
-            if self.resfiles:
-                _log.warn('Using default filenames for export')
-        else:
-            pass
+    def _run_export_thread(self, srep=None, frep=None):
+        """Output report versions and start a mirror process"""
 
-        fnv = []
-        if filebase:
-            fnv.append(filebase)
-        fnv.append('startlist')
-        sfile = '_'.join(fnv)
-        fnv[-1] = 'result'
-        ffile = '_'.join(fnv)
+        # Announce JSON if enabled
+        if frep is not None and self.announceresult:
+            _log.debug('Announce result')
+            self.obj_announce(command='result', obj=frep.serialise())
 
-        # Write out a startlist unless event finished
-        if self.resfiles and self.curevent.timerstat != 'finished':
-            filename = sfile
-            rep = report.report()
-            self.report_strings(rep)
-            if self.provisionalstart:
-                rep.set_provisional(True)
-            if self.indexlink:
-                rep.indexlink = self.indexlink
-            if self.prevlink:
-                rep.prevlink = '_'.join((self.prevlink, 'startlist'))
-            if self.nextlink:
-                rep.nextlink = '_'.join((self.nextlink, 'startlist'))
-            rep.resultlink = ffile
-            if self.etype in ('irtt', 'cross'):
-                for sec in self.curevent.callup_report():
-                    rep.add_section(sec)
-            else:
-                for sec in self.curevent.startlist_report():
-                    rep.add_section(sec)
+        # Output files if required
+        for r in (srep, frep):
+            if r is not None:
+                _log.debug('Writing out report %s', r.id)
+                lb = os.path.join(self.linkbase, r.id)
+                lt = ['pdf', 'xlsx']
+                r.canonical = '.'.join([lb, 'json'])
+                ofile = os.path.join(self.exportpath, r.id + '.pdf')
+                with metarace.savefile(ofile, mode='b') as f:
+                    r.output_pdf(f)
+                ofile = os.path.join(self.exportpath, r.id + '.xlsx')
+                with metarace.savefile(ofile, mode='b') as f:
+                    r.output_xlsx(f)
+                ofile = os.path.join(self.exportpath, r.id + '.json')
+                with metarace.savefile(ofile) as f:
+                    r.output_json(f)
+                ofile = os.path.join(self.exportpath, r.id + '.html')
+                with metarace.savefile(ofile) as f:
+                    r.output_html(f, linkbase=lb, linktypes=lt)
 
-            lb = os.path.join(self.linkbase, filename)
-            lt = ['pdf', 'xlsx']
-            rep.canonical = '.'.join([lb, 'json'])
-            ofile = os.path.join(self.exportpath, filename + '.pdf')
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_pdf(f)
-            ofile = os.path.join(self.exportpath, filename + '.xlsx')
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xlsx(f)
-            ofile = os.path.join(self.exportpath, filename + '.json')
-            with metarace.savefile(ofile) as f:
-                rep.output_json(f)
-            ofile = os.path.join(self.exportpath, filename + '.html')
-            with metarace.savefile(ofile) as f:
-                rep.output_html(f, linkbase=lb, linktypes=lt)
-
-        # Then export a result
-        rep = report.report()
-        self.report_strings(rep)
-
-        # Set provisional status
-        if self.curevent.timerstat != 'finished':
-            rep.set_provisional(True)
-            # Place lap times ahead of result
-            if self.etype in ('cross', 'circuit'):
-                for sec in self.curevent.analysis_report():
-                    rep.add_section(sec)
-        else:
-            rep.reportstatus = 'final'
-
-        # Add body of report
-        for sec in self.curevent.result_report():
-            rep.add_section(sec)
-
-        if self.curevent.timerstat == 'finished':
-            # Place lap times after result
-            if self.etype in ('cross', 'circuit'):
-                for sec in self.curevent.analysis_report():
-                    rep.add_section(sec)
-
-        filename = ffile
-        rep.startlink = sfile
-        if self.indexlink:
-            rep.indexlink = self.indexlink
-        if self.prevlink:
-            rep.prevlink = '_'.join((self.prevlink, 'result'))
-        if self.nextlink:
-            rep.nextlink = '_'.join((self.nextlink, 'result'))
-        lb = os.path.join(self.linkbase, filename)
-        lt = ['pdf', 'xlsx']
-        rep.canonical = '.'.join([lb, 'json'])
-
-        # announce to telegraph if enabled
-        if self.announceresult:
-            self.obj_announce(command='result', obj=rep.serialise())
-
-        # then dump out files
-        if self.resfiles:
-            ofile = os.path.join(self.exportpath, filename + '.pdf')
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_pdf(f)
-            ofile = os.path.join(self.exportpath, filename + '.xlsx')
-            with metarace.savefile(ofile, mode='b') as f:
-                rep.output_xlsx(f)
-            ofile = os.path.join(self.exportpath, filename + '.json')
-            with metarace.savefile(ofile) as f:
-                rep.output_json(f)
-            ofile = os.path.join(self.exportpath, filename + '.html')
-            with metarace.savefile(ofile) as f:
-                rep.output_html(f, linkbase=lb, linktypes=lt)
+        # run and await export mirror
+        if self.mirrorpath or self.mirrorcmd:
+            mt = mirror(localpath=os.path.join(EXPORTPATH, ''),
+                        remotepath=self.mirrorpath,
+                        mirrorcmd=self.mirrorcmd)
+            mt.start()
+            mt.join()
+        _log.debug('Export thread[%s] complete', self._export_thread.native_id)
+        return False
 
     def menu_data_results_cb(self, menuitem, data=None):
-        """Create result report and export"""
-        self.saveconfig()
+        """Create result report and/or export"""
+
+        # abort if no event present
         if self.curevent is None:
-            return
-        if self.lifexport:  # save current lif with export
-            lifdat = self.curevent.lifexport()
-            if len(lifdat) > 0:
-                liffile = os.path.join(self.exportpath, 'lifexport.lif')
-                with metarace.savefile(liffile) as f:
-                    cw = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
-                    for r in lifdat:
-                        cw.writerow(r)
-        if self.resfiles or self.announceresult:
-            self.export_result_maker()
-        GLib.idle_add(self.mirror_start)
+            return False
+
+        if not self._export_lock.acquire(False):
+            _log.info('Export in progress')
+            return False
+        try:
+            if self._export_thread is not None:
+                if not self._export_thread.is_alive():
+                    _log.debug('Stale exporter handle removed')
+                    self._export_thread = None
+                else:
+                    _log.info('Export in progress')
+                    return False
+
+            if self.lifexport:  # save current lif with export
+                lifdat = self.curevent.lifexport()
+                if len(lifdat) > 0:
+                    liffile = os.path.join(self.exportpath, 'lifexport.lif')
+                    with metarace.savefile(liffile) as f:
+                        cw = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+                        for r in lifdat:
+                            cw.writerow(r)
+
+            srep = None
+            frep = None
+            if self.resfiles or self.announceresult:
+                _log.debug('Building start/finish reports')
+                if self.mirrorfile:
+                    filebase = self.mirrorfile
+                else:
+                    filebase = '.'
+                if filebase in ('', '.'):
+                    filebase = ''
+                    if self.resfiles:
+                        _log.warn('Using default filenames for export')
+                else:
+                    pass
+
+                fnv = []
+                if filebase:
+                    fnv.append(filebase)
+                fnv.append('startlist')
+                sfile = '_'.join(fnv)
+                fnv[-1] = 'result'
+                ffile = '_'.join(fnv)
+
+                # Include startlist unless event finished
+                if self.resfiles and self.curevent.timerstat != 'finished':
+                    filename = sfile
+                    srep = report.report()
+                    srep.id = filename
+                    self.report_strings(srep)
+                    if self.provisionalstart:
+                        srep.set_provisional(True)
+                    if self.indexlink:
+                        srep.indexlink = self.indexlink
+                    if self.prevlink:
+                        srep.prevlink = '_'.join((self.prevlink, 'startlist'))
+                    if self.nextlink:
+                        srep.nextlink = '_'.join((self.nextlink, 'startlist'))
+                    srep.resultlink = ffile
+                    if self.etype in ('irtt', 'cross'):
+                        for sec in self.curevent.callup_report():
+                            srep.add_section(sec)
+                    else:
+                        for sec in self.curevent.startlist_report():
+                            srep.add_section(sec)
+                    _log.debug('Startlist report built')
+
+                # Then export a result
+                frep = report.report()
+                self.report_strings(frep)
+
+                # Set provisional status
+                if self.curevent.timerstat != 'finished':
+                    frep.set_provisional(True)
+                    # include arrivals if there is anything to show
+                    if self.resarrival:
+                        for sec in self.curevent.arrival_report():
+                            if sec.lines:
+                                frep.add_section(sec)
+                else:
+                    frep.reportstatus = 'final'
+
+                # Add body of report
+                for sec in self.curevent.result_report():
+                    frep.add_section(sec)
+
+                # Include result details if configured
+                if self.resdetail:
+                    for sec in self.curevent.analysis_report():
+                        frep.add_section(sec)
+
+                filename = ffile
+                frep.id = filename
+                frep.startlink = sfile
+                if self.indexlink:
+                    frep.indexlink = self.indexlink
+                if self.prevlink:
+                    frep.prevlink = '_'.join((self.prevlink, 'result'))
+                if self.nextlink:
+                    frep.nextlink = '_'.join((self.nextlink, 'result'))
+                lb = os.path.join(self.linkbase, filename)
+                lt = ['pdf', 'xlsx']
+                frep.canonical = '.'.join([lb, 'json'])
+                _log.debug('Result report built')
+
+            # Bottom half - write to disk and export
+            self._export_thread = threading.Thread(
+                target=self._run_export_thread,
+                name='export',
+                args=(srep, frep),
+                daemon=True,
+            )
+            self._export_thread.start()
+            _log.debug('Started export thread[%s]',
+                       self._export_thread.native_id)
+        except Exception as e:
+            _log.error('%s starting export: %s', e.__class__.__name__, e)
+        finally:
+            self._export_lock.release()
+        return False
 
     ## Timing menu callbacks
     def menu_timing_status_cb(self, menuitem, data=None):
@@ -1155,12 +1222,6 @@ class roadmeet:
     def timeout(self):
         """Update status buttons and time of day clock button."""
         try:
-            # check for completion in the export thread
-            if self.mirror is not None:
-                if not self.mirror.is_alive():
-                    self.mirror = None
-                    _log.debug('Removing completed export thread.')
-
             if self.running:
                 # call into event timeout handler
                 if self.curevent is not None:
@@ -1268,10 +1329,10 @@ class roadmeet:
         self._timer.exit(msg)
         self._alttimer.exit(msg)
         _log.info('Waiting for workers')
-        if self.mirror is not None:
+        if self._export_thread is not None:
             _log.debug('Result export')
-            self.mirror.join()
-            self.mirror = None
+            self._export_thread.join()
+            self._export_thread = None
         _log.debug('Telegraph/announce')
         self.announce.join()
 
@@ -1399,15 +1460,6 @@ class roadmeet:
         self.rfustat.update('activity')
         self.rfuact = True
         return False
-
-    def mirror_start(self):
-        """Create a new mirror thread unless already in progress."""
-        if self.mirrorpath and self.mirror is None:
-            self.mirror = mirror(localpath=os.path.join(EXPORTPATH, ''),
-                                 remotepath=self.mirrorpath,
-                                 mirrorcmd=self.mirrorcmd)
-            self.mirror.start()
-        return False  # for idle_add
 
     def remote_reset(self):
         """Reset remote input of timer messages."""
@@ -1980,8 +2032,14 @@ class roadmeet:
         self.remoteenable = False
         self.lifexport = False
         self.resfiles = True
+        self.resarrival = False
+        self.resdetail = False
         self.doprint = 'preview'
         self.announceresult = True
+
+        # export locking flags
+        self._export_lock = threading.Lock()
+        self._export_thread = None
 
         # printer preferences
         paper = Gtk.PaperSize.new_custom('metarace-full', 'A4 for reports',
@@ -2011,7 +2069,6 @@ class roadmeet:
         self.mirrorpath = ''
         self.mirrorcmd = None
         self.mirrorfile = ''
-        self.mirror = None
         self.eventcode = ''
 
         b = uiutil.builder('roadmeet.ui')
@@ -2071,7 +2128,7 @@ class roadmeet:
         f = logging.Formatter(metarace.LOGFORMAT)
         self.sh = uiutil.statusHandler(self.status, self.context)
         self.sh.setFormatter(f)
-        self.sh.setLevel(logging.INFO)  # show info+ on status bar
+        self.sh.setLevel(_TIMER_LOG_LEVEL)  # show timer+ on status bar
         rootlogger.addHandler(self.sh)
         self.lh = uiutil.textViewHandler(self.log_buffer, self.log_view,
                                          self.log_scroll)

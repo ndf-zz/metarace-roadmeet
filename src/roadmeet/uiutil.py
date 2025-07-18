@@ -182,9 +182,9 @@ class statusHandler(logging.Handler):
 
     def push_status(self, msg, level):
         """Push the given msg onto the status stack, and defer removal."""
-        delay = 3
+        delay = 4
         if level > 25:
-            delay = 8
+            delay = 7
         msgid = self.status.push(self.context, msg)
         GLib.timeout_add_seconds(delay, self.pull_status, msgid)
         return False
