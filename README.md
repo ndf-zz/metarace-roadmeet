@@ -50,14 +50,14 @@ For semi-automated installation on common unix-like
 desktop systems, download the metarace install script
 and run with sh:
 
-	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/metarace-install.sh
+	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/main/metarace-install.sh
 	$ sh metarace-install.sh
 
 For installation on Windows systems, a powershell script
 is provided to install metarace applications under a
 WSL Debian container:
 
-	wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/wsl-install.ps1
+	wget https://github.com/ndf-zz/metarace/raw/refs/heads/main/wsl-install.ps1
 
 
 ## Post-Installation Notes
@@ -349,6 +349,6 @@ Add your user to the lpadmin group:
 
 Download the installer and run with sh:
 
-	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/master/metarace-install.sh
+	$ wget https://github.com/ndf-zz/metarace/raw/refs/heads/main/metarace-install.sh
 	$ sh metarace-install.sh
 
