@@ -680,9 +680,10 @@ def about_dlg(window, version=None):
     """Display shared about dialog."""
     modal = window is not None
     dlg = Gtk.AboutDialog(modal=modal, destroy_with_parent=True)
+    dlg.set_logo_icon_name(metarace.ICON)
     dlg.set_transient_for(window)
     dlg.set_program_name('roadmeet')
-    vtxt = 'Library: ' + metarace.VERSION
+    vtxt = 'Library: ' + metarace.__version__
     if version:
         vtxt = 'Application: ' + version + '; ' + vtxt
     dlg.set_version(vtxt)

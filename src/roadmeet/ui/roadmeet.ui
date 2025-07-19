@@ -5,6 +5,7 @@
   <!-- meet main window -->
   <object class="GtkWindow" id="meet">
     <property name="title">Road Meet</property>
+    <property name="icon-name">org.6_v.metarace</property>
     <property name="default_width">1200</property>
     <property name="default_height">680</property>
     <signal name="destroy" handler="meet_destroy_cb"/>

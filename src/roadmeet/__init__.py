@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
+__version__ = '1.13.10a1'
 
 import sys
 import gi
@@ -38,7 +39,8 @@ from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
 
-VERSION = '1.13.10'
+PRGNAME = 'org.6_v.roadmeet'
+APPNAME = 'Roadmeet'
 LOGFILE = 'event.log'
 LOGFILE_LEVEL = logging.DEBUG
 CONFIGFILE = 'config.json'
@@ -1190,7 +1192,7 @@ class roadmeet:
     ## Help menu callbacks
     def menu_help_about_cb(self, menuitem, data=None):
         """Display metarace about dialog."""
-        uiutil.about_dlg(self.window, VERSION)
+        uiutil.about_dlg(self.window, __version__)
 
     ## Race Control Elem callbacks
     def event_stat_but_clicked_cb(self, button, data=None):
@@ -2421,10 +2423,10 @@ def main():
     ch.setFormatter(fh)
     logging.getLogger().addHandler(ch)
 
-    # try to set the menubar accel and logo
     try:
-        lfile = metarace.default_file(metarace.LOGO)
-        Gtk.Window.set_default_icon_from_file(lfile)
+        GLib.set_prgname(PRGNAME)
+        GLib.set_application_name(APPNAME)
+        Gtk.Window.set_default_icon_name(metarace.ICON)
         mset = Gtk.Settings.get_default()
         mset.set_property('gtk-menu-bar-accel', 'F24')
     except Exception as e:
