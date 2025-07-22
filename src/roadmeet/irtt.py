@@ -52,6 +52,7 @@ STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
 _MINSPEED = 25.0  # min speed in km/h shown on result report
 _MAXSPEED = 55.0  # max speed in km/h shown on result report
+_STARTTHRESH = 5
 
 # startlist model columns
 COL_BIB = 0
@@ -84,7 +85,7 @@ COL_DIST = 23
 COL_SERIES = 24
 
 # autotime tuning parameters
-_START_MATCH_THRESH = tod.tod('5.0')
+_START_MATCH_THRESH = tod.tod(_STARTTHRESH)
 _FINISH_MATCH_THRESH = tod.tod('0.300')
 
 # factored time limits
@@ -306,6 +307,8 @@ class irtt(rms):
             self.meet.stat_but.set_sensitive(True)
         else:
             self.timerstat = 'finished'
+            self.sl.toidle()
+            self.fl.toidle()
             self.meet.stat_but.update('idle', 'Finished')
             self.meet.stat_but.set_sensitive(False)
             self.hidetimer(True)
@@ -1204,7 +1207,7 @@ class irtt(rms):
 
         # transfer to report section
         count = 0
-        sec = report.section('analysis')
+        sec = report.section('judging')
         sec.heading = 'Judges Report'
         sec.colheader = ['Hit', None, None, 'Start', 'Fin', 'Net']
         for r in aux:
@@ -1615,6 +1618,25 @@ class irtt(rms):
                       bibstr, e.chan, e.rawtime(2), e.source)
         return False
 
+    def start_strict_impulse(self, t):
+        """Set start time by matching impulse to strict start"""
+        for r in self.riders:
+            ws = r[COL_WALLSTART]
+            st = r[COL_TODSTART]
+            if st is None and ws is not None:
+                dt = abs(ws.timeval - t.timeval)
+                if dt < _STARTTHRESH:
+                    bibstr = strops.bibser2bibstr(r[COL_BIB], r[COL_SERIES])
+                    _log.info('Set start time: %s:%s@%s/%s', bibstr, t.chan,
+                              t.rawtime(2), t.source)
+                    i = r.iter
+                    self.settimes(i, tst=t)
+                    break
+        else:
+            _log.debug('No matching starter for %s@%s/%s', t.chan,
+                       t.rawtime(2), t.source)
+        return False
+
     def start_by_rfid(self, lr, e, bibstr):
         # ignore already finished rider
         if lr[COL_TODFINISH] is not None:
@@ -1622,13 +1644,14 @@ class irtt(rms):
                       e.chan, e.rawtime(2), e.source)
             return False
 
-        # ignore passings if start not properly armed
+        # ignore already started rider
+        if lr[COL_TODSTART] is not None:
+            _log.info('Started rider on startloop: %s:%s@%s/%s', bibstr,
+                      e.chan, e.rawtime(2), e.source)
+            return False
+
         if self.strictstart:
-            if lr[COL_TODSTART] is not None:
-                _log.info('Started rider on startloop: %s:%s@%s/%s', bibstr,
-                          e.chan, e.rawtime(2), e.source)
-                return False
-            # compare wall and actual starts
+            # discard passing if outside strict start window
             if lr[COL_WALLSTART] is not None:
                 wv = lr[COL_WALLSTART].timeval
                 ev = e.timeval
@@ -1637,11 +1660,15 @@ class irtt(rms):
                 if self.autoimpulse:
                     thresh += _START_MATCH_THRESH.timeval
                 if diff > thresh:
-                    _log.info('Ignored start time: %s:%s@%s/%s != %s / %r>%r',
-                              bibstr, e.chan, e.rawtime(2), e.source,
-                              lr[COL_WALLSTART].rawtime(0), diff, thresh)
+                    _log.info('Ignored start time: %s:%s@%s/%s != %s', bibstr,
+                              e.chan, e.rawtime(2), e.source,
+                              lr[COL_WALLSTART].rawtime(0))
                     return False
+            else:
+                _log.warning('No strict start time available for %s:%s@%s/%s',
+                             bibstr, e.chan, e.rawtime(2), e.source)
 
+        # Start time is valid for this rider, assign according to mode
         i = lr.iter
         if self.autoimpulse:
             # match this rfid passing to a start impulse
@@ -1688,7 +1715,8 @@ class irtt(rms):
         match = None
         for p in reversed(self.startpasses):
             if e > p[0]:
-                if e - p[0] < _START_MATCH_THRESH:
+                # match oldest impulse in threshold window
+                if (e - p[0]) < _START_MATCH_THRESH:
                     match = p[0]
                 else:
                     break
@@ -1908,26 +1936,34 @@ class irtt(rms):
     def start_trig(self, t):
         """Register start trigger."""
         _log.info('Start trigger %s@%s/%s', t.chan, t.rawtime(4), t.source)
+        slstatus = self.sl.getstatus()
         if self.timerstat == 'running':
-            # apply start trig to start line rider
-            if self.sl.getstatus() == 'armstart':
-                i = self.getiter(self.sl.bibent.get_text(),
-                                 self.sl.serent.get_text())
-                if i is not None:
-                    self.settimes(i, tst=t, doplaces=False)
-                    self.sl.torunning()
+            if slstatus in ('armstart', 'running'):
+                # Assume full manual override of start line
+                if slstatus == 'armstart':
+                    i = self.getiter(self.sl.bibent.get_text(),
+                                     self.sl.serent.get_text())
+                    if i is not None:
+                        self.settimes(i, tst=t, doplaces=False)
+                        self.sl.torunning()
+                    else:
+                        _log.error('Missing rider at start')
+                        self.sl.toidle()
                 else:
-                    _log.error('Missing rider at start')
-                    self.sl.toidle()
-            # save passing to start passing store
+                    _log.debug('Ignored start trigger in manual override')
+            elif self.strictstart:
+                # Match impulse to start rider
+                self.start_strict_impulse(t)
+
+            # also save a copy to start passing store
             self.startpasses.insert(t)
         elif self.timerstat == 'armstart':
             self.set_syncstart(t, tod.now())
 
     def alttimertrig(self, e):
         """Handle chronometer callbacks."""
-        # note: these impulses are sourced from alttimer device and keyboard
-        #       transponder triggers are collected separately in timertrig()
+        # note: These impulses are sourced from alttimer device and keyboard.
+        #       Transponder triggers are collected separately in timertrig()
         channo = strops.chan2id(e.chan)
         if channo == 0:
             self.start_trig(e)
@@ -1938,24 +1974,54 @@ class irtt(rms):
         return False
 
     def on_start(self, curoft):
-        for r in self.riders:
-            ws = r[COL_WALLSTART]
-            if ws is not None:
-                if curoft + tod.tod('30') == ws:
-                    bib = r[COL_BIB]
-                    ser = r[COL_SERIES]
-                    _log.info('pre-load starter: ' + repr(bib))
-                    self.sl.setrider(bib, ser)
-                    self.meet.cmd_announce('startline', bib)
-                    break
-                if curoft + tod.tod('5') == ws:
-                    bib = r[COL_BIB]
-                    ser = r[COL_SERIES]
-                    _log.info('Load starter: ' + repr(bib))
-                    self.sl.setrider(bib, ser)
-                    self.sl.toarmstart()
-                    self.start_unload = ws + tod.tod('5')
-                    break
+        """Update start lane timer every 5 s"""
+        cst = tod.tod(5 * (curoft.timeval // 5))
+        if cst != self.last_on_start:
+            self.last_on_start = cst
+
+            # if start armed or running - assume manual override
+            if self.sl.getstatus() in ('armstart', 'running'):
+                _log.warning('Start line manual override')
+                return False
+
+            # if there's already a rider in the lane, are they still valid?
+            if self.sl.getstatus() == 'load':
+                r = self.getrider(self.sl.bibent.get_text(),
+                                  self.sl.serent.get_text())
+                if r is not None:
+                    ws = r[COL_WALLSTART]
+                    if ws is not None:
+                        if ws > cst and (ws - cst) > 10:  # before start
+                            self.sl.toidle()
+                        elif ws < cst and (cst - ws) > 4:  # after start
+                            self.sl.toidle()
+                    else:
+                        # Assume manual overrride
+                        _log.warning('Start line manual override')
+                        return False
+                else:
+                    _log.warning('Start line clear invalid entry')
+                    self.sl.toidle()
+
+            # may have been made idle above
+            if self.sl.getstatus() == 'idle':
+                # is there a rider to go soon
+                for r in self.riders:
+                    ws = r[COL_WALLSTART]
+                    st = r[COL_TODSTART]
+                    if st is None and ws is not None:
+                        if ws > cst and (ws - cst) <= 10:  # before start
+                            # load rider
+                            bib = r[COL_BIB]
+                            ser = r[COL_SERIES]
+                            _log.info('Load starter: %s @ %s', bib,
+                                      ws.rawtime(0))
+                            self.sl.setrider(bib, ser)
+                            self.meet.cmd_announce('startline', bib)
+                            break
+                else:
+                    pass
+        return False
 
     def timeout(self):
         """Update slow changing aspects of event."""
@@ -1969,16 +2035,12 @@ class irtt(rms):
         if self.timerstat == 'running':
             nowoft = (tod.now() - self.lstart).truncate(0)
 
-            # auto load/clear start lane if start loop is not set
-            if self.startloop is None:
-                if self.sl.getstatus() in ('idle', 'load'):
-                    if nowoft.timeval % 5 == 0:  # every five
-                        self.on_start(nowoft)
-                else:
-                    if nowoft == self.start_unload:
-                        self.sl.toidle()
+            # auto load/clear start lane if visible
+            if self.showtimers and self.strictstart:
+                self.on_start(nowoft)
 
-                # after manips, then re-set start time
+            # show tod on start lane
+            if self.timerstat != 'finished':
                 self.sl.set_time(nowoft.timestr(0))
 
             # if finish lane loaded, set the elapsed time
@@ -2715,7 +2777,7 @@ class irtt(rms):
         self.start = None
         self.finish = None
         self.lstart = None
-        self.start_unload = None
+        self.last_on_start = None
         self.startgap = None
         self.cats = []  # the ordered list of cats for results
         self.autocats = False

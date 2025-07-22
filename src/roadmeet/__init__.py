@@ -1138,7 +1138,7 @@ class roadmeet:
         self._alttimer.dearm(7)
         self._alttimer.dearm(8)
         if self.etype == 'irtt':
-            self._alttimer.write('DTS05.00')
+            self._alttimer.write('DTS01.00')
             self._alttimer.write('DTF00.01')
             self._alttimer.arm(2)  # finish line (photo cell)
             self._alttimer.arm(3)  # finish line (plunger)
