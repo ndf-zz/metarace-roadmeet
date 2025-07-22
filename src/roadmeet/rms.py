@@ -1393,6 +1393,11 @@ class rms:
             _log.warning('Event is idle, report not available')
         return ret
 
+    def arrival_report(self):
+        """Return riders arriving at finish"""
+        sec = report.section('arrivals')
+        return (sec, )
+
     def catresult_report(self):
         """Return a categorised event result report."""
         _log.debug('Categorised result report')
