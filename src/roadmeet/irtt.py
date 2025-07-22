@@ -50,6 +50,8 @@ DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
 STARTFUDGE = tod.tod(30)
 STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
+_MINSPEED = 25.0  # min speed in km/h shown on result report
+_MAXSPEED = 55.0  # max speed in km/h shown on result report
 
 # startlist model columns
 COL_BIB = 0
@@ -1051,6 +1053,11 @@ class irtt(rms):
         # build aux table
         aux = []
         nowtime = tod.now()
+        to = self.arrivaltimeout
+        if to is None:
+            to = ARRIVALTIMEOUT
+        fromtime = nowtime - to
+        totime = nowtime + tod.ONE
         count = 0
         for r in self.riders:
             reta = tod.MAX
@@ -1068,12 +1075,7 @@ class irtt(rms):
             if cat:
                 cbr = cat
             if plstr.isdigit():  # rider placed at finish
-                # only show for a short while
-                to = self.arrivaltimeout
-                if to is None:
-                    to = ARRIVALTIMEOUT
-                until = r[COL_TODFINISH] + to
-                if nowtime < until:
+                if r[COL_TODFINISH] > fromtime and r[COL_TODFINISH] < totime:
                     rarr = r[COL_TODFINISH]
                     et = self.getelapsed(r.iter)
                     reta = et
@@ -1131,31 +1133,30 @@ class irtt(rms):
 
         # transfer rows into report section and return
         sec = report.section('arrivals')
-        intlbl = None
-        if self.showinter is not None:
-            intlbl = 'Inter'
-        if self.interloops or self.interlaps:
-            sec.heading = 'Riders On Course'
-            #sec.footer = '* denotes projected finish time.'
-        else:
-            sec.heading = 'Recent Arrivals'
-        sec.colheader = [None, None, None, intlbl, 'Finish', '']
-        pr = ''
-        for r in aux:
-            hr = r[3]
-            rank = hr[0]
-            if not rank and pr:
-                # add a spacer for intermeds
-                sec.lines.append(['', '', ''])
-            pr = rank
-            sec.lines.append(hr)
-        ret = []
-        ret.append(sec)
-        return ret
+        if aux:
+            intlbl = None
+            if self.showinter is not None:
+                intlbl = 'Inter'
+            if self.interloops or self.interlaps:
+                sec.heading = 'Riders On Course'
+                #sec.footer = '* denotes projected finish time.'
+            else:
+                sec.heading = 'Recent Arrivals'
+            sec.colheader = [None, None, None, intlbl, 'Finish', '']
+            pr = ''
+            for r in aux:
+                hr = r[3]
+                rank = hr[0]
+                if not rank and pr:
+                    # add a spacer for intermeds
+                    sec.lines.append(['', '', ''])
+                pr = rank
+                sec.lines.append(hr)
+        return (sec, )
 
     def analysis_report(self):
-        """Return judges report."""
-        return self.camera_report()
+        """Return split times report."""
+        return ()
 
     def camera_report(self):
         """Return a judges report."""
@@ -1350,11 +1351,18 @@ class irtt(rms):
             sec = report.bullet_text(secid)
             if ct is not None:
                 if distance is not None:
-                    avgprompt = 'Average speed of the winner: '
-                    if residual > 0:
-                        avgprompt = 'Average speed of the leader: '
-                    sec.lines.append(
-                        [None, avgprompt + ct.speedstr(1000.0 * distance)])
+                    rawspeed = ct.speed(dist=1000.0 * distance,
+                                        minspeed=_MINSPEED,
+                                        maxspeed=_MAXSPEED)
+                    if rawspeed is not None:
+                        avgfmt = 'Average speed of the winner: %0.1f\u2006km/h'
+                        if residual > 0:
+                            avgfmt = 'Average speed of the leader: %0.1f\u2006km/h'
+                        sec.lines.append((None, avgfmt % (rawspeed, )))
+                    else:
+                        _log.info(
+                            'Skipped suspicious avg speed for %s over distance %0.1fkm',
+                            cat, distance)
             sec.lines.append(
                 [None, 'Number of starters: ' + str(totcount - dnscount)])
             if hdcount > 0:
@@ -1375,20 +1383,12 @@ class irtt(rms):
                 cv.append(catname)
                 rsec.heading = ': '.join(cv)
                 rsec.subheading = subhead
-            ret.append(report.pagebreak())
         return ret
 
     def result_report(self):
         """Return event result report."""
         ret = []
         self.recalculate()
-
-        # show arrivals if running
-        if self.timerstat == 'running':
-            # until final, show last few
-            arvls = self.arrival_report()
-            if len(arvls[0].lines) > 0:
-                ret.extend(self.arrival_report())
 
         # add result sections
         if len(self.cats) > 1:
@@ -1397,12 +1397,24 @@ class irtt(rms):
             ret.extend(self.single_catresult())
 
         # show all intermediates here
-        for i in self.intermeds:
-            im = self.intermap[i]
-            if im['places'] and im['show']:
-                ret.extend(self.int_report(i))
+        if self.intermeds:
+            ret.append(report.pagebreak())
+            catcache = {'': None}
+            for c in self.meet.rdb.listcats(self.series):
+                if c != '':
+                    catnm = c
+                    dbr = self.meet.rdb.get_rider(c, 'cat')
+                    if dbr is not None:
+                        catnm = dbr['title']
+                    catcache[c] = catnm
+            for i in self.intermeds:
+                im = self.intermap[i]
+                if im['places'] and im['show']:
+                    ret.extend(self.int_report(i, catcache))
 
         # append a decisions section
+        if self.decisions:
+            ret.append(report.pagebreak())
         ret.append(self.decision_section())
 
         return ret
@@ -2139,6 +2151,16 @@ class irtt(rms):
         """Toggle the visibility of timer panes"""
         self.hidetimer(self.showtimers)
 
+    def editcat_cb(self, cell, path, new_text, col):
+        """Edit the cat field if valid."""
+        new_text = ' '.join(new_text.strip().upper().split())
+        self.riders[path][col] = new_text
+        r = self.riders[path]
+        dbr = self.meet.rdb.get_rider(r[COL_BIB], r[COL_SERIES])
+        if dbr is not None:
+            # note: this will generate a rider change callback
+            dbr['cat'] = new_text
+
     def editcol_cb(self, cell, path, new_text, col):
         """Update value in edited cell."""
         new_text = new_text.strip()
@@ -2798,7 +2820,7 @@ class irtt(rms):
             t.connect('button_press_event', self.treeview_button_press)
             uiutil.mkviewcolbibser(t, bibcol=COL_BIB, sercol=COL_SERIES)
             uiutil.mkviewcoltxt(t, 'Rider', COL_NAMESTR, expand=True)
-            uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, self.editcol_cb)
+            uiutil.mkviewcoltxt(t, 'Cat', COL_CAT, self.editcat_cb)
             uiutil.mkviewcoltxt(t,
                                 'Pass',
                                 COL_PASS,
