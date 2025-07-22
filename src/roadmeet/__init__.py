@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.10a1'
+__version__ = '1.13.10'
 
 import sys
 import gi
@@ -1036,19 +1036,21 @@ class roadmeet:
                 frep = report.report()
                 self.report_strings(frep)
 
+                # Collect result sections
+                ressecs = self.curevent.result_report()
+
                 # Set provisional status
                 if self.curevent.timerstat != 'finished':
                     frep.set_provisional(True)
-                    # include arrivals if there is anything to show
+                    # include arrivals if configured
                     if self.resarrival:
                         for sec in self.curevent.arrival_report():
-                            if sec.lines:
-                                frep.add_section(sec)
+                            frep.add_section(sec)
                 else:
                     frep.reportstatus = 'final'
 
-                # Add body of report
-                for sec in self.curevent.result_report():
+                # Add results to body of report
+                for sec in ressecs:
                     frep.add_section(sec)
 
                 # Include result details if configured
