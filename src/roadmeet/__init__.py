@@ -181,7 +181,7 @@ _CONFIG_SCHEMA = {
         'attr': 'timertopic',
     },
     'remoteenable': {
-        'prompt': 'Option:',
+        'prompt': '',
         'control': 'check',
         'type': 'bool',
         'subtext': 'Receive remote timer messages?',

@@ -649,26 +649,36 @@ class irtt(rms):
         if not self.showtimers:
             self.hidetimer(True)
 
+        # check autotime option
+        if self.autoimpulse:
+            if self.finishloop is None:
+                _log.error('Autotime disabled: Finish loop not set')
+                self.autoimpulse = False
+            else:
+                # Ensure there's a valid starting mode
+                if self.startloop is None:
+                    if not self.strictstart:
+                        _log.warning(
+                            'Strict start enabled: Start loop not set')
+                        self.strictstart = True
+                else:
+                    if self.strictstart:
+                        _log.warning('Strict start disabled: Start loop set')
+                        self.strictstart = False
+                # disable start trigger mapping
+                if self.starttrig:
+                    _log.warning('Disable map finish trigger to start')
+                    self.starttrig = False
+
         # transponder timing options
         if self.startloop is not None or self.finishloop is not None:
             if self.autoimpulse:
-                configok = True
-                if self.startloop is None or self.finishloop is None:
-                    _log.error(
-                        'Invalid timing mode: autoimpulse=%r, startloop=%r, finishloop=%r',
-                        self.autoimpulse, self.startloop, self.finishloop)
-                    self.autoimpulse = False
-                else:
-                    _log.debug(
-                        'Auto impulse mode enabled: autoimpulse=%r, startloop=%r, finishloop=%r',
-                        self.autoimpulse, self.startloop, self.finishloop)
-                    self.precision = 2
+                self.precision = 2
             else:
-                # timing is set by transponder passing time
+                # finish timing is set by transponder passing time
                 self.precision = 1
-                _log.debug(
-                    'Transponder timing mode, precision set to 1: startloop=%r finishloop=%r, autoimpulse=%r',
-                    self.startloop, self.finishloop, self.autoimpulse)
+                _log.debug('Transponder timing, prec=1: sl=%r fl=%r, auto=%r',
+                           self.startloop, self.finishloop, self.autoimpulse)
 
         # load intermediate split schema
         self.showinter = cr.get_posint('irtt', 'showinter', None)
@@ -787,6 +797,8 @@ class irtt(rms):
             timingmode = 'Auto'
         elif self.finishloop is not None or self.startloop is not None:
             timingmode = 'Transponder'
+        _log.info('Start loop: %r; Finish loop: %r; Map trigger: %r',
+                  self.startloop, self.finishloop, self.starttrig)
         _log.info(
             'Start mode: %s; Timing mode: %s; Precision: %d; Default Laps: %r',
             startmode, timingmode, self.precision, self.totlaps)
