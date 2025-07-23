@@ -12,6 +12,37 @@
 
 ### Security
 
+## [1.3.10]
+
+### Added
+
+   - display print progress on status bar
+   - add print method for preview without save to pdf
+
+### Changed
+
+   - add debugging messages to trace export and report printing
+   - optionally include lap/split time report from meet properties
+   - optionally include arrivals report from meet properties
+   - optionally auto-arm finish from event properties
+   - set program and application names to match .desktop file
+   - set default logo by xdg name instead of file
+   - use __version__ instead of VERSION
+   - alter IRTT start line channel delay to 1s
+   - assign bare start impulse in strictstart mode by matching to rider
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+   - block export when already in progress to avoid lockup
+   - alter start line loading logic to avoid blocked start line
+   - sanity check autotime and transponder mode timing options on irtt load
+
+### Security
+
 ## [1.13.9] - 2025-07-10
 
 ### Added
