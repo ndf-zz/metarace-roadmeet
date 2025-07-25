@@ -1411,6 +1411,19 @@ class roadmeet:
 
         cr.merge(metarace.sysconf, 'roadmeet')
         cr.load(CONFIGFILE)
+
+        # Is this meet path an existing trackmeet?
+        if cr.has_section('trackmeet'):
+            _log.error('Meet folder contains track meet configuration')
+            if not os.isatty(sys.stdout.fileno()):
+              uiutil.messagedlg(
+                message='Invalid meet type.',
+                title='Roadmeet: Error',
+                subtext=
+                'Selected meet folder contains configuration for a track meet.')
+            sys.exit(-1)
+
+        # Load schema options into meet object
         cr.export_section('roadmeet', self)
 
         # update hardware ports and telegraph setting
@@ -2492,7 +2505,7 @@ def main():
         if not os.isatty(sys.stdout.fileno()):
             uiutil.messagedlg(
                 message='Error opening meet.',
-                title='roadmeet: Error',
+                title='Roadmeet: Error',
                 subtext='Roadmeet was unable to open a meet folder.')
         sys.exit(-1)
 
@@ -2502,7 +2515,7 @@ def main():
         if not os.isatty(sys.stdout.fileno()):
             uiutil.messagedlg(
                 message='Meet folder is locked.',
-                title='roadmeet: Locked',
+                title='Roadmeet: Locked',
                 subtext=
                 'Another application has locked the meet folder for use.')
         sys.exit(-1)
