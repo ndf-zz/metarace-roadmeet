@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.10'
+__version__ = '1.13.11a1'
 
 import sys
 import gi
@@ -69,6 +69,26 @@ _HANDLERS = {
     'thbc': thbc,
     'rrs': rrs,
     'rru': rru,
+}
+_COLOURMAP = {
+    'dark': (
+        'darkgreen',
+        'chocolate',
+        'darkblue',
+        'darkred',
+        'teal',
+        'darkmagenta',
+        'dimgrey',
+    ),
+    'light': (
+        'lightgreen',
+        'orange',
+        'lightskyblue',
+        'lightcoral',
+        'turquoise',
+        'violet',
+        'lightgrey',
+    ),
 }
 _CONFIG_SCHEMA = {
     'mtype': {
@@ -2008,6 +2028,21 @@ class roadmeet:
                     GLib.idle_add(self.event_reload)
             else:
                 _log.debug('Delete aborted')
+
+    def get_colourmap(self):
+        """Return a bg colourmap for the current display style."""
+        if self._is_darkmode():
+            return _COLOURMAP['dark']
+        else:
+            return _COLOURMAP['light']
+
+    def _is_darkmode(self):
+        """Return True if app appears to be running in dark mode."""
+        # estimate brightness of log view foreground text ignoring alpha
+        fg = self.log_view.get_style_context().get_color(Gtk.StateFlags.NORMAL)
+        bval = 0.3 * fg.red + 0.6 * fg.green + 0.1 * fg.blue
+        _log.debug('Log view fg ~= %0.2f', bval)
+        return bval > 0.5
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""

@@ -98,14 +98,6 @@ _DNFLABELS = {
     'outside time limit': 'otl',
     'disqualify': 'dsq',
 }
-_COLOURMAP = (
-    'green',
-    'orange',
-    'blue',
-    'red',
-    'grey',
-)
-_COLOURMAPLEN = 4
 
 RESERVED_SOURCES = [
     'fin',  # finished stage
@@ -126,6 +118,7 @@ key_placesto = 'F7'  # fill places to selected rider
 key_appendplace = 'F8'  # append sepected rider to places
 key_armfinish = 'F9'
 key_raceover = 'F10'
+key_deselect = 'Escape'
 
 # extended fn keys      (ctrl + key)
 key_abort = 'F5'
@@ -515,8 +508,7 @@ class rms:
                         nr[COL_INRACE] = strops.confopt_bool(ril[1])
                     if lr > 2:
                         nr[COL_LAPS] = strops.confopt_posint(ril[2])
-                        nr[COL_LAPCOLOUR] = _COLOURMAP[nr[COL_LAPS] %
-                                                       _COLOURMAPLEN]
+                        nr[COL_LAPCOLOUR] = self.bgcolour(nr[COL_LAPS])
                     if lr > 3:
                         evtseed = strops.confopt_posint(ril[3], 0)
                         if evtseed > 0:
@@ -2363,8 +2355,8 @@ class rms:
             r[COL_INRACE] = True
             r[COL_PLACE] = ''
             r[COL_LAPS] = 0
-            r[COL_LAPCOLOUR] = _COLOURMAP[-1]
-            r[COL_SEEN] = _COLOURMAP[-1]
+            r[COL_LAPCOLOUR] = self.bgcolour()
+            r[COL_SEEN] = ''
             r[COL_RFSEEN] = []
             r[COL_RFTIME] = None
             r[COL_CBUNCH] = None
@@ -2421,8 +2413,24 @@ class rms:
 
         if bib:
             nr = [
-                bib, '', '', '', '', True, '', 0, 0, None, None, None, None,
-                None, None, [], _COLOURMAP[-1], _COLOURMAP[-1]
+                bib,
+                '',
+                '',
+                '',
+                '',
+                True,
+                '',
+                0,
+                0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                [],
+                self.cmap[-1],
+                '',
             ]
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is None:
@@ -2626,6 +2634,11 @@ class rms:
                 elif key == key_appendplace:
                     self.append_selected_place()
                     return True
+            elif key == key_deselect:
+                sel = self.view.get_selection()
+                if sel.count_selected_rows():
+                    sel.unselect_all()
+                    return True
         return False
 
     def append_selected_place(self):
@@ -2758,6 +2771,7 @@ class rms:
                     r[COL_MBUNCH] = None
                 r[COL_COMMENT] = code
                 recalc = True
+                r[COL_SEEN] = code
                 _log.info('Rider %s did not finish with code: %s', bib, code)
             else:
                 _log.warning('Unregistered rider %s unchanged', bib)
@@ -2868,7 +2882,7 @@ class rms:
                 r[COL_INRACE] = True
                 r[COL_COMMENT] = ''
                 r[COL_LAPS] = len(r[COL_RFSEEN])
-                r[COL_LAPCOLOUR] = _COLORMAP[r[COL_LAPS] % _COLOURMAPLEN]
+                r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
                 recalc = True
                 _log.info('Rider %s returned to event', bib)
             else:
@@ -3031,7 +3045,9 @@ class rms:
                 return False
 
         # log passing of rider before further processing
-        lr[COL_SEEN] = _COLOURMAP[0]
+        if not lr[COL_SEEN]:
+            lr[COL_SEEN] = 'SEEN'
+            lr[COL_LAPCOLOUR] = self.bgcolour(lr[COL_LAPS], lr[COL_SEEN])
         if not lr[COL_INRACE]:
             _log.warning('Withdrawn rider: %s:%s@%s/%s', bib, e.chan,
                          e.rawtime(2), e.source)
@@ -3132,8 +3148,6 @@ class rms:
                         if self.etype == 'criterium':
                             # push them back to the current lap
                             lr[COL_LAPS] = self.curlap
-                            lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] %
-                                                           _COLOURMAPLEN]
                             onlap = True
                         else:
                             if self.curlap > 0:
@@ -3180,8 +3194,6 @@ class rms:
                                e.chan, e.rawtime(2), e.source)
                 if lr[COL_INRACE]:
                     lr[COL_LAPS] += 1
-                    lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] %
-                                                   _COLOURMAPLEN]
                     if rcat in self.catonlap and lr[COL_LAPS] > self.catonlap[
                             rcat]:
                         self.catonlap[rcat] = lr[COL_LAPS]
@@ -3197,7 +3209,6 @@ class rms:
             if lr[COL_INRACE] and (lr[COL_PLACE] or lr[COL_CBUNCH] is None):
                 # rider in the event, not yet finished: increment own lap count
                 lr[COL_LAPS] += 1
-                lr[COL_LAPCOLOUR] = _COLOURMAP[lr[COL_LAPS] % _COLOURMAPLEN]
                 onlap = False
 
                 # category and target lap counting
@@ -3223,6 +3234,9 @@ class rms:
         # announce all rider passings
         self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e,
                             lr[COL_LAPS])
+
+        # update lap colour for this rider
+        lr[COL_LAPCOLOUR] = self.bgcolour(lr[COL_LAPS], lr[COL_SEEN])
         return False
 
     def announce_rider(self, place, bib, namestr, cat, rftime, lap=None):
@@ -3254,8 +3268,8 @@ class rms:
                 for r in self.riders:
                     if r[COL_INRACE]:
                         r[COL_LAPS] = newlap - 1
-                        r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] %
-                                                      _COLOURMAPLEN]
+                        r[COL_LAPCOLOUR] = self.bgcolour(
+                            r[COL_LAPS], r[COL_SEEN])
             else:
                 # correct all rider lap counts, saturated at desired lap
                 for r in self.riders:
@@ -3264,7 +3278,7 @@ class rms:
                         if olap > newlap - 1:
                             olap = newlap - 1
                     r[COL_LAPS] = olap
-                    r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] % _COLOURMAPLEN]
+                    r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
             if self.lapfin is not None:
                 self.curlap = newlap - 1
             else:
@@ -3280,7 +3294,7 @@ class rms:
                 maxlap = 0
                 for r in self.riders:
                     r[COL_LAPS] = len(r[COL_RFSEEN])
-                    r[COL_LAPCOLOUR] = _COLOURMAP[r[COL_LAPS] % _COLOURMAPLEN]
+                    r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
                     maxlap = max(r[COL_LAPS] + 1, maxlap)
             self.onlap = maxlap
             if self.etype in ('criterium', 'circuit', 'cross'):
@@ -3698,14 +3712,14 @@ class rms:
     def editlap_cb(self, cell, path, new_text, col):
         """Edit the lap field if valid."""
         new_text = new_text.strip()
+        r = self.riders[path]
         if new_text == '?':
-            self.riders[path][col] = len(self.riders[path][COL_RFSEEN])
+            r[COL_LAPS] = len(r[COL_RFSEEN])
         elif new_text.isdigit():
-            self.riders[path][col] = int(new_text)
+            r[COL_LAPS] = int(new_text)
         else:
             _log.error('Invalid lap count')
-        self.riders[path][COL_LAPCOLOUR] = _COLOURMAP[self.riders[path][col] %
-                                                      _COLOURMAPLEN]
+        r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
 
     def _editname_cb(self, cell, path, new_text, col):
         """Edit the rider name if possible."""
@@ -4317,9 +4331,11 @@ class rms:
                 lastpass = tod.MAX
                 rplace = r[COL_COMMENT]
 
-            # flag any manually edited riders as 'seen'
+            # flag any manually edited riders as 'seen' and reset bg colour
             if rplace:
-                r[COL_SEEN] = _COLOURMAP[0]
+                r[COL_SEEN] = 'MAN'
+            if not r[COL_LAPS]:
+                r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
 
             if self.etype in ('road', 'criterium'):
                 # partition into seen and not seen
@@ -4695,7 +4711,7 @@ class rms:
                     sr = self.getrider(srcbib)
                     for col in (COL_COMMENT, COL_INRACE, COL_PLACE, COL_LAPS,
                                 COL_RFTIME, COL_CBUNCH, COL_MBUNCH,
-                                COL_RFSEEN):
+                                COL_LAPCOLOUR, COL_RFSEEN, COL_SEEN):
                         tv = dr[col]
                         dr[col] = sr[col]
                         sr[col] = tv
@@ -4706,8 +4722,8 @@ class rms:
                         ac.extend(dr[COL_RFSEEN])
                         dr[COL_RFSEEN] = [t for t in sorted(ac)]
                         dr[COL_LAPS] = len(dr[COL_RFSEEN])
-                        dr[COL_LAPCOLOUR] = _COLOURMAP[dr[COL_LAPS] %
-                                                       _COLOURMAPLEN]
+                        dr[COL_LAPCOLOUR] = self.bgcolour(
+                            dr[COL_LAPS], dr[COL_SEEN])
                         self.delrider(srcbib)
                         _log.debug('Spare bike %s removed', srcbib)
                     # If dstrider is a spare bike, leave it in place
@@ -4925,6 +4941,12 @@ class rms:
             else:
                 _log.info('Unknown rider change %r ignored', change)
 
+    def bgcolour(self, lap=0, seen=''):
+        if lap or seen:
+            return self.cmap[lap % self.cmapmod]
+        else:
+            return self.cmap[-1]
+
     def __init__(self, meet, etype, ui=True):
         self.meet = meet
         self.etype = etype
@@ -4982,6 +5004,8 @@ class rms:
         self.lapstart = None
         self.lapfin = None
         self.minlap = MINPASSTIME  # minimum lap/elap time if relevant
+        self.cmap = meet.get_colourmap()
+        self.cmapmod = len(self.cmap) - 1
 
         # stage intermediates
         self.reserved_sources = RESERVED_SOURCES
@@ -5043,7 +5067,7 @@ class rms:
         self.context_menu = None
         if ui:
             self.frame.connect('destroy', self.shutdown)
-            uiutil.mkviewcoltxt(t, 'No.', COL_BIB, calign=1.0, bgcol=COL_SEEN)
+            uiutil.mkviewcoltxt(t, 'No.', COL_BIB, calign=1.0)
             uiutil.mkviewcoltxt(t,
                                 'Rider',
                                 COL_NAMESTR,
