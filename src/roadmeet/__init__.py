@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.11a1'
+__version__ = '1.13.11'
 
 import sys
 import gi
@@ -10,7 +10,6 @@ from metarace import htlib
 import csv
 import os
 import threading
-from time import sleep
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
@@ -1277,6 +1276,9 @@ class roadmeet:
                             self._timer.setport(eport)
                 else:
                     self.rfufail = 0
+
+                # purge status line
+                self.statusHandler.purge()
             else:
                 return False
         except Exception as e:
@@ -1303,8 +1305,8 @@ class roadmeet:
     def meet_destroy_cb(self, window, msg=''):
         """Handle destroy signal and exit application."""
         rootlogger = logging.getLogger()
-        rootlogger.removeHandler(self.sh)
-        rootlogger.removeHandler(self.lh)
+        rootlogger.removeHandler(self.statusHandler)
+        rootlogger.removeHandler(self.logHandler)
         #self.window.hide()
         GLib.idle_add(self.meet_destroy_handler)
 
@@ -1416,11 +1418,12 @@ class roadmeet:
         if cr.has_section('trackmeet'):
             _log.error('Meet folder contains track meet configuration')
             if not os.isatty(sys.stdout.fileno()):
-              uiutil.messagedlg(
-                message='Invalid meet type.',
-                title='Roadmeet: Error',
-                subtext=
-                'Selected meet folder contains configuration for a track meet.')
+                uiutil.messagedlg(
+                    message='Invalid meet type.',
+                    title='Roadmeet: Error',
+                    subtext=
+                    'Selected meet folder contains configuration for a track meet.'
+                )
             sys.exit(-1)
 
         # Load schema options into meet object
@@ -1657,13 +1660,14 @@ class roadmeet:
             self.curevent.ridercb(rider)
 
     def _timercb(self, evt, data=None):
+        """Handle transponder read - in decoder thread."""
         if self.timercb is not None:
-            GLib.idle_add(self.timercb, evt, priority=GLib.PRIORITY_HIGH)
+            GLib.idle_add(self.timercb, evt)
         GLib.idle_add(self.timer_announce, evt, self._timer, 'rfid')
 
     def _alttimercb(self, evt, data=None):
         if self.alttimercb is not None:
-            GLib.idle_add(self.alttimercb, evt, priority=GLib.PRIORITY_HIGH)
+            GLib.idle_add(self.alttimercb, evt)
         GLib.idle_add(self.timer_announce, evt, self._alttimer, 'timy')
 
     def _controlcb(self, topic=None, message=None):
@@ -2137,7 +2141,6 @@ class roadmeet:
         self.log_view = b.get_object('log_view')
         #self.log_view.modify_font(uiutil.LOGVIEWFONT)
         self.log_scroll = b.get_object('log_box').get_vadjustment()
-        self.context = self.status.get_context_id('metarace meet')
         self.decoder_configure = b.get_object('menu_timing_configure')
         self.event_box = b.get_object('event_box')
         self.stat_but = uiutil.statButton()
@@ -2178,15 +2181,16 @@ class roadmeet:
         _log.debug('Connecting interface log handlers')
         rootlogger = logging.getLogger()
         f = logging.Formatter(metarace.LOGFORMAT)
-        self.sh = uiutil.statusHandler(self.status, self.context)
-        self.sh.setFormatter(f)
-        self.sh.setLevel(_TIMER_LOG_LEVEL)  # show timer+ on status bar
-        rootlogger.addHandler(self.sh)
-        self.lh = uiutil.textViewHandler(self.log_buffer, self.log_view,
-                                         self.log_scroll)
-        self.lh.setFormatter(f)
-        self.lh.setLevel(logging.INFO)  # show info+ in text view
-        rootlogger.addHandler(self.lh)
+        self.statusHandler = uiutil.statusHandler(self.status)
+        self.statusHandler.setFormatter(f)
+        self.statusHandler.setLevel(logging.INFO)  # show info+
+        rootlogger.addHandler(self.statusHandler)
+        self.logHandler = uiutil.textViewHandler(self.log_buffer,
+                                                 self.log_view,
+                                                 self.log_scroll)
+        self.logHandler.setFormatter(f)
+        self.logHandler.setLevel(logging.INFO)  # show info+
+        rootlogger.addHandler(self.logHandler)
 
         # Build a rider list store and view
         self._rlm = Gtk.ListStore(
@@ -2529,7 +2533,7 @@ def main():
         mp = configpath
         if mp.startswith(metarace.DATA_PATH):
             mp = mp.replace(metarace.DATA_PATH + '/', '')
-        app.status.push(app.context, 'Meet Folder: ' + mp)
+        app.statusHandler.set_basemsg('Meet Folder: ' + mp)
         app.loadconfig()
         app.window.show()
         app.start()

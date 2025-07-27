@@ -148,17 +148,19 @@ class textViewHandler(logging.Handler):
 
     def append_log(self, msg):
         """Append msg to the text view."""
-        atend = True
-        if self.scroll and self.scroll.get_page_size() > 0:
-            # Fudge a 'sticky' end of scroll mode... about a pagesz
+        atend = False
+        if self.scroll:
             pagesz = self.scroll.get_page_size()
-            if self.scroll.get_upper() - (self.scroll.get_value() + pagesz) > (
-                    0.5 * pagesz):
-                atend = False
+            if pagesz > 0:
+                maxval = self.scroll.get_upper()
+                curval = self.scroll.get_value()
+                if maxval - (curval + pagesz) < (0.5 * pagesz):
+                    atend = True
         self.log.insert(self.log.get_end_iter(), msg.strip() + '\n')
         if atend:
-            self.scroll_pending = True
-            GLib.idle_add(self.do_scroll)
+            if not self.scroll_pending:
+                self.scroll_pending = True
+                GLib.idle_add(self.do_scroll, priority=GLib.PRIORITY_LOW)
         return False
 
     def emit(self, record):
@@ -170,23 +172,42 @@ class textViewHandler(logging.Handler):
 class statusHandler(logging.Handler):
     """A class for displaying log messages in a GTK status bar."""
 
-    def __init__(self, status=None, context=0):
+    def __init__(self, status=None):
         self.status = status
-        self.context = context
+        self.previous = {}
+        nt = tod.now()
+        self.basectx = status.get_context_id('base')
+        self.defctx = status.get_context_id('default')
+        self.previous[self.defctx] = nt
+        self.warnctx = status.get_context_id('warning')
+        self.previous[self.warnctx] = nt
         logging.Handler.__init__(self)
 
-    def pull_status(self, msgid):
-        """Remove specified msgid from the status stack."""
-        self.status.remove(self.context, msgid)
-        return False
+    def set_basemsg(self, msg):
+        """Set the status base text."""
+        self.status.remove_all(self.basectx)
+        self.status.push(self.basectx, msg)
 
     def push_status(self, msg, level):
-        """Push the given msg onto the status stack, and defer removal."""
-        delay = 4
+        """Push the given msg onto the status stack."""
+        nt = tod.now()
+        ctx = self.defctx
         if level > 25:
-            delay = 7
-        msgid = self.status.push(self.context, msg)
-        GLib.timeout_add_seconds(delay, self.pull_status, msgid)
+            ctx = self.warnctx
+        self.status.remove_all(ctx)
+        self.status.push(ctx, msg)
+        self.previous[ctx] = nt
+        return False
+
+    def purge(self):
+        """Purge expired context"""
+        nt = tod.now()
+        lt = self.previous[self.defctx]
+        if (nt - lt) > 4:
+            self.status.remove_all(self.defctx)
+        lt = self.previous[self.warnctx]
+        if (nt - lt) > 9:
+            self.status.remove_all(self.warnctx)
         return False
 
     def emit(self, record):
