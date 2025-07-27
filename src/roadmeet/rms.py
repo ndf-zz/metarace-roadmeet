@@ -5081,12 +5081,14 @@ class rms:
                                 'Lap',
                                 COL_LAPS,
                                 width=40,
+                                calign=1.0,
                                 cb=self.editlap_cb,
                                 bgcol=COL_LAPCOLOUR)
             uiutil.mkviewcoltxt(t,
                                 'Seed',
                                 COL_SEED,
                                 width=40,
+                                calign=1.0,
                                 cb=self.editseed_cb)
             uiutil.mkviewcoltod(t,
                                 'Start',
