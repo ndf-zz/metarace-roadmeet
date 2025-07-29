@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.11'
+__version__ = '1.13.12a1'
 
 import sys
 import gi
@@ -10,6 +10,7 @@ from metarace import htlib
 import csv
 import os
 import threading
+from contextlib import suppress
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
@@ -37,6 +38,7 @@ from . import uiutil
 from roadmeet.rms import rms, _CONFIG_SCHEMA as _RMS_SCHEMA
 from roadmeet.irtt import irtt, _CONFIG_SCHEMA as _IRTT_SCHEMA
 from roadmeet.trtt import trtt, _CONFIG_SCHEMA as _TRTT_SCHEMA
+from roadmeet.drelay import _CONFIG_SCHEMA as _DRELAY_SCHEMA
 
 PRGNAME = 'org.6_v.roadmeet'
 APPNAME = 'Roadmeet'
@@ -2055,11 +2057,15 @@ class roadmeet:
 
     def _is_darkmode(self):
         """Return True if app appears to be running in dark mode."""
-        # estimate brightness of log view foreground text ignoring alpha
-        fg = self.log_view.get_style_context().get_color(Gtk.StateFlags.NORMAL)
-        bval = 0.3 * fg.red + 0.6 * fg.green + 0.1 * fg.blue
-        _log.debug('Log view fg ~= %0.2f', bval)
-        return bval > 0.5
+        ret = False
+        with suppress(Exception):
+            # estimate brightness of log view foreground text ignoring alpha
+            fg = self.log_view.get_style_context().get_color(
+                Gtk.StateFlags.NORMAL)
+            bval = 0.3 * fg.red + 0.6 * fg.green + 0.1 * fg.blue
+            _log.debug('Log view fg ~= %0.2f', bval)
+            ret = bval > 0.5
+        return ret
 
     def __init__(self, etype=None, lockfile=None):
         """Meet constructor."""
@@ -2309,6 +2315,7 @@ class fakemeet(roadmeet):
         self.action_combo = Gtk.ComboBox()
         self.action_combo.set_model(self.action_model)
         self.action_combo.set_active(0)
+        self.log_view = None
         self.announce = telegraph()
         self.title = ''
         self.host = ''
@@ -2358,6 +2365,7 @@ def edit_defaults():
     metarace.sysconf.add_section('rru', _RRU_SCHEMA)
     metarace.sysconf.add_section('rrs', _RRS_SCHEMA)
     metarace.sysconf.add_section('timy', _TIMY_SCHEMA)
+    metarace.sysconf.add_section('drelay', _DRELAY_SCHEMA)
     cfgres = uiutil.options_dlg(title='Edit Default Configuration',
                                 sections={
                                     'roadmeet': {
@@ -2408,6 +2416,11 @@ def edit_defaults():
                                     'rrs': {
                                         'title': 'RR System',
                                         'schema': _RRS_SCHEMA,
+                                        'object': metarace.sysconf,
+                                    },
+                                    'drelay': {
+                                        'title': 'D-Relay',
+                                        'schema': _DRELAY_SCHEMA,
                                         'object': metarace.sysconf,
                                     },
                                 })

@@ -12,7 +12,44 @@
 
 ### Security
 
-## [1.3.10]
+## [1.13.12]
+
+### Added
+
+   - new script drelay to relay a single decoder passings to telegraph
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+   - ignore exception when checking for dark mode, eg via fakemeet
+
+### Security
+
+## [1.13.11] - 2025-07-27
+
+### Added
+
+   - quit with error if loadconfig detects trackmeet configuration
+
+### Changed
+
+   - don't alter background of rider no
+   - use grey for unseen bg on laps, then colourmap for seen riders
+   - check style on load to determine dark or light lap colours
+   - alter status line handler to only stack one message from each context
+   - don't queue request to scroll log view if a request is already queued
+
+### Fixed
+
+   - reduce priority of timer events to avoid starving main loop
+     during a flood of rider passings
+
+## [1.3.10] - 2025-07-23
 
 ### Added
 
@@ -31,17 +68,11 @@
    - alter IRTT start line channel delay to 1s
    - assign bare start impulse in strictstart mode by matching to rider
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 
    - block export when already in progress to avoid lockup
    - alter start line loading logic to avoid blocked start line
    - sanity check autotime and transponder mode timing options on irtt load
-
-### Security
 
 ## [1.13.9] - 2025-07-10
 
