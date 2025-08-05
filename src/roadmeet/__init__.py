@@ -59,7 +59,7 @@ ROADRACE_TYPES = {
     'trtt': 'Team Time Trial',
 }
 PRINT_TYPES = {
-    '': 'Save to PDF',
+    'save': 'Save to PDF',
     'pdfpreview': 'Preview and Save to PDF',
     'preview': 'Preview',
     'dialog': 'Print Dialog',
@@ -576,7 +576,7 @@ class roadmeet:
             # Log completion
             _log.info('Saved report to %s.pdf', filename)
 
-        if self.doprint:
+        if self.doprint != 'save':
             # report preparation complete, trigger
             method = Gtk.PrintOperationAction.PREVIEW
             if self.doprint == 'dialog':
