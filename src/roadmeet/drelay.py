@@ -276,10 +276,12 @@ class Drelay:
                 b = (event.timeval * 0).as_tuple()
                 places = min(-(b.exponent), 5)
                 timestr = event.isostr(places)
-                ev = (event.index, source, event.chan, event.refid, timestr)
+                msg = ';'.join(
+                    (event.index, source, event.chan, event.refid, timestr))
                 self._t.publish(topic=self._timertopic,
-                                message=';'.join(ev),
+                                message=msg,
                                 qos=self._timerqos)
+                _log.info('%s', msg)
             else:
                 _log.debug('Ignored passing during deadtme')
         else:
