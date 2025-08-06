@@ -124,6 +124,13 @@
       </object>
     </child>
     <child>
+      <object class="GtkMenuItem" id="rider_context_ret">
+        <property name="label">Return</property>
+        <property name="visible">True</property>
+        <signal name="activate" handler="rider_context_ret_activate_cb"/>
+      </object>
+    </child>
+    <child>
       <object class="GtkSeparatorMenuItem" id="rider_context_sep">
         <property name="visible">True</property>
       </object>

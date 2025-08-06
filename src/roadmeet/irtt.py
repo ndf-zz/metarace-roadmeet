@@ -219,6 +219,12 @@ _CONFIG_SCHEMA = {
         'hint': 'Export result automatically',
         'default': False,
     },
+    'interlabel': {
+        'prompt': 'Inter Label:',
+        'control': 'short',
+        'attr': 'interlabel',
+        'hint': 'Label intermediate split',
+    },
     'timelimit': {
         'prompt': 'Time Limit:',
         'control': 'short',
@@ -411,23 +417,29 @@ class irtt(rms):
         """Return a best guess rider's ET."""
         ret = self.getelapsed(iter)
         if ret is None:
-            # scan each inter from farthest to nearest
-            for ipt in (COL_INTERE, COL_INTERD, COL_INTERC, COL_INTERB,
-                        COL_INTERA):
-                if ipt in self.ischem and self.ischem[ipt] is not None:
-                    dist = self.ischem[ipt]['dist']
-                    inter = self.riders.get_value(iter, ipt)
-                    if inter is not None and dist is not None:
-                        totdist = 1000.0 * self.meet.distance
-                        st = self.riders.get_value(iter, COL_TODSTART)
-                        if st is None:  # defer to start time
-                            st = self.riders.get_value(iter, COL_WALLSTART)
-                        if st is not None:  # still none is error
-                            et = inter - st
-                            spd = (1000.0 * dist) / float(et.timeval)
-                            ret = tod.tod(str(totdist / spd))
-                            self.riders.set_value(iter, COL_DIST, int(dist))
-                            break
+            # fetch rider's total disance
+            cs = self.riders.get_value(iter, COL_CAT)
+            rcat = self.ridercat(riderdb.primary_cat(cs))
+            fulldist = self.catdistance(rcat)
+            if fulldist is not None:
+                # scan each inter from farthest to nearest
+                for ipt in (COL_INTERE, COL_INTERD, COL_INTERC, COL_INTERB,
+                            COL_INTERA):
+                    if ipt in self.ischem and self.ischem[ipt] is not None:
+                        dist = self.ischem[ipt]['dist']
+                        inter = self.riders.get_value(iter, ipt)
+                        if inter is not None and dist is not None:
+                            totdist = 1000.0 * fulldist
+                            st = self.riders.get_value(iter, COL_TODSTART)
+                            if st is None:  # defer to start time
+                                st = self.riders.get_value(iter, COL_WALLSTART)
+                            if st is not None:  # still none is error
+                                et = inter - st
+                                spd = (1000.0 * dist) / float(et.timeval)
+                                ret = tod.tod(str(totdist / spd))
+                                self.riders.set_value(iter, COL_DIST,
+                                                      int(dist))
+                                break
         return ret
 
     def getfactored(self, iter, factor=None):
@@ -1075,73 +1087,76 @@ class irtt(rms):
         totime = nowtime + tod.ONE
         count = 0
         for r in self.riders:
-            reta = tod.MAX
-            rarr = tod.MAX
-            plstr = r[COL_PLACE]
-            bstr = r[COL_BIB]
-            nstr = r[COL_SHORTNAME]
-            turnstr = ''
-            ets = ''
-            rankstr = ''
-            noshow = False
-            cs = r[COL_CAT]
-            catstr = cs
-            cat = self.ridercat(riderdb.primary_cat(cs))
-            if cat:
-                cbr = cat
-            if plstr.isdigit():  # rider placed at finish
-                if r[COL_TODFINISH] > fromtime and r[COL_TODFINISH] < totime:
-                    rarr = r[COL_TODFINISH]
-                    et = self.getelapsed(r.iter)
-                    reta = et
-                    ets = et.rawtime(self.precision)
-                    rankstr = '(' + plstr + '.)'
-                    #speedstr = ''
-                    # cat distance should override this
-                    #if self.meet.distance is not None:
-                    #speedstr = et.speedstr(1000.0 * self.meet.distance)
-                else:
-                    noshow = True
-                    #speedstr = ''
-            elif r[COL_ETA] is not None:
-                # append km mark if available - dist based inters only
-                if r[COL_PASS] > 0:
-                    nstr += ' @ Lap ' + str(r[COL_PASS])
-                elif r[COL_DIST] > 0:
-                    nstr += ' @ km' + str(r[COL_DIST])
-                # Don't show projected finish time
-                #ets = '*' + r[COL_ETA].rawtime(self.precision)
+            if not r[COL_COMMENT]:
+                reta = tod.MAX
+                rarr = tod.MAX
+                plstr = r[COL_PLACE]
+                bstr = r[COL_BIB]
+                nstr = r[COL_SHORTNAME]
+                turnstr = ''
+                ets = ''
+                rankstr = ''
+                noshow = False
+                cs = r[COL_CAT]
+                catstr = cs
+                cat = self.ridercat(riderdb.primary_cat(cs))
+                if cat:
+                    cbr = cat
+                if plstr.isdigit():  # rider placed at finish
+                    if r[COL_TODFINISH] > fromtime and r[
+                            COL_TODFINISH] < totime:
+                        rarr = r[COL_TODFINISH]
+                        et = self.getelapsed(r.iter)
+                        reta = et
+                        ets = et.rawtime(self.precision)
+                        rankstr = '(' + plstr + '.)'
+                        #speedstr = ''
+                        # cat distance should override this
+                        #if self.meet.distance is not None:
+                        #speedstr = et.speedstr(1000.0 * self.meet.distance)
+                    else:
+                        noshow = True
+                        #speedstr = ''
+                elif r[COL_ETA] is not None:
+                    # append km mark if available - dist based inters only
+                    if r[COL_PASS] > 0:
+                        nstr += ' @ Lap ' + str(r[COL_PASS])
+                    elif r[COL_DIST] > 0:
+                        nstr += ' @ km' + str(r[COL_DIST])
+                    # Projected finish time - dubious
+                    ets = '*' + r[COL_ETA].rawtime(self.precision)
 
-                # projected arrival at finish line
-                st = r[COL_TODSTART]
-                if st is None:  # defer to start time
-                    st = r[COL_WALLSTART]
-                reta = r[COL_ETA] + st
+                    # projected arrival at finish line
+                    st = r[COL_TODSTART]
+                    if st is None:  # defer to start time
+                        st = r[COL_WALLSTART]
+                    reta = r[COL_ETA] + st
 
-            if self.showinter is not None and self.showinter in self.ischem and self.ischem[
-                    self.showinter] is not None:
-                # show time at the turnaround
-                trk = self.inters[self.showinter][cat].rank(
-                    r[COL_BIB], r[COL_SERIES])
-                if trk is not None:
-                    tet = self.inters[self.showinter][cat][trk][0]
-                    tplstr = str(trk + 1)
-                    trankstr = ' (' + tplstr + '.)'
-                    turnstr = tet.rawtime(self.precision) + trankstr
-                    #if not speedstr:
-                    # override speed from turn
-                    #speedstr = ''
-                    #dist = self.ischem[self.showinter]['dist']
-                    #if dist is not None:
-                    #speedstr = tet.speedstr(1000.0 * dist)
-                else:
-                    pass
+                if self.showinter is not None and self.showinter in self.ischem and self.ischem[
+                        self.showinter] is not None:
+                    # show time at the turnaround
+                    trk = self.inters[self.showinter][cat].rank(
+                        r[COL_BIB], r[COL_SERIES])
+                    if trk is not None:
+                        tet = self.inters[self.showinter][cat][trk][0]
+                        tplstr = str(trk + 1)
+                        trankstr = ' (' + tplstr + '.)'
+                        turnstr = tet.rawtime(self.precision) + trankstr
+                        #if not speedstr:
+                        # override speed from turn
+                        #speedstr = ''
+                        #dist = self.ischem[self.showinter]['dist']
+                        #if dist is not None:
+                        #speedstr = tet.speedstr(1000.0 * dist)
+                    else:
+                        pass
 
-            if not noshow:
-                if ets or turnstr:  # only add riders with an estimate
-                    aux.append((rarr, reta, count,
-                                [rankstr, bstr, nstr, turnstr, ets, catstr]))
-                    count += 1
+                if not noshow:
+                    if ets or turnstr:  # only add riders with an estimate
+                        aux.append(
+                            (rarr, reta, count,
+                             [rankstr, bstr, nstr, turnstr, ets, catstr]))
+                        count += 1
 
         # reorder by arrival times
         aux.sort()
@@ -1152,26 +1167,118 @@ class irtt(rms):
             intlbl = None
             if self.showinter is not None:
                 intlbl = 'Inter'
+            if self.interlabel is not None:
+                intlbl = self.interlabel
             if self.interloops or self.interlaps:
                 sec.heading = 'Riders On Course'
-                #sec.footer = '* denotes projected finish time.'
             else:
                 sec.heading = 'Recent Arrivals'
             sec.colheader = [None, None, None, intlbl, 'Finish', '']
             pr = ''
+            project = False
             for r in aux:
                 hr = r[3]
                 rank = hr[0]
+                if '*' in hr[4]:
+                    project = True
                 if not rank and pr:
                     # add a spacer for intermeds
                     sec.lines.append(['', '', ''])
                 pr = rank
                 sec.lines.append(hr)
+            if project:
+                sec.footer = '* denotes projected finish time.'
         return (sec, )
 
     def analysis_report(self):
         """Return split times report."""
-        return ()
+        if self.interlaps:
+            return self.laptime_report()
+        else:
+            return ()
+
+    def laptime_report(self):
+        """Return lap times"""
+        # todo: generalise to more than the preallocated inters
+        sec = report.laptimes()
+        sec.heading = 'Lap Times'
+        sec.colheader = ['', '', '', 'lap', '']
+        sec.precision = self.precision
+        maxcount = 0
+        oneavg = False
+        sec.laptimes = None
+        maxfinish = tod.ONE
+        lapcols = []
+        for inter in self.interlaps.values():
+            # assume in order
+            if inter:
+                lapcols.append(inter[0])  # W F T ?
+        _log.debug('Looking for %d interlaps in cols: %r', len(lapcols),
+                   lapcols)
+
+        for r in self.riders:
+            if r[COL_PASS]:
+                # only add riders with at least one lap
+                rdata = {}
+                rdata['no'] = r[COL_BIB]
+                rdata['name'] = ''
+                rdata['cat'] = ''
+                rdata['count'] = r[COL_PASS]
+                rdata['place'] = r[COL_PLACE]
+                rdata['elapsed'] = None
+                rdata['average'] = None
+                rdata['laps'] = []
+                llines = []
+                if r[COL_COMMENT]:
+                    rdata['place'] = r[COL_COMMENT]
+                if rdata['place'] != 'dns':
+                    dbr = self.meet.rdb.get_rider(r[COL_BIB], r[COL_SERIES])
+                    if dbr is not None:
+                        rdata['name'] = dbr.fitname(4, trunc=False)
+                        rdata['cat'] = dbr.primary_cat()
+                    rdata['start'] = tod.ZERO  # compare riders by own start
+                    rst = r[COL_WALLSTART]
+                    if r[COL_TODSTART] is not None:
+                        rst = r[COL_TODSTART]
+                    if rst is not None:
+                        lasttime = tod.ZERO
+                        # only passings in scope are stored to model
+                        for inter in lapcols:
+                            if r[inter] is not None:
+                                split = r[inter] - rst
+                                llines.append(split)
+                                rdata['laps'].append(
+                                    (split - lasttime).round(self.precision))
+                                lasttime = split
+                        relap = None
+                        rft = r[COL_TODFINISH]
+                        if rft is not None:
+                            if r[COL_TODPENALTY]:
+                                rft += r[COL_TODPENALTY]  # penalise finish
+                            relap = rft - rst
+                            llines.append(relap)
+                            maxfinish = max(relap, maxfinish)
+                            rdata['laps'].append(
+                                (relap - lasttime).round(self.precision))
+                        maxcount = max(maxcount, len(rdata['laps']))
+                        if relap is not None and rdata[
+                                'count'] and rdata['count'] > 1:
+                            rdata['elapsed'] = relap.round(self.precision)
+                            at = tod.mktod(relap.timeval / rdata['count'])
+                            rdata['average'] = at.round(self.precision)
+                            oneavg = True
+                        if sec.laptimes is None or len(llines) > len(
+                                sec.laptimes):
+                            # use fastest rider with most laps for ref lines
+                            sec.laptimes = llines
+                            sec.start = tod.ZERO
+                        sec.lines.append(rdata)
+        sec.finish = maxfinish + tod.mktod('0.5')
+        if oneavg:
+            sec.colheader[4] = 'avg'
+        if maxcount > 0:
+            sec.colheader.extend([str(i + 1) for i in range(0, maxcount)])
+        return (sec, )
 
     def camera_report(self):
         """Return a judges report."""
@@ -1235,6 +1342,15 @@ class irtt(rms):
             ret.append(sec)
         return ret
 
+    def catdistance(self, cat='', dbr=None):
+        ret = self.meet.distance
+        if dbr is None:
+            dbr = self.meet.rdb.get_rider(cat, 'cat')
+        if dbr is not None:
+            if dbr['distance']:
+                ret = strops.confopt_posfloat(dbr['distance'])
+        return ret
+
     def single_catresult(self, cat=''):
         _log.debug('Cat result for cat=%r', cat)
         ret = []
@@ -1251,18 +1367,14 @@ class irtt(rms):
             secid = 'result-' + cat.lower()
         subhead = ''
         footer = ''
-        distance = self.meet.distance  # fall on meet dist
+        distance = self.meet.distance
         dbr = self.meet.rdb.get_rider(cat, 'cat')
         if dbr is not None:
             catname = dbr['title']
             subhead = dbr['subtitle']
             footer = dbr['fooer']
-            dist = dbr['distance']
-            if dist:
-                try:
-                    distance = float(dist)
-                except Exception:
-                    _log.warning('Invalid distance %r for cat %r', dist, cat)
+            distance = self.catdistance(cat, dbr)
+            _log.debug('Cat distance=%r', distance)
         sec = report.section(secid)
         ct = None
         lt = None
@@ -1327,10 +1439,11 @@ class irtt(rms):
                                 [None, None, None, None, None, None])
                             lpstr = pstr
                 tstr = None
-                if ft is not None:
+                if not r[COL_COMMENT] and ft is not None:
                     tstr = ft.rawtime(self.precision)
                 dstr = None
-                if ct is not None and ft is not None and ct != ft:
+                if not r[
+                        COL_COMMENT] and ct is not None and ft is not None and ct != ft:
                     dstr = '+' + (ft - ct).rawtime(1)
                 if placed:
                     sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
@@ -1815,16 +1928,32 @@ class irtt(rms):
         """Process transponder passing event."""
         chan = strops.chan2id(e.chan)
         if e.refid in ('', '255'):
-            if self.finishloop is not None and chan in (self.finishloop, -1):
-                if self.starttrig:
-                    self.start_trig(e)
-                else:
-                    self.fin_trig(e)
-            elif self.startloop is not None and chan in (self.startloop, -1):
-                self.start_trig(e)
+            # if chronometer connected, ignore transponder impulses
+            if self.meet.alttimer:
+                _log.info('Ignored transponder trigger: %s@%s/%s', e.chan,
+                          e.rawtime(2), e.source)
             else:
-                _log.info('Spurious trigger: %s@%s/%s', e.chan, e.rawtime(2),
-                          e.source)
+                if chan == self.finishloop:
+                    # finish loop is set and chan matches - remap if required
+                    if self.starttrig:
+                        self.start_trig(e)
+                    else:
+                        if chan in (1, -1):
+                            self.fin_trig(e)
+                        elif chan == 0:
+                            self.start_trig(e)
+                        else:
+                            _log.info('Spurious transponder trigger: %s@%s/%s',
+                                      e.chan, e.rawtime(2), e.source)
+                else:
+                    # otherwise mapping is 0 => start 1,-1 => finish
+                    if chan in (1, -1):
+                        self.fin_trig(e)
+                    elif chan == 0:
+                        self.start_trig(e)
+                    else:
+                        _log.info('Spurious transponder trigger: %s@%s/%s',
+                                  e.chan, e.rawtime(2), e.source)
             return False
 
         r = self.meet.getrefid(e.refid)
@@ -2277,24 +2406,27 @@ class irtt(rms):
                 if np in placelist:
                     _log.error('Result for rider %r already in placelist', np)
                     # this is a bad fail - indicates duplicate category entry
-                placelist.append(np)
                 i = self.getiter(t[0].refid, t[0].index)
-                if i is not None:
-                    if lt is not None:
-                        if lt != t[0]:
-                            place = pcount + 1
-                    if limit is not None and t[0] > limit:
-                        self.riders.set_value(i, COL_PLACE, 'otl')
-                        self.riders.set_value(i, COL_COMMENT, 'otl')
+                if not self.riders.get_value(i, COL_COMMENT):
+                    placelist.append(np)
+                    if i is not None:
+                        if lt is not None:
+                            if lt != t[0]:
+                                place = pcount + 1
+                        if limit is not None and t[0] > limit:
+                            self.riders.set_value(i, COL_PLACE, 'otl')
+                            self.riders.set_value(i, COL_COMMENT, 'otl')
+                        else:
+                            self.riders.set_value(i, COL_PLACE, str(place))
+                        j = self.riders.get_iter(count)
+                        self.riders.swap(j, i)
+                        count += 1
+                        pcount += 1
+                        lt = t[0]
                     else:
-                        self.riders.set_value(i, COL_PLACE, str(place))
-                    j = self.riders.get_iter(count)
-                    self.riders.swap(j, i)
-                    count += 1
-                    pcount += 1
-                    lt = t[0]
+                        _log.error('Extra result for rider %r', np)
                 else:
-                    _log.error('Extra result for rider %r', np)
+                    _log.debug('Ignore dnf rider %r with result', np)
 
         # check counts for racestat
         self.racestat = 'prerace'
@@ -2359,9 +2491,8 @@ class irtt(rms):
             bib, ser = strops.bibstr2bibser(bibstr)
             r = self.getrider(bib, ser)
             if r is not None:
+                # Set comment but leave start, splits and finish as-is
                 r[COL_COMMENT] = code
-                nri = r.iter
-                self.settimes(nri, doplaces=False)
                 recalc = True
             else:
                 _log.warning('Unregistered Rider ' + str(bibstr) +
@@ -2529,6 +2660,20 @@ class irtt(rms):
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dnf')
 
+    def rider_context_ret_activate_cb(self, menuitem, data=None):
+        """Return out rider to event."""
+        sel = self.view.get_selection().get_selected()
+        if sel is not None:
+            i = sel[1]
+            rno = self.riders.get_value(i, COL_BIB)
+            rcom = self.riders.get_value(i, COL_COMMENT)
+            if rcom:
+                self.riders.set_value(i, COL_COMMENT, '')
+                _log.info('Return %s rider %s to event', rcom, rno)
+                self.recalculate()
+            else:
+                _log.info('Rider %s in race', rno)
+
     def rider_context_dsq_activate_cb(self, menuitem, data=None):
         """Disqualify rider."""
         sel = self.view.get_selection().get_selected()
@@ -2558,7 +2703,7 @@ class irtt(rms):
         if sel is not None:
             self.riders.set_value(sel[1], COL_COMMENT, '')
             self.riders.set_value(sel[1], COL_PASS, 0)
-            self.settimes(sel[1])  # clear iter to empty vals
+            self.settimes(sel[1], doplaces=True)  # clear iter to empty vals
             self.log_clear(self.riders.get_value(sel[1], COL_BIB),
                            self.riders.get_value(sel[1], COL_SERIES))
 
@@ -2775,6 +2920,7 @@ class irtt(rms):
         self.arrivaltimeout = ARRIVALTIMEOUT
         self.timelimit = None
         self.gapthresh = GAPTHRESH
+        self.interlabel = None
 
         # event run time attributes
         self.live_announce = False
