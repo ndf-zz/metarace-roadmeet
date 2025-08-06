@@ -2966,18 +2966,17 @@ class rms:
 
     def announcecatlap(self, acat=None):
         """Emit a category lap scoreboard message."""
+        # Note: Cat laps are announced on arrival at finish line
         for cat in self.cats:
             if cat == acat or (acat is None and cat):
                 if cat in self.catonlap:
                     count = self.catonlap[cat]
-                    onlap = count
-                    if self.catstarted(cat):
-                        onlap += 1
+                    curlap = count
                     target = self.totlaps
                     togo = None
                     if cat in self.catlaps and self.catlaps[cat] is not None:
                         target = self.catlaps[cat]
-                    if target is not None and count is not None and count < target:
+                    if target is not None and count is not None and count <= target:
                         prompt = cat.upper()
                         dbr = self.meet.rdb.get_rider(cat, 'cat')
                         if dbr is not None:
@@ -2985,13 +2984,13 @@ class rms:
                         self.meet.cmd_announce(
                             'catlap', '\x1f'.join([
                                 cat, prompt,
-                                str(onlap),
+                                str(curlap),
                                 str(target),
-                                str(target - onlap)
+                                str(target - curlap)
                             ]))
                         if cat:
-                            _log.warning('Cat %s %r: %d/%d, %d to go', cat,
-                                         prompt, onlap, target, target - onlap)
+                            _log.info('Cat %s %r: %d/%d, %d to go', cat,
+                                      prompt, curlap, target, target - curlap)
                     else:
                         _log.debug('No data for Cat %s laps', cat)
 
