@@ -3197,8 +3197,6 @@ class rms:
                             rcat]:
                         self.catonlap[rcat] = lr[COL_LAPS]
                         self.announcecatlap(rcat)
-                    self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT],
-                                        e, lr[COL_LAPS])
             self.eventlap(bib, lr, rcat, e)
         # end finishing rider path
 
@@ -3231,8 +3229,7 @@ class rms:
             _log.debug('Ignored rider lap for timerstat=%s', self.timerstat)
 
         # announce all rider passings
-        self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e,
-                            lr[COL_LAPS])
+        self.announce_rider('', bib, lr[COL_NAMESTR], rcat, e, lr[COL_LAPS])
 
         # update lap colour for this rider
         lr[COL_LAPCOLOUR] = self.bgcolour(lr[COL_LAPS], lr[COL_SEEN])

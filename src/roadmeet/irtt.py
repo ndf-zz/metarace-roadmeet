@@ -1098,8 +1098,8 @@ class irtt(rms):
                 rankstr = ''
                 noshow = False
                 cs = r[COL_CAT]
-                catstr = cs
-                cat = self.ridercat(riderdb.primary_cat(cs))
+                catstr = riderdb.primary_cat(cs)
+                cat = self.ridercat(catstr)
                 if cat:
                     cbr = cat
                 if plstr.isdigit():  # rider placed at finish
