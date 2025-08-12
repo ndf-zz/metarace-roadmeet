@@ -1046,22 +1046,25 @@ class rms:
             if cat == rcat:
                 ucicode = None
                 name = r[COL_NAMESTR]
-                note = ''
+                notes = []
+                note = None
                 dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
                 if dbr is not None:
                     ucicode = dbr['uci id']
+                    if ucicode:
+                        notes.append(ucicode)
                     note = dbr['note']
                 comment = ''
                 if callup:
                     comment = str(rcnt + 1) + '.'
                     if note:
-                        ucicode = '[%s]' % (note, )
+                        notes.append('[%s]' % (note, ))
                 if not r[COL_INRACE]:
                     cmt = r[COL_COMMENT]
                     if cmt == 'dns':
                         comment = cmt
                 riderno = r[COL_BIB].translate(strops.INTEGER_UTRANS)
-                sec.lines.append([comment, riderno, name, ucicode])
+                sec.lines.append([comment, riderno, name, ' '.join(notes)])
                 # Look up pilots
                 if cat in ('MB', 'WB'):
                     # lookup pilot
@@ -2642,10 +2645,8 @@ class rms:
         return False
 
     def append_selected_place(self):
-        sel = self.view.get_selection()
-        sv = sel.get_selected()
-        if sv is not None:
-            i = sv[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
             _log.debug('Confirmed next place: %s [%s]', selbib, selpath)
@@ -2676,11 +2677,9 @@ class rms:
         if '-' in self.places:
             _log.warning('Dead heat in result, places not updated')
             return False
-        sel = self.view.get_selection()
-        sv = sel.get_selected()
-        if sv is not None:
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             # fill places and recalculate
-            i = sv[1]
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
             _log.info('Confirm places to: %s [%s]', selbib, selpath)
@@ -2714,9 +2713,8 @@ class rms:
 
     def clear_places_from_selection(self):
         """Clear all places from riders following the current selection."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
             _log.info('Clear places from: %s [%s]', selbib, selpath)
@@ -2750,9 +2748,8 @@ class rms:
 
     def clear_selected_place(self):
         """Remove the selected rider from places."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             selbib = self.riders.get_value(i, COL_BIB)
             selpath = self.riders.get_path(i)
             _log.info('Clear rider from places: %s [%s]', selbib, selpath)
@@ -2783,10 +2780,8 @@ class rms:
         """Set event level lap times based on selected rider"""
         if self.start is not None:
             if self.timerstat != 'finished':
-                sel = self.view.get_selection().get_selected()
-                bib = None
-                if sel is not None:
-                    i = sel[1]
+                model, i = self.view.get_selection().get_selected()
+                if i is not None:
                     r = Gtk.TreeModelRow(self.riders, i)
                     if len(r[COL_RFSEEN]) > 0:
                         self.newlapleader(r)
@@ -4608,16 +4603,14 @@ class rms:
 
     def rms_context_down_activate_cb(self, menuitem, data=None):
         """Assign a finish time based on laps down from cat leader."""
-        sel = self.view.get_selection().get_selected()
-        bib = None
-        if sel is not None:
-            i = sel[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             r = Gtk.TreeModelRow(self.riders, i)
             if len(r[COL_RFSEEN]) > 0:
                 self.lapsdown(r, r[COL_RFSEEN][-1])
             else:
                 _log.info('No passings to use for laps down')
-        if sel is None:
+        else:
             _log.info('Unable to set empty rider selection')
 
     def lapsdown(self, lr, passing=None):
@@ -4674,15 +4667,15 @@ class rms:
 
     def rms_context_swap_activate_cb(self, menuitem, data=None):
         """Swap data to/from another rider."""
-        sel = self.view.get_selection().get_selected()
-        if sel is None:
+        model, i = self.view.get_selection().get_selected()
+        if i is None:
             _log.info('Unable to swap empty rider selection')
             return
-        srcbib = self.riders.get_value(sel[1], COL_BIB)
-        spcat = riderdb.primary_cat(self.riders.get_value(sel[1], COL_CAT))
+        srcbib = self.riders.get_value(i, COL_BIB)
+        spcat = riderdb.primary_cat(self.riders.get_value(i, COL_CAT))
         spare = spcat == 'SPARE'
-        srcname = self.riders.get_value(sel[1], COL_NAMESTR)
-        srcinfo = self.getbunch_iter(sel[1])
+        srcname = self.riders.get_value(i, COL_NAMESTR)
+        srcinfo = self.getbunch_iter(i)
         b = uiutil.builder('swap_rider.ui')
         dlg = b.get_object('swap')
         dlg.set_transient_for(self.meet.window)
@@ -4734,11 +4727,11 @@ class rms:
 
     def rms_context_edit_activate_cb(self, menuitem, data=None):
         """Edit rider start/finish/etc."""
-        sel = self.view.get_selection().get_selected()
-        if sel is None:
+        model, i = self.view.get_selection().get_selected()
+        if i is None:
             return False
 
-        lr = Gtk.TreeModelRow(self.riders, sel[1])
+        lr = Gtk.TreeModelRow(self.riders, i)
         st = lr[COL_STOFT]
         stextra = ''
         if not st:
@@ -4906,10 +4899,8 @@ class rms:
     def rms_context_chg_activate_cb(self, menuitem, data=None):
         """Update selected rider from event."""
         change = menuitem.get_label().lower()
-        sel = self.view.get_selection().get_selected()
-        bib = None
-        if sel is not None:
-            i = sel[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             selbib = self.riders.get_value(i, COL_BIB)
             if change == 'delete':
                 _log.info('Delete rider: %s', selbib)

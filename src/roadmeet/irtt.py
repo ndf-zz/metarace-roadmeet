@@ -1208,6 +1208,7 @@ class irtt(rms):
         oneavg = False
         sec.laptimes = None
         maxfinish = tod.ONE
+        fastest = None
         lapcols = []
         for inter in self.interlaps.values():
             # assume in order
@@ -1269,9 +1270,20 @@ class irtt(rms):
                             oneavg = True
                         if sec.laptimes is None or len(llines) > len(
                                 sec.laptimes):
-                            # use fastest rider with most laps for ref lines
+                            # first entry or more laps
                             sec.laptimes = llines
                             sec.start = tod.ZERO
+                            if rdata['elapsed'] is not None:
+                                fastest = rdata['elapsed']
+                        elif len(llines) == len(sec.laptimes):
+                            # fastest rider
+                            if fastest is not None and rdata[
+                                    'elapsed'] is not None:
+                                if rdata['elapsed'] < fastest:
+                                    # use fastest rider for ref lines
+                                    sec.laptimes = llines
+                                    sec.start = tod.ZERO
+                                    fastest = rdata['elapsed']
                         sec.lines.append(rdata)
         sec.finish = maxfinish + tod.mktod('0.5')
         if oneavg:
@@ -2644,27 +2656,24 @@ class irtt(rms):
 
     def rider_context_dns_activate_cb(self, menuitem, data=None):
         """Register rider as non-starter."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             bib = self.riders.get_value(i, COL_BIB)
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dns')
 
     def rider_context_dnf_activate_cb(self, menuitem, data=None):
         """Register rider as non-finisher."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             bib = self.riders.get_value(i, COL_BIB)
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dnf')
 
     def rider_context_ret_activate_cb(self, menuitem, data=None):
         """Return out rider to event."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             rno = self.riders.get_value(i, COL_BIB)
             rcom = self.riders.get_value(i, COL_COMMENT)
             if rcom:
@@ -2676,9 +2685,8 @@ class irtt(rms):
 
     def rider_context_dsq_activate_cb(self, menuitem, data=None):
         """Disqualify rider."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             bib = self.riders.get_value(i, COL_BIB)
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'dsq')
@@ -2690,22 +2698,21 @@ class irtt(rms):
 
     def rider_context_ntr_activate_cb(self, menuitem, data=None):
         """Register no time recorded for rider and place last."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             bib = self.riders.get_value(i, COL_BIB)
             series = self.riders.get_value(i, COL_SERIES)
             self.dnfriders(strops.bibser2bibstr(bib, series), 'ntr')
 
     def rider_context_clear_activate_cb(self, menuitem, data=None):
         """Clear times for selected rider."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            self.riders.set_value(sel[1], COL_COMMENT, '')
-            self.riders.set_value(sel[1], COL_PASS, 0)
-            self.settimes(sel[1], doplaces=True)  # clear iter to empty vals
-            self.log_clear(self.riders.get_value(sel[1], COL_BIB),
-                           self.riders.get_value(sel[1], COL_SERIES))
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
+            self.riders.set_value(i, COL_COMMENT, '')
+            self.riders.set_value(i, COL_PASS, 0)
+            self.settimes(i, doplaces=True)  # clear iter to empty vals
+            self.log_clear(self.riders.get_value(i, COL_BIB),
+                           self.riders.get_value(i, COL_SERIES))
 
     def now_button_clicked_cb(self, button, entry=None):
         """Set specified entry to the current time."""
@@ -2714,11 +2721,11 @@ class irtt(rms):
 
     def rider_context_edit_activate_cb(self, menuitem, data=None):
         """Edit rider start/finish/etc."""
-        sel = self.view.get_selection().get_selected()
-        if sel is None:
+        model, i = self.view.get_selection().get_selected()
+        if i is None:
             return False
 
-        lr = Gtk.TreeModelRow(self.riders, sel[1])
+        lr = Gtk.TreeModelRow(self.riders, i)
         bibstr = strops.bibser2bibstr(lr[COL_BIB], lr[COL_SERIES])
         placestr = ''
         placeopts = {
@@ -2867,9 +2874,8 @@ class irtt(rms):
 
     def rider_context_del_activate_cb(self, menuitem, data=None):
         """Delete selected row from event model."""
-        sel = self.view.get_selection().get_selected()
-        if sel is not None:
-            i = sel[1]  # grab off row iter
+        model, i = self.view.get_selection().get_selected()
+        if i is not None:
             bib = self.riders.get_value(i, COL_BIB)
             series = self.riders.get_value(i, COL_SERIES)
             self.settimes(i)  # clear times
