@@ -12,23 +12,35 @@
 
 ### Security
 
-## [1.13.12]
+## [1.13.12] - 2025-08-12
 
 ### Added
 
-   - new script drelay to relay a single decoder passings to telegraph
+   - new script drelay to relay passings from a single decoder to telegraph
+   - return rider to event (irtt)
+   - add lap time report when lapinters configured (irtt)
 
 ### Changed
 
-### Deprecated
-
-### Removed
+   - dnf/dsq/dns riders with start, inters, results are not cleared (irtt)
+   - clear time also clears comment field (irtt)
+   - estimated arrival time marked only when at least one present (irtt)
+   - suppress dnf/dns/dsq riders from arrivals (irtt)
+   - announce category lap count at end of lap, including finish
+   - only announce rider primary category for arrivals and passing
+   - append notes to uciid on rms call-up report instead of overwriting
 
 ### Fixed
 
    - ignore exception when checking for dark mode, eg via fakemeet
-
-### Security
+   - save and load all print options
+   - arrival estimate from inters uses cat distance (irtt)
+   - correct transponder trigger assignment when chronometer not in use (irtt)
+   - update places when rider times cleared in (irtt)
+   - remove double announce rider on finish passing
+   - use fastest time with most laps for laplines on laptime report (irtt)
+   - fix handling of TreeSelection.get_selected() return values
+   - update lap count for riders assigned penalty time via "laps down"
 
 ## [1.13.11] - 2025-07-27
 

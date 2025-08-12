@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.12a1'
+__version__ = '1.13.12'
 
 import sys
 import gi
