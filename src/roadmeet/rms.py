@@ -4615,6 +4615,9 @@ class rms:
 
     def lapsdown(self, lr, passing=None):
         # determine rider's result cat
+        if lr[COL_LAPS] < 1:
+            _log.info('%s unchanged, no laps recorded', lr[COL_BIB])
+            return
         cs = lr[COL_CAT]
         rcat = self.ridercat(riderdb.primary_cat(cs))
         bt = None
@@ -4630,8 +4633,12 @@ class rms:
                     # rider has a finish bunch
                     ldr = r
                     break
+        else:
+            _log.warning('No leader found for cat %r, %s unchanged', rcat,
+                         lr[COL_BIB])
+            return
 
-        # fetch start stime offset
+        # fetch start time offset
         st = self.start
         sof = tod.ZERO  # check this
         if r[COL_STOFT] is not None:
@@ -4643,27 +4650,24 @@ class rms:
         # determine elapsed time
         et = passing - (st + sof)
 
-        if ldr is not None:
-            # compare laps
-            if ldr[COL_LAPS] > 0 and ldr[COL_LAPS] > lr[COL_LAPS]:
-                lavg = tod.tod(et.timeval / lr[COL_LAPS])
-                deficit = ldr[COL_LAPS] - lr[COL_LAPS]
-                lxtra = tod.tod(lavg.timeval * deficit)
-                lr[COL_RFTIME] = passing + lxtra
-                _log.debug(
-                    'Leader %r: %d laps, Rider %r: %d laps, avg=%s, deficit=%d, xtra=%s, pass=%s, fin=%s, ',
-                    ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB], lr[COL_LAPS],
-                    lavg.rawtime(1), deficit, lxtra.rawtime(1),
-                    passing.rawtime(1), lr[COL_RFTIME].rawtime(1))
-
-                self._dorecalc = True
-            else:
-                _log.warning(
-                    'Leader %r on lap %r, rider %r on lap %r - unchanged',
-                    ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB], lr[COL_LAPS])
+        # compare laps
+        if ldr[COL_LAPS] > 0 and ldr[COL_LAPS] > lr[COL_LAPS]:
+            lavg = tod.tod(et.timeval / lr[COL_LAPS])
+            deficit = ldr[COL_LAPS] - lr[COL_LAPS]
+            lxtra = tod.tod(lavg.timeval * deficit)
+            lr[COL_RFTIME] = passing + lxtra
+            _log.debug(
+                'Leader %r: %d laps, Rider %r: %d laps, avg=%s, deficit=%d, xtra=%s, pass=%s, fin=%s, ',
+                ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB], lr[COL_LAPS],
+                lavg.rawtime(1), deficit, lxtra.rawtime(1), passing.rawtime(1),
+                lr[COL_RFTIME].rawtime(1))
+            lr[COL_LAPS] = ldr[COL_LAPS]
+            lr[COL_LAPCOLOUR] = self.bgcolour(lr[COL_LAPS], lr[COL_SEEN])
+            self._dorecalc = True
         else:
-            _log.warning('No leader found for cat %r, %s unchanged', rcat,
-                         lr[COL_BIB])
+            _log.warning('Leader %r on lap %r, rider %r on lap %r - unchanged',
+                         ldr[COL_BIB], ldr[COL_LAPS], lr[COL_BIB],
+                         lr[COL_LAPS])
 
     def rms_context_swap_activate_cb(self, menuitem, data=None):
         """Swap data to/from another rider."""
