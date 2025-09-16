@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.12'
+__version__ = '1.13.13'
 
 import sys
 import gi
@@ -159,6 +159,26 @@ _CONFIG_SCHEMA = {
         'hint': 'Override distance string for crit/cat races',
         'attr': 'diststr',
         'default': '',
+    },
+    'minavg': {
+        'prompt': 'Min Avg:',
+        'hint': 'Minimum reported average speed',
+        'type': 'float',
+        'control': 'short',
+        'subtext': 'km/h',
+        'attr': 'minavg',
+        'places': 1,
+        'default': 20.0,
+    },
+    'maxavg': {
+        'prompt': 'Max Avg:',
+        'hint': 'Maximum reported average speed',
+        'type': 'float',
+        'control': 'short',
+        'subtext': 'km/h',
+        'attr': 'maxavg',
+        'places': 1,
+        'default': 60.0,
     },
     'provisionalstart': {
         'prompt': 'Startlist:',
@@ -722,6 +742,38 @@ class roadmeet:
                               provisional=self.provisionalstart,
                               filename='callup')
 
+    def menu_reports_collect_activate_cb(self, menuitem, data=None):
+        """Generate a number collection sheet."""
+        if self.curevent is not None:
+            sections = self.numbercollect_report()
+            if not sections:
+                _log.warning('Empty collect')
+            self.print_report(sections, filename='numbercollection')
+
+    def numbercollect_report(self):
+        """Return a number collection/allocation report"""
+        sec = report.twocol_startlist('numbercollect')
+        sec.heading = 'Number Collection'
+        sec.grey = True
+        aux = []
+        # add all riders, but mark those not in race
+        for rid, dbr in self.rdb.items():
+            cnt = 0
+            if dbr['series'] not in ('spare', 'cat', 'team', 'ds', 'series'):
+                namekey = ''.join(
+                    (dbr['last'].lower(), dbr['first'].lower()[0:2]))
+                aux.append((namekey, cnt, dbr))
+                cnt += 1
+        if aux:
+            aux.sort()
+            for r in aux:
+                dbr = r[2]
+                scratch = self.curevent.getrider(dbr['no'],
+                                                 dbr['series']) is None
+                sec.lines.append((dbr['no'], None, dbr.regname(),
+                                  dbr.primary_cat(), None, None, scratch))
+        return (sec, )
+
     def menu_reports_signon_activate_cb(self, menuitem, data=None):
         """Generate a sign on sheet."""
         if self.curevent is not None:
@@ -1045,7 +1097,7 @@ class roadmeet:
                     if self.nextlink:
                         srep.nextlink = '_'.join((self.nextlink, 'startlist'))
                     srep.resultlink = ffile
-                    if self.etype in ('irtt', 'cross'):
+                    if self.etype in ('irtt', 'cross', 'trtt'):
                         for sec in self.curevent.callup_report():
                             srep.add_section(sec)
                     else:
@@ -2084,6 +2136,8 @@ class roadmeet:
         self.organiser = ''
         self.pcp = ''
         self.distance = None
+        self.minavg = 20.0
+        self.maxavg = 60.0
         self.diststr = ''
         self.linkbase = '.'
         self.provisionalstart = False

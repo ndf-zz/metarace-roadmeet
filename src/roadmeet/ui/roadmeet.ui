@@ -198,6 +198,14 @@
                           </object>
                         </child>
                         <child>
+                          <object class="GtkMenuItem" id="menu_reports_collect">
+                            <property name="label">Number Collection</property>
+                            <property name="visible">True</property>
+                            <property name="use_underline">True</property>
+                            <signal name="activate" handler="menu_reports_collect_activate_cb"/>
+                          </object>
+                        </child>
+                        <child>
                           <object class="GtkMenuItem" id="menu_reports_camera">
                             <property name="label">_Judges Form</property>
                             <property name="visible">True</property>
