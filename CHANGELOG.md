@@ -12,6 +12,25 @@
 
 ### Security
 
+## [1.13.13] - 2025-09-16
+
+### Added
+
+   - Configure min and max average speed displayed on reports
+   - Add number collection report, sorted by competitor name
+   - Add lap colours to team time trial handler
+   - Add passing source configuration option to team time trial
+
+### Changed
+
+   - Use call-up for default Team Time Trial start report
+   - Use meet min/max average for reports
+
+### Fixed
+
+   - Use bunch time for group result down time instead of elapsed
+   - Disable handicap fastest time search when idle or finished
+
 ## [1.13.12] - 2025-08-12
 
 ### Added
