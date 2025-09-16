@@ -1166,8 +1166,7 @@ class rms:
 
     def analysis_report(self):
         """Return an analysis report."""
-        # temporary fall through to camera report
-        if self.etype in ('cross', 'circuit'):
+        if self.etype in ('cross', 'circuit', 'trtt'):
             return self.laptime_report()
         else:
             return self.camera_report(title='Analysis')
@@ -1406,7 +1405,7 @@ class rms:
 
         return ret
 
-    def single_catresult(self, cat):
+    def single_catresult(self, cat, showelap=False):
         if cat:
             _log.debug('Result Cat %s', cat)
         else:
@@ -1602,14 +1601,14 @@ class rms:
                                 distance = None
                         if bwt is not None:
                             if self.showdowntimes:
-                                down = et - bwt
+                                down = bt - bwt
                                 if down < MAXELAP:
                                     dstr = '+' + down.rawtime(0)
                         else:
                             dstr = et.rawtime(0)
                         first = False
                         if bwt is None:
-                            bwt = et
+                            bwt = bt
                     lt = bt
                 else:
                     # Non-finishers dns, dnf, otl, dsq
@@ -1713,10 +1712,16 @@ class rms:
             sec = report.bullet_text(secid)
             if wt is not None:
                 if distance is not None:
-                    sec.lines.append([
-                        None, 'Average speed of the winner: ' +
-                        wt.speedstr(1000.0 * distance)
-                    ])
+                    rawspeed = wt.speed(dist=1000.0 * distance,
+                                        minspeed=self.meet.minavg,
+                                        maxspeed=self.meet.maxavg)
+                    if rawspeed is not None:
+                        avgfmt = 'Average speed of the winner: %0.1f\u2006km/h'
+                        sec.lines.append((None, avgfmt % (rawspeed, )))
+                    else:
+                        _log.info(
+                            'Skipped suspicious avg speed for %s over distance %0.1fkm',
+                            cat, distance)
             if doflap and fno is not None:
                 ftr = self.getrider(fno)
                 fts = ''
@@ -1947,16 +1952,17 @@ class rms:
                         fastest = et
                         fastestbib = r[COL_BIB]
                 else:  # check virtual finish time
-                    sof = None
-                    if r[COL_STOFT] is not None:
-                        sof = r[COL_STOFT]
-                    elif rcat in self.catstarts and self.catstarts[
-                            rcat] != tod.ZERO:
-                        sof = self.catstarts[rcat]
-                    if sof is not None and curelap is not None:
-                        vt = curelap - sof
-                        if vfastest is None or vt < vfastest:
-                            vfastest = vt
+                    if self.timerstat not in ('idle', 'finished'):
+                        sof = None
+                        if r[COL_STOFT] is not None:
+                            sof = r[COL_STOFT]
+                        elif rcat in self.catstarts and self.catstarts[
+                                rcat] != tod.ZERO:
+                            sof = self.catstarts[rcat]
+                        if sof is not None and curelap is not None:
+                            vt = curelap - sof
+                            if vfastest is None or vt < vfastest:
+                                vfastest = vt
                 lt = bt
             else:
                 # Non-finishers dns, dnf, otl, dsq
@@ -4380,8 +4386,8 @@ class rms:
                             ft = et.truncate(0)  # compute first time
                             bt = ft
                         else:
-                            if lt is not None and (
-                                    rtime < lt or rtime - lt < self.gapthresh):
+                            if lt is not None and (rtime < lt or rtime - lt
+                                                   < self.gapthresh):
                                 # same time
                                 pass
                             else:
