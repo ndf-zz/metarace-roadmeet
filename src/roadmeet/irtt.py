@@ -50,8 +50,6 @@ DNFCODES = ['otl', 'dsq', 'dnf', 'dns']
 STARTFUDGE = tod.tod(30)
 STARTGAP = tod.tod('1:00')
 ARRIVALTIMEOUT = tod.tod('2:30')
-_MINSPEED = 25.0  # min speed in km/h shown on result report
-_MAXSPEED = 55.0  # max speed in km/h shown on result report
 _STARTTHRESH = 5
 
 # startlist model columns
@@ -1262,8 +1260,8 @@ class irtt(rms):
                             rdata['laps'].append(
                                 (relap - lasttime).round(self.precision))
                         maxcount = max(maxcount, len(rdata['laps']))
-                        if relap is not None and rdata[
-                                'count'] and rdata['count'] > 1:
+                        if relap is not None and rdata['count'] and rdata[
+                                'count'] > 1:
                             rdata['elapsed'] = relap.round(self.precision)
                             at = tod.mktod(relap.timeval / rdata['count'])
                             rdata['average'] = at.round(self.precision)
@@ -1492,8 +1490,8 @@ class irtt(rms):
             if ct is not None:
                 if distance is not None:
                     rawspeed = ct.speed(dist=1000.0 * distance,
-                                        minspeed=_MINSPEED,
-                                        maxspeed=_MAXSPEED)
+                                        minspeed=self.meet.minavg,
+                                        maxspeed=self.meet.maxavg)
                     if rawspeed is not None:
                         avgfmt = 'Average speed of the winner: %0.1f\u2006km/h'
                         if residual > 0:

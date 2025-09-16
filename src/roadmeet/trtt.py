@@ -44,9 +44,9 @@ COL_STOFT = 12  # start time 'offset' - only reported in result
 COL_BONUS = 13
 COL_PENALTY = 14
 COL_RFSEEN = 15  # list of tods this rider 'seen' by rfid
-
-# team reference column
-COL_TEAM = 16  # stored team ref for quick refs
+COL_LAPCOLOUR = 16  # bgcolour for lap cell
+COL_SEEN = 17  # flag for any rf passing detected
+COL_TEAM = 18  # team code
 
 # Nth wheel decides whose time is counted to the team
 NTH_WHEEL = 3
@@ -87,6 +87,13 @@ _CONFIG_SCHEMA = {
         'attr': 'totlaps',
         'subtext': '(Cat laps override)',
         'hint': 'Default target number of laps for event',
+    },
+    'passingsource': {
+        'prompt': 'Loop ID:',
+        'control': 'short',
+        'type': 'int',
+        'attr': 'passingsource',
+        'hint': 'Loop ID for valid passings',
     },
     'defaultnth': {
         'prompt': 'Nth Wheel:',
@@ -244,7 +251,7 @@ class trtt(rms):
                 'intermeds': [],
                 'contests': [],
                 'tallys': [],
-                'passingsource': [],
+                'passingsource': None,
                 'nthwheel': {},
                 'startlist': '',
             }
@@ -260,6 +267,7 @@ class trtt(rms):
 
         # load result categories
         self.loadcats(cr.get_value('trtt', 'categories').upper().split())
+        self.passingsource = cr.get('trtt', 'passingsource')
 
         # read in category specific nth wheel overrides
         _log.debug('Default Nth Wheel: %r', self.defaultnth)
@@ -269,10 +277,6 @@ class trtt(rms):
             self.nthwheel = {}
         if len(self.nthwheel) > 0:
             _log.debug('Nth Wheel: %r', self.nthwheel)
-
-        self.passingsource = []
-        for source in cr.get('trtt', 'passingsource'):
-            self.passingsource.append(source.lower())  # force lower case
 
         # check gapthresh
         if self.gapthresh != GAPTHRESH:
@@ -304,6 +308,7 @@ class trtt(rms):
                         nr[COL_INRACE] = strops.confopt_bool(ril[1])
                     if lr > 2:
                         nr[COL_LAPS] = strops.confopt_posint(ril[2])
+                        nr[COL_LAPCOLOUR] = self.bgcolour(nr[COL_LAPS])
                     if lr > 3:
                         nr[COL_RFTIME] = tod.mktod(ril[3])
                     if lr > 4:
@@ -936,10 +941,16 @@ class trtt(rms):
             sec = report.bullet_text(secid)
             if wt is not None:
                 if distance is not None:
-                    sec.lines.append([
-                        None, 'Average speed of the winner: ' +
-                        wt.speedstr(1000.0 * distance)
-                    ])
+                    rawspeed = wt.speed(dist=1000.0 * distance,
+                                        minspeed=self.meet.minavg,
+                                        maxspeed=self.meet.maxavg)
+                    if rawspeed is not None:
+                        avgfmt = 'Average speed of the winner: %0.1f\u2006km/h'
+                        sec.lines.append((None, avgfmt % (rawspeed, )))
+                    else:
+                        _log.info(
+                            'Skipped suspicious avg speed for %s over distance %0.1fkm',
+                            cat, distance)
             sec.lines.append([None, 'Number of teams: ' + str(teamCnt)])
             ret.append(sec)
 
@@ -1100,7 +1111,7 @@ class trtt(rms):
         if bib:
             nr = [
                 bib, '', '', '', '', True, '', 0, 0, None, None, None,
-                tod.ZERO, None, None, [], ''
+                tod.ZERO, None, None, [], self.cmap[-1], '', ''
             ]
             dbr = self.meet.rdb.get_rider(bib, self.series)
             if dbr is not None:
@@ -1232,6 +1243,10 @@ class trtt(rms):
 
                 # announce all rider passings
                 self.announce_rider('', bib, lr[COL_NAMESTR], lr[COL_CAT], e)
+
+        # update lap colour for this rider
+        lr[COL_LAPCOLOUR] = self.bgcolour(lr[COL_LAPS], lr[COL_SEEN])
+
         return False
 
     def finsprint(self, places):
@@ -1399,6 +1414,13 @@ class trtt(rms):
             if not inrace:
                 rtime = tod.MAX
                 rplace = r[COL_COMMENT]
+
+            # flag any manually edited riders as 'seen' and reset bg colour
+            if rplace:
+                r[COL_SEEN] = 'MAN'
+            if not r[COL_LAPS]:
+                r[COL_LAPCOLOUR] = self.bgcolour(r[COL_LAPS], r[COL_SEEN])
+
             aux.append((stime, tlabel, not inrace, strops.dnfcode_key(rplace),
                         -rlaps, rtime, idx, rbib))
             idx += 1
@@ -1514,7 +1536,7 @@ class trtt(rms):
         self.decisions = []
         self.ridermark = None
         self.cats = []
-        self.passingsource = []  # list of decoders we accept passings from
+        self.passingsource = None  # loop id no for valid passing
         self.autofinish = False  # true if finish is det by target
         self.catplaces = {}
         self.catlaps = {}  # cache of cat lap counts
@@ -1530,6 +1552,9 @@ class trtt(rms):
         self.clubmode = False
         self.allowspares = False
         self.gapthresh = GAPTHRESH  # time gap to set new time
+
+        self.cmap = meet.get_colourmap()
+        self.cmapmod = len(self.cmap) - 1
 
         # intermediates
         self.reserved_sources = RESERVED_SOURCES
@@ -1567,7 +1592,9 @@ class trtt(rms):
             object,  # gobject.TYPE_PYOBJECT,  # BONUS = 13
             object,  # gobject.TYPE_PYOBJECT,  # PENALTY = 14
             object,  # gobject.TYPE_PYOBJECT,  # RFSEEN = 15
-            str,  # gobject.TYPE_STRING)  # TEAM = 16
+            str,  # LAPCOLOUR = 16
+            str,  # SEEN = 17
+            str,  # gobject.TYPE_STRING)  # TEAM = 18
         )
 
         b = uiutil.builder('rms.ui')
@@ -1604,7 +1631,8 @@ class trtt(rms):
                                 'Lap',
                                 COL_LAPS,
                                 width=40,
-                                cb=self.editlap_cb)
+                                cb=self.editlap_cb,
+                                bgcol=COL_LAPCOLOUR)
             uiutil.mkviewcoltod(t,
                                 'Start',
                                 cb=self.showstart_cb,
