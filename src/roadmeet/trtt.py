@@ -193,6 +193,13 @@ _CONFIG_SCHEMA = {
         'hint': 'Add spare bike passings to event as placeholders',
         'default': False,
     },
+    'series': {
+        'prompt': 'Series:',
+        'control': 'short',
+        'hint': 'Rider number series',
+        'attr': 'series',
+        'default': '',
+    },
 }
 
 
@@ -201,25 +208,25 @@ class trtt(rms):
     def team_start_times(self):
         """Scan riders and patch start times from team entry."""
         self.teamnames = {}
-        self.teamuci = {}
+        self.teamclass = {}
         teamstarts = {}
         # pass 1: extract team times and names
         for r in self.riders:
             nt = r[COL_TEAM]
             if nt not in teamstarts:
-                teamUci = ''
+                teamClass = ''
                 teamName = nt
                 st = tod.ZERO
                 dbr = self.meet.rdb.get_rider(nt, 'team')
                 if dbr is not None:
                     st = tod.mktod(dbr['refid'])
                     teamName = dbr['first']
-                    teamUci = dbr['uci id']
+                    teamClass = dbr['class']
                 else:
                     _log.warning('No team entry found for %r (rider: %s)', nt,
                                  r[COL_BIB])
                 self.teamnames[nt] = teamName
-                self.teamuci[nt] = teamUci
+                self.teamclass[nt] = teamClass
                 teamstarts[nt] = st
 
         # pass 2: patch start times if present
@@ -507,8 +514,8 @@ class trtt(rms):
             rname = r[COL_SHORTNAME]
             rteam = r[COL_TEAM]
             rstart = r[COL_STOFT]
-            ruci = None
-            tuci = None
+            rcls = None
+            tcls = None
             if rstart is None:
                 rstart = tod.MAX
             if rteam != lteam:  # issue team time
@@ -516,9 +523,9 @@ class trtt(rms):
                 tcat = self.ridercat(riderdb.primary_cat(cs))
                 dbr = self.meet.rdb.get_rider(rteam, 'team')
                 if dbr is not None:
-                    tuci = dbr['uci id']
-                if not tuci and tcat == '':
-                    tuci = cs
+                    tcls = dbr['class']
+                if not tcls and tcat == '':
+                    tcls = cs
                 if lcat != tcat:
                     tcount = 0
                     catname = ''
@@ -557,13 +564,13 @@ class trtt(rms):
                 if self.relativestart:
                     startStr = rstart.rawtime(0)
                 sec.lines.append(
-                    [startStr, tcodestr, tname, tuci, '___', cstr])
+                    (startStr, tcodestr, tname, tcls, '___', cstr))
                 lteam = rteam
             if self.showriders:
                 dbr = self.meet.rdb.get_rider(rno, self.series)
                 if dbr is not None:
-                    ruci = dbr['uci id']
-                sec.lines.append([None, rno, rname, ruci, None, None, None])
+                    rcls = dbr['class']
+                sec.lines.append((None, rno, rname, rcls, None, None, None))
         ret.append(sec)
         return ret
 
@@ -616,9 +623,14 @@ class trtt(rms):
             self.riders.reorder([a[6] for a in aux])
         return cnt
 
+    def laptime_report(self):
+        """Laptime report not yet supported."""
+        return ()
+
     def camera_report(self):
         """Return the judges (camera) report."""
         # Note: camera report treats all riders as a single blob
+        # TODO: Repair laplines
         ret = []
         self.recalculate()  # fill places and bunch info, order by arrival
         pthresh = self.meet._timer.photothresh()
@@ -857,12 +869,11 @@ class trtt(rms):
                         # this team has a finish time
                         finCnt += 1
                         auxTime = self.teamtimes[rteam]
-                        tUci = ''
-                        tUci = self.teamuci[rteam]
+                        tcls = self.teamclass[rteam]
                         teamAux.append((auxTime, teamCnt, rteam))
                         teamRes[rteam]['time'] = auxTime
                         teamRes[rteam]['tline'] = [
-                            None, rteam, self.teamnames[rteam], tUci,
+                            None, rteam, self.teamnames[rteam], tcls,
                             auxTime.rawtime(1), ''
                         ]
                 rTime = ''
@@ -877,12 +888,12 @@ class trtt(rms):
                             rTime = '[+' + rDown.rawtime(1) + ']'
                 else:
                     rCom = r[COL_COMMENT]
-                rUci = ''
+                rcls = ''
                 dbr = self.meet.rdb.get_rider(rBib, self.series)
                 if dbr is not None:
-                    rUci = dbr['uci id']
+                    rcls = dbr['class']
                 teamRes[rteam]['rlines'].append(
-                    [rCom, rBib, rName, rUci, rTime, ''])
+                    (rCom, rBib, rName, rcls, rTime, ''))
 
         # sort, patch ranks and append result section
         teamAux.sort()
@@ -1513,7 +1524,7 @@ class trtt(rms):
         self.teamtimes = {}
         self.teamnth = {}
         self.teamcats = {}
-        self.teamuci = {}
+        self.teamclass = {}
         self.teammap = {}
         self.announced_teams = set()
         self.announce_team = None

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.13'
+__version__ = '1.13.14a2'
 
 import sys
 import gi
@@ -546,6 +546,9 @@ class roadmeet:
 
         # reset timer ports
         if res['timer'][0] or res['alttimer'][0] or timerchg:
+            # force disconnect and close of current timer handle
+            self._timer = mkdevice(None, self._timer)
+            # trigger re-connect with new values
             self.menu_timing_reconnect_activate_cb(None)
 
         self.set_title()
@@ -757,9 +760,10 @@ class roadmeet:
         sec.grey = True
         aux = []
         # add all riders, but mark those not in race
+        cnt = 0
         for rid, dbr in self.rdb.items():
-            cnt = 0
-            if dbr['series'] not in ('spare', 'cat', 'team', 'ds', 'series'):
+            if dbr['series'] not in ('spare', 'cat', 'team', 'ds', 'series',
+                                     'pilot'):
                 namekey = ''.join(
                     (dbr['last'].lower(), dbr['first'].lower()[0:2]))
                 aux.append((namekey, cnt, dbr))

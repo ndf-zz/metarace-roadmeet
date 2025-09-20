@@ -250,6 +250,13 @@ _CONFIG_SCHEMA = {
         'hint': 'Add spare bike passings to event as placeholders',
         'default': False,
     },
+    'series': {
+        'prompt': 'Series:',
+        'control': 'short',
+        'hint': 'Rider number series',
+        'attr': 'series',
+        'default': '',
+    },
 }
 
 
@@ -789,7 +796,10 @@ class rms:
         cnt = 0
         for tally in self.tallys:
             sec = report.section('points-' + tally)
-            sec.heading = tally.upper() + ' ' + self.tallymap[tally]['descr']
+            descr = tally.upper()
+            if self.tallymap[tally]['descr']:
+                descr = self.tallymap[tally]['descr']
+            sec.heading = descr
             sec.units = 'pt'
             tallytot = 0
             aux = []
@@ -1044,36 +1054,34 @@ class rms:
             cs = r[COL_CAT]
             rcat = self.ridercat(riderdb.primary_cat(cs))
             if cat == rcat:
-                ucicode = None
                 name = r[COL_NAMESTR]
                 notes = []
-                note = None
+                pilot = None
+                note = None  # extra info from rider db for callup
                 dbr = self.meet.rdb.get_rider(r[COL_BIB], self.series)
                 if dbr is not None:
-                    ucicode = dbr['uci id']
-                    if ucicode:
-                        notes.append(ucicode)
+                    cls = dbr['class']
+                    if cls:
+                        notes.append(cls)
                     note = dbr['note']
-                comment = ''
+                    pilot = self.meet.rdb.get_pilot(dbr)
+                comment = ''  # call up order number, or blank
                 if callup:
                     comment = str(rcnt + 1) + '.'
                     if note:
                         notes.append('[%s]' % (note, ))
-                if not r[COL_INRACE]:
+                if not r[COL_INRACE]:  # overwrite comment if non-starter
                     cmt = r[COL_COMMENT]
                     if cmt == 'dns':
                         comment = cmt
-                riderno = r[COL_BIB].translate(strops.INTEGER_UTRANS)
+                riderno = r[COL_BIB].translate(strops.INTEGER_UTRANS)  # why?
                 sec.lines.append([comment, riderno, name, ' '.join(notes)])
-                # Look up pilots
-                if cat in ('MB', 'WB'):
-                    # lookup pilot
-                    dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
-                    if dbr is not None:
-                        sec.even = True  # force even first column
-                        puci = dbr['uci id']
-                        pnam = dbr.listname()
-                        sec.lines.append(['', '', pnam, puci])
+                if pilot is not None:
+                    sec.pilots = True  # flag presence of a pilot
+                    pcls = pilot['class']
+                    if not pcls:
+                        pcls = 'pilot'
+                    sec.lines.append(('', '', pilot.listname(), pcls))
                 rcnt += 1
         fvc = []
         if footer:
@@ -3396,10 +3404,17 @@ class rms:
                     if r is not None:
                         cs = r[COL_CAT]
                         rcat = self.ridercat(riderdb.primary_cat(cs))
-                        cstr = rcat
-                        # in handicap result, cat overrides UCIID
-                        if cstr.upper() in catcache:
-                            cstr = catcache[cstr.upper()]
+                        cls = rcat
+                        pilot = None
+                        if self.etype == 'handicap':
+                            # in handicap result, cat overrides class label
+                            if cls.upper() in catcache:
+                                cls = catcache[cls.upper()]
+                        else:
+                            dbr = self.meet.rdb.get_rider(bib, self.series)
+                            if dbr is not None:
+                                cls = dbr['class']
+                                pilot = self.meet.rdb.get_pilot(dbr)
                         xtra = None
                         if dotime:
                             bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
@@ -3411,10 +3426,13 @@ class rms:
                         elif points is not None:
                             if curplace <= len(points):
                                 xtra = str(points[curplace - 1])
-                        lines.append([
-                            str(curplace) + '.', bib, r[COL_NAMESTR], cstr,
-                            None, xtra
-                        ])
+                        lines.append((str(curplace) + '.', bib, r[COL_NAMESTR],
+                                      cls, None, xtra))
+                        if pilot is not None:
+                            pcls = pilot['class']
+                            if not pcls:
+                                pcls = 'pilot'
+                            lines.append(('', '', pilot.listname(), pcls))
                     idx += 1
                 else:
                     _log.warning('Duplicate in places: %s', bib)

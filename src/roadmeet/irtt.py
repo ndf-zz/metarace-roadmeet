@@ -970,14 +970,12 @@ class irtt(rms):
 
     def signon_report(self):
         """Return a signon report."""
-        ret = []
         sec = report.signon_list('signon')
         self.reorder_signon()
         for r in self.riders:
             cmt = r[COL_COMMENT]
-            sec.lines.append([cmt, r[COL_BIB], r[COL_NAMESTR]])
-        ret.append(sec)
-        return ret
+            sec.lines.append((cmt, r[COL_BIB], r[COL_NAMESTR]))
+        return (sec, )
 
     def callup_report(self):
         """Return a TT call up report."""
@@ -985,8 +983,9 @@ class irtt(rms):
         ret = []
         if len(self.cats) > 1 and not self.onestartlist:
             for c in self.cats:
+                if ret:
+                    ret.append(report.pagebreak(0.05))
                 ret.extend(self.callup_report_gen(c))
-                ret.append(report.pagebreak(0.05))
         else:
             ret = self.callup_report_gen()
         return ret
@@ -1034,12 +1033,13 @@ class irtt(rms):
             rcat = self.ridercat(pricat)
             if self.onestartlist or cat == rcat:
                 rcnt += 1
-                ucicode = None
+                cls = None
                 name = r[COL_NAMESTR]
                 dbr = self.meet.rdb.get_rider(bib, series)
+                pilot = None
                 if dbr is not None:
-                    ucicode = dbr['uci id']
-                comment = ''
+                    cls = dbr['class']
+                    pilot = self.meet.rdb.get_pilot(dbr)
                 bstr = bib.upper()
                 stxt = ''
                 if r[COL_WALLSTART] is not None:
@@ -1053,14 +1053,12 @@ class irtt(rms):
                     cstr = pricat
                     if cstr in catnamecache and len(catnamecache[cstr]) < 8:
                         cstr = catnamecache[cstr]
-                sec.lines.append([stxt, bstr, name, ucicode, '____', cstr])
-                if cstr in ('MB', 'WB'):
-                    # lookup pilot - series lookup
-                    dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
-                    if dbr is not None:
-                        puci = dbr['uci id']
-                        pnam = dbr.listname()
-                        sec.lines.append(['', '', pnam, puci, '', 'pilot'])
+                sec.lines.append((stxt, bstr, name, cls, '____', cstr))
+                if pilot is not None:
+                    pcls = pilot['class']
+                    if not pcls:
+                        pcls = 'pilot'
+                    sec.lines.append(('', '', pilot.listname(), pcls, '', ''))
 
         fvc = []
         if footer:
@@ -1098,8 +1096,6 @@ class irtt(rms):
                 cs = r[COL_CAT]
                 catstr = riderdb.primary_cat(cs)
                 cat = self.ridercat(catstr)
-                if cat:
-                    cbr = cat
                 if plstr.isdigit():  # rider placed at finish
                     if r[COL_TODFINISH] > fromtime and r[
                             COL_TODFINISH] < totime:
@@ -1108,13 +1104,8 @@ class irtt(rms):
                         reta = et
                         ets = et.rawtime(self.precision)
                         rankstr = '(' + plstr + '.)'
-                        #speedstr = ''
-                        # cat distance should override this
-                        #if self.meet.distance is not None:
-                        #speedstr = et.speedstr(1000.0 * self.meet.distance)
                     else:
                         noshow = True
-                        #speedstr = ''
                 elif r[COL_ETA] is not None:
                     # append km mark if available - dist based inters only
                     if r[COL_PASS] > 0:
@@ -1140,28 +1131,21 @@ class irtt(rms):
                         tplstr = str(trk + 1)
                         trankstr = ' (' + tplstr + '.)'
                         turnstr = tet.rawtime(self.precision) + trankstr
-                        #if not speedstr:
-                        # override speed from turn
-                        #speedstr = ''
-                        #dist = self.ischem[self.showinter]['dist']
-                        #if dist is not None:
-                        #speedstr = tet.speedstr(1000.0 * dist)
                     else:
                         pass
 
                 if not noshow:
                     if ets or turnstr:  # only add riders with an estimate
-                        aux.append(
-                            (rarr, reta, count,
-                             [rankstr, bstr, nstr, turnstr, ets, catstr]))
+                        aux.append((rarr, reta, count, (rankstr, bstr, nstr,
+                                                        turnstr, ets, catstr)))
                         count += 1
-
-        # reorder by arrival times
-        aux.sort()
 
         # transfer rows into report section and return
         sec = report.section('arrivals')
         if aux:
+            # reorder by arrival times
+            aux.sort()
+
             intlbl = None
             if self.showinter is not None:
                 intlbl = 'Inter'
@@ -1171,7 +1155,7 @@ class irtt(rms):
                 sec.heading = 'Riders On Course'
             else:
                 sec.heading = 'Recent Arrivals'
-            sec.colheader = [None, None, None, intlbl, 'Finish', '']
+            sec.colheader = (None, None, None, intlbl, 'Finish', '')
             pr = ''
             project = False
             for r in aux:
@@ -1181,7 +1165,7 @@ class irtt(rms):
                     project = True
                 if not rank and pr:
                     # add a spacer for intermeds
-                    sec.lines.append(['', '', ''])
+                    sec.lines.append(('', '', ''))
                 pr = rank
                 sec.lines.append(hr)
             if project:
@@ -1200,7 +1184,7 @@ class irtt(rms):
         # todo: generalise to more than the preallocated inters
         sec = report.laptimes()
         sec.heading = 'Lap Times'
-        sec.colheader = ['', '', '', 'lap', '']
+        sec.colheader = ['', '', '', 'lap', '']  # appended later
         sec.precision = self.precision
         maxcount = 0
         oneavg = False
@@ -1211,7 +1195,7 @@ class irtt(rms):
         for inter in self.interlaps.values():
             # assume in order
             if inter:
-                lapcols.append(inter[0])  # W F T ?
+                lapcols.append(inter[0])
         _log.debug('Looking for %d interlaps in cols: %r', len(lapcols),
                    lapcols)
 
@@ -1338,7 +1322,7 @@ class irtt(rms):
         count = 0
         sec = report.section('judging')
         sec.heading = 'Judges Report'
-        sec.colheader = ['Hit', None, None, 'Start', 'Fin', 'Net']
+        sec.colheader = ('Hit', None, None, 'Start', 'Fin', 'Net')
         for r in aux:
             hr = r[5]
             if not r[4]:
@@ -1346,7 +1330,7 @@ class irtt(rms):
             sec.lines.append(hr)
             count += 1
             if count % 10 == 0:
-                sec.lines.append([None, None, None])
+                sec.lines.append((None, None, None))
         ret = []
         if len(sec.lines) > 0:
             ret.append(sec)
@@ -1412,18 +1396,20 @@ class irtt(rms):
                 if cat:
                     rcat = cat
                 else:
-                    rcat = rcats[0]  # (work-around mis-categorised rider)
+                    rcat = rcats[0]  # (work-around for mis-categorised rider)
                 placed = False
                 totcount += 1
                 ft = self.getelapsed(r.iter)
                 bstr = r[COL_BIB]
                 nstr = r[COL_NAMESTR]
-                cstr = ''
+                cls = ''
+                pilot = None
                 if cat == '':  # categorised result does not need cat
-                    cstr = rcat
+                    cls = rcat
                 dbr = self.meet.rdb.get_rider(bstr, self.series)
                 if dbr is not None:
-                    cstr = dbr['uci id']
+                    cls = dbr['class']
+                    pilot = self.meet.rdb.get_pilot(dbr)
                 if ct is None:
                     ct = ft
                 pstr = None
@@ -1446,7 +1432,7 @@ class irtt(rms):
                         if lpstr != pstr:
                             ## append an empty row
                             sec.lines.append(
-                                [None, None, None, None, None, None])
+                                (None, None, None, None, None, None))
                             lpstr = pstr
                 tstr = None
                 if not r[COL_COMMENT] and ft is not None:
@@ -1456,14 +1442,13 @@ class irtt(rms):
                         COL_COMMENT] and ct is not None and ft is not None and ct != ft:
                     dstr = '+' + (ft - ct).rawtime(1)
                 if placed:
-                    sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
-                    if cat in ('WB', 'MB'):  #also look up pilots
-                        # lookup pilot - series lookup
-                        dbr = self.meet.rdb.get_rider(r[COL_BIB], 'pilot')
-                        if dbr is not None:
-                            puci = dbr['uci id']
-                            pnam = dbr.listname()
-                            sec.lines.append(['', 'pilot', pnam, puci, '', ''])
+                    sec.lines.append((pstr, bstr, nstr, cls, tstr, dstr))
+                    if pilot is not None:
+                        pcls = pilot['class']
+                        if not pcls:
+                            pcls = 'pilot'
+                        sec.lines.append(
+                            ('', '', pilot.listname(), pcls, '', ''))
 
         residual = totcount - (fincount + dnfcount + dnscount + hdcount)
 
@@ -1502,15 +1487,14 @@ class irtt(rms):
                             'Skipped suspicious avg speed for %s over distance %0.1fkm',
                             cat, distance)
             sec.lines.append(
-                [None, 'Number of starters: ' + str(totcount - dnscount)])
+                (None, 'Number of starters: ' + str(totcount - dnscount)))
             if hdcount > 0:
-                sec.lines.append([
-                    None,
-                    'Riders finishing out of time limits: ' + str(hdcount)
-                ])
+                sec.lines.append(
+                    (None,
+                     'Riders finishing out of time limits: ' + str(hdcount)))
             if dnfcount > 0:
                 sec.lines.append(
-                    [None, 'Riders abandoning the event: ' + str(dnfcount)])
+                    (None, 'Riders abandoning the event: ' + str(dnfcount)))
             ret.append(sec)
 
             # finish report title manipulation
@@ -1576,17 +1560,17 @@ class irtt(rms):
                 if dbr is not None:
                     name = dbr.fitname(16)
                 cat = cs
-                yield [start, bib, series, name, cat]
+                yield (start, bib, series, name, cat)
 
     def lifexport(self):
         _log.info('LIF export not supported for IRTT event')
-        return []
+        return ()
 
     def get_elapsed(self):
         return None
 
     def result_gen(self, cat=''):
-        """Generator function to export a final result."""
+        """Return list of final result."""
         self.recalculate()
         ret = []
         mcat = self.ridercat(cat)
