@@ -12,6 +12,23 @@
 
 ### Security
 
+## [1.13.14] - 2025-12-05
+
+### Added
+
+   - add time factors lookup utility
+
+### Changed
+
+   - display competitor Class Label in info column instead of UCI ID
+   - include pilot info by riderdb lookup
+   - update application ID
+
+### Fixed
+
+   - create new decoder handle on change of configuration
+   - fix number collection counter to preserve duplicate ordering
+
 ## [1.13.13] - 2025-09-16
 
 ### Added
