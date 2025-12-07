@@ -76,40 +76,14 @@ ARMTEXT = '       0.0   '
 MAX_HEIGHT_FACTOR = 0.9  # Limit window natural height to 90% of screen
 MAX_HEIGHT_MIN = 520  # Min natural height in case screen info is degenerate
 
-# Button indications
-_button_images = {
-    'idle': {
-        'src': 'bg_idle.svg'
-    },
-    'activity': {
-        'src': 'bg_armint.svg'
-    },
-    'ok': {
-        'src': 'bg_armstart.svg'
-    },
-    'error': {
-        'src': 'bg_armfin.svg'
-    },
-}
-
-
-def _load_images(store):
-    """Create image handles for the status button"""
-    for b in store:
-        img = store[b]
-        with metarace.resource_file(img['src']) as fn:
-            img['image'] = Gtk.Image.new_from_file(str(fn))
-
 
 class statButton(Gtk.Box):
 
     def __init__(self):
         Gtk.Box.__init__(self)
-        if 'image' not in _button_images['idle']:
-            _load_images(_button_images)
-        srcbuf = _button_images['idle']['image'].get_pixbuf()
         self.__curbg = 'idle'
-        self.__image = Gtk.Image.new_from_pixbuf(srcbuf)
+        self.__image = Gtk.Image.new_from_icon_name(
+            metarace.action_icon(self.__curbg), Gtk.IconSize.BUTTON)
         self.__image.show()
         self.__label = Gtk.Label.new('--')
         self.__label.set_width_chars(12)
@@ -125,9 +99,9 @@ class statButton(Gtk.Box):
 
     def update(self, bg=None, label=None):
         """Update button content"""
-        if bg is not None and bg != self.__curbg and bg in _button_images:
-            srcbuf = _button_images[bg]['image'].get_pixbuf()
-            self.__image.set_from_pixbuf(srcbuf)
+        if bg is not None and bg != self.__curbg:
+            self.__image.set_from_icon_name(metarace.action_icon(bg),
+                                            Gtk.IconSize.BUTTON)
             self.__curbg = bg
         if label is not None:
             self.__label.set_text(label)
@@ -457,19 +431,18 @@ class timerpane:
     def __init__(self, label='Timer', doser=False):
         """Constructor."""
         _log.debug('Building timerpane: %r', label)
+        self.label = label
         s = Gtk.Frame.new(label)
         s.set_border_width(5)
         s.set_shadow_type(Gtk.ShadowType.IN)
         s.show()
         self.doser = doser
 
-        #v = Gtk.VBox(False, 5)
         v = Gtk.Box.new(Gtk.Orientation.VERTICAL, 5)
         v.set_homogeneous(False)
         v.set_border_width(5)
 
         # Bib and name label
-        #h = Gtk.HBox(False, 5)
         h = Gtk.Box.new(Gtk.Orientation.HORIZONTAL, 5)
         h.set_homogeneous(False)
         l = Gtk.Label.new('Rider #:')
@@ -505,7 +478,6 @@ class timerpane:
         v.pack_start(self.ck, True, True, 0)
 
         # Timer ctrl/status button
-        #h = Gtk.HBox(False, 5)
         h = Gtk.Box.new(Gtk.Orientation.HORIZONTAL, 5)
         h.set_homogeneous(False)
 
