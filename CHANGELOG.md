@@ -12,6 +12,21 @@
 
 ### Security
 
+## [1.13.15] - 2026-01-01
+
+### Added
+
+   - add placeholder "UCI" startlist and result reports
+
+### Changed
+
+   - normalise pilot reporting on startlist/result reports
+   - replace stat button icons with symbolic icon names
+
+### Fixed
+
+   - dsplay class label on startlist/result
+
 ## [1.13.14] - 2025-12-05
 
 ### Added
