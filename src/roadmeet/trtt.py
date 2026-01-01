@@ -567,10 +567,14 @@ class trtt(rms):
                     (startStr, tcodestr, tname, tcls, '___', cstr))
                 lteam = rteam
             if self.showriders:
+                pilot = None
                 dbr = self.meet.rdb.get_rider(rno, self.series)
                 if dbr is not None:
                     rcls = dbr['class']
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 sec.lines.append((None, rno, rname, rcls, None, None, None))
+                if pilot is not None:
+                    sec.lines.append(pilot)
         ret.append(sec)
         return ret
 
@@ -889,11 +893,13 @@ class trtt(rms):
                 else:
                     rCom = r[COL_COMMENT]
                 rcls = ''
+                pilot = None
                 dbr = self.meet.rdb.get_rider(rBib, self.series)
                 if dbr is not None:
                     rcls = dbr['class']
+                    pilot = self.meet.rdb.get_pilot.line(dbr)
                 teamRes[rteam]['rlines'].append(
-                    (rCom, rBib, rName, rcls, rTime, ''))
+                    (rCom, rBib, rName, rcls, rTime, '', pilot))
 
         # sort, patch ranks and append result section
         teamAux.sort()
@@ -923,7 +929,10 @@ class trtt(rms):
             first = False
             sec.lines.append(teamRes[team]['tline'])
             if self.showriders:
-                sec.lines.extend(teamRes[team]['rlines'])
+                for l in teamRes[team]['rlines']:
+                    sec.lines.append(l[0:6])
+                    if l[6] is not None:  # pilot
+                        sec.lines.append(l[6])
 
             lt = teamTime
 

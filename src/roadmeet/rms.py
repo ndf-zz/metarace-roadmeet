@@ -805,6 +805,10 @@ class rms:
             aux = []
             for i, bib in enumerate(self.points[tally]):
                 r = self.getrider(bib)
+                pilot = None
+                dbr = self.meet.rdb.get_rider(bib, self.series)
+                if dbr is not None:
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 tallytot += self.points[tally][bib]
                 aux.append(
                     (-self.points[tally][bib], -self.pointscb[tally][bib],
@@ -813,10 +817,12 @@ class rms:
                       strops.truncpad(str(self.pointscb[tally][bib]),
                                       16,
                                       ellipsis=True), None,
-                      str(self.points[tally][bib]))))
+                      str(self.points[tally][bib])), pilot))
             aux.sort()
             for r in aux:
                 sec.lines.append(r[4])
+                if r[5] is not None:  # pilot
+                    sec.lines.append(r[5])
             _log.debug('Total points for %r: %r', tally, tallytot)
             ret.append(sec)
 
@@ -1064,7 +1070,7 @@ class rms:
                     if cls:
                         notes.append(cls)
                     note = dbr['note']
-                    pilot = self.meet.rdb.get_pilot(dbr)
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 comment = ''  # call up order number, or blank
                 if callup:
                     comment = str(rcnt + 1) + '.'
@@ -1078,10 +1084,7 @@ class rms:
                 sec.lines.append([comment, riderno, name, ' '.join(notes)])
                 if pilot is not None:
                     sec.pilots = True  # flag presence of a pilot
-                    pcls = pilot['class']
-                    if not pcls:
-                        pcls = 'pilot'
-                    sec.lines.append(('', '', pilot.listname(), pcls))
+                    sec.lines.append(pilot)
                 rcnt += 1
         fvc = []
         if footer:
@@ -1506,10 +1509,12 @@ class rms:
                 tstr = ''  # cross laps down
                 dstr = ''  # time/gap
                 cstr = ''
+                pilot = None
                 rpass = None
                 dbr = self.meet.rdb.get_rider(bstr, self.series)
                 if dbr is not None:
-                    cstr = dbr['uci id']
+                    cstr = dbr['class']
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 placed = False  # placed at finish
                 timed = False  # timed at finish
                 virtual = False  # oncourse
@@ -1648,15 +1653,9 @@ class rms:
                     pstr = comment
                 if placed or timed or virtual:
                     sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
-                    # and look up pilots?
-                    if cat in ('MB', 'WB'):
-                        sec.even = True  # twocol result
-                        # lookup pilot
-                        dbr = self.meet.rdb.get_rider(bstr, 'pilot')
-                        if dbr is not None:
-                            puci = dbr['uci id']
-                            pnam = dbr.listname()
-                            sec.lines.append(['', 'pilot', pnam, puci, '', ''])
+                    if pilot is not None:
+                        sec.lines.append(pilot)
+                        sec.even = True  # Check / twocol
                 if doflap and comment != 'dns':
                     if len(r[COL_RFSEEN]) > 0:
                         # only consider laps between stime and ftime
@@ -1911,12 +1910,16 @@ class rms:
             cs = r[COL_CAT]
             cstr = riderdb.primary_cat(cs)  # 'cat'
             rcat = self.ridercat(cstr)
-            # in handicap result, cat overrides UCIID
+            # in handicap result, cat overrides class label
             if cstr.upper() in catcache:
                 cstr = catcache[cstr.upper()]
             pstr = ''  # 'place'
             tstr = ''  # 'elap' (hcp only)
             dstr = ''  # 'time/gap'
+            pilot = None
+            dbr = self.meet.rdb.get_rider(bstr, self.series)
+            if dbr is not None:
+                pilot = self.meet.rdb.get_pilot_line(dbr)
             placed = False  # placed at finish
             timed = False  # timed at finish
             if r[COL_INRACE]:
@@ -2007,6 +2010,8 @@ class rms:
                 pstr = comment
             if placed or timed:
                 sec.lines.append([pstr, bstr, nstr, cstr, tstr, dstr])
+                if pilot is not None:
+                    sec.lines.append(pilot)
         ret.append(sec)
 
         # Race metadata / UCI comments
@@ -3406,15 +3411,16 @@ class rms:
                         rcat = self.ridercat(riderdb.primary_cat(cs))
                         cls = rcat
                         pilot = None
+                        dbr = self.meet.rdb.get_rider(bib, self.series)
+                        if dbr is not None:
+                            pilot = self.meet.rdb.get_pilot_line(dbr)
                         if self.etype == 'handicap':
                             # in handicap result, cat overrides class label
                             if cls.upper() in catcache:
                                 cls = catcache[cls.upper()]
                         else:
-                            dbr = self.meet.rdb.get_rider(bib, self.series)
                             if dbr is not None:
                                 cls = dbr['class']
-                                pilot = self.meet.rdb.get_pilot(dbr)
                         xtra = None
                         if dotime:
                             bt = self.vbunch(r[COL_CBUNCH], r[COL_MBUNCH])
@@ -3429,10 +3435,7 @@ class rms:
                         lines.append((str(curplace) + '.', bib, r[COL_NAMESTR],
                                       cls, None, xtra))
                         if pilot is not None:
-                            pcls = pilot['class']
-                            if not pcls:
-                                pcls = 'pilot'
-                            lines.append(('', '', pilot.listname(), pcls))
+                            lines.append(pilot)
                     idx += 1
                 else:
                     _log.warning('Duplicate in places: %s', bib)

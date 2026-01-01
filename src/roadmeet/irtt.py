@@ -1039,7 +1039,7 @@ class irtt(rms):
                 pilot = None
                 if dbr is not None:
                     cls = dbr['class']
-                    pilot = self.meet.rdb.get_pilot(dbr)
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 bstr = bib.upper()
                 stxt = ''
                 if r[COL_WALLSTART] is not None:
@@ -1055,10 +1055,7 @@ class irtt(rms):
                         cstr = catnamecache[cstr]
                 sec.lines.append((stxt, bstr, name, cls, '____', cstr))
                 if pilot is not None:
-                    pcls = pilot['class']
-                    if not pcls:
-                        pcls = 'pilot'
-                    sec.lines.append(('', '', pilot.listname(), pcls, '', ''))
+                    sec.lines.append(pilot)
 
         fvc = []
         if footer:
@@ -1409,7 +1406,7 @@ class irtt(rms):
                 dbr = self.meet.rdb.get_rider(bstr, self.series)
                 if dbr is not None:
                     cls = dbr['class']
-                    pilot = self.meet.rdb.get_pilot(dbr)
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 if ct is None:
                     ct = ft
                 pstr = None
@@ -1444,11 +1441,7 @@ class irtt(rms):
                 if placed:
                     sec.lines.append((pstr, bstr, nstr, cls, tstr, dstr))
                     if pilot is not None:
-                        pcls = pilot['class']
-                        if not pcls:
-                            pcls = 'pilot'
-                        sec.lines.append(
-                            ('', '', pilot.listname(), pcls, '', ''))
+                        sec.lines.append(pilot)
 
         residual = totcount - (fincount + dnfcount + dnscount + hdcount)
 
