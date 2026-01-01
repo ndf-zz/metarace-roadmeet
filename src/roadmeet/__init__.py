@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.15a1'
+__version__ = '1.13.15a2'
 
 import sys
 import gi
@@ -820,6 +820,96 @@ class roadmeet:
             self.print_report(sections,
                               self.curevent.timerstat != 'finished',
                               filename='result')
+
+    def ucistartlist(self):
+        """Return generic UCI style startlist sections for event."""
+        ret = []
+        secid = 'startlist'
+        sec = report.section(secid)
+        sec.heading = 'Startlist'
+        for r in self.curevent.startlist_gen():
+            # start, bib, series, name, cat, ...
+            rname = ''
+            ruci = ''
+            rnat = ''
+            rcls = ''
+            pilot = None
+            dbr = self.rdb.get_rider(r[1], r[2])
+            if dbr is not None:
+                rno = dbr['no']
+                rname = dbr.resname()
+                ruci = dbr['uciid']
+                rnat = dbr['nation']
+                rcls = dbr['class']
+                pilot = self.rdb.get_pilot_line(dbr, uci=True)
+            rk = ''
+            info = ''
+            if rcls:
+                info = rcls
+            sec.lines.append([rk, rno, rname, ruci, rnat, info])
+            if pilot:
+                sec.lines.append(pilot)
+        ret.append(sec)
+        return ret
+
+    def uciresult(self):
+        ret = []
+        secid = 'result'
+        sec = report.section(secid)
+        sec.heading = 'Result'
+        for r in self.curevent.result_gen():
+            # rank, bib.ser, time, bonus, penalty
+            # NOTE: series is not handled properly in rms/trtt
+            bib, series = strops.bibstr2bibser(r[1])
+            rname = ''
+            ruci = ''
+            rnat = ''
+            rcls = ''
+            pilot = None
+            dbr = self.rdb.get_rider(bib, series)
+            if dbr is not None:
+                rno = dbr['no']
+                rname = dbr.resname()
+                ruci = dbr['uciid']
+                rnat = dbr['nation']
+                rcls = dbr['class']
+                pilot = self.rdb.get_pilot_line(dbr, uci=True)
+            rk = r[0]
+            if isinstance(rk, int):
+                rk = str(rk) + '.'
+            info = ''
+            if rcls:
+                info = rcls
+            sec.lines.append([rk, rno, rname, ruci, rnat, info])
+            if pilot:
+                sec.lines.append(pilot)
+        ret.append(sec)
+
+        # append a decisions section
+        if self.curevent.decisions:
+            ret.append(self.curevent.decision_section())
+
+        return ret
+
+    def menu_reports_ucistartlist_activate_cb(self, menuitem, data=None):
+        """Generate the event uci startlist report."""
+        if self.curevent is not None:
+            sections = self.ucistartlist()
+            if not sections:
+                _log.warning('Empty UCI startlist report')
+            self.print_report(sections,
+                              self.curevent.timerstat != 'finished',
+                              filename='ucistartlist')
+
+    def menu_reports_uciresult_activate_cb(self, menuitem, data=None):
+        """Generate the event uci result report."""
+        if self.curevent is not None:
+            sections = self.uciresult()
+            if not sections:
+                _log.warning('Empty UCI result report')
+            self.print_report(sections,
+                              self.curevent.timerstat != 'finished',
+                              filename='uciresult')
 
     def menu_data_replace_activate_cb(self, menuitem, data=None):
         """Replace rider db from disk."""

@@ -235,6 +235,20 @@
                         <child>
                           <object class="GtkSeparatorMenuItem" id="menu_reports_sep"/>
                         </child>
+                        <child>
+                          <object class="GtkMenuItem" id="menu_reports_ucistartlist">
+                            <property name="label">UCI Startlist</property>
+                            <property name="visible">True</property>
+                            <signal name="activate" handler="menu_reports_ucistartlist_activate_cb"/>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkMenuItem" id="menu_reports_uciresult">
+                            <property name="label">UCI Result</property>
+                            <property name="visible">True</property>
+                            <signal name="activate" handler="menu_reports_uciresult_activate_cb"/>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
