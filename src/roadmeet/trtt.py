@@ -897,7 +897,7 @@ class trtt(rms):
                 dbr = self.meet.rdb.get_rider(rBib, self.series)
                 if dbr is not None:
                     rcls = dbr['class']
-                    pilot = self.meet.rdb.get_pilot.line(dbr)
+                    pilot = self.meet.rdb.get_pilot_line(dbr)
                 teamRes[rteam]['rlines'].append(
                     (rCom, rBib, rName, rcls, rTime, '', pilot))
 

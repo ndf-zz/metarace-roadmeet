@@ -434,7 +434,7 @@ class irtt(rms):
                             if st is not None:  # still none is error
                                 et = inter - st
                                 spd = (1000.0 * dist) / float(et.timeval)
-                                ret = tod.tod(str(totdist / spd))
+                                ret = tod.mktod(str(totdist / spd))
                                 self.riders.set_value(iter, COL_DIST,
                                                       int(dist))
                                 break
