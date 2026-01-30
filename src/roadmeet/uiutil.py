@@ -28,7 +28,7 @@ from metarace import tod
 from metarace import strops
 from metarace.jsonconfig import config
 from metarace.riderdb import rider
-from metarace.factors import Factors
+from metarace.standards import Factors, CategoryInfo
 
 _log = logging.getLogger('uiutil')
 _log.setLevel(logging.DEBUG)
@@ -53,7 +53,7 @@ _UPDATE_PROC = {
         'thread': None,
         'lock': threading.Lock()
     },
-    'factors': {
+    'standards': {
         'thread': None,
         'lock': threading.Lock()
     },
@@ -674,49 +674,24 @@ def run_update_check(callback=None, window=None):
             GLib.idle_add(callback, ret, window)
 
 
-def do_factors_update_done(updates=None, window=None):
-    """Flag completion of factors update."""
-    if updates is not None:
-        if updates:
-            _log.info('Updated packages available to install')
-            msg = ['New packages available to install:', '']
-            for p in updates:
-                msg.append(' - %s %s => %s' % p)
-            if questiondlg(window=window,
-                           question='Install updates?',
-                           subtext='\n'.join(msg),
-                           title='Updated Packages Available'):
-                GLib.idle_add(do_update, updates)
-            else:
-                _log.info('Updates not installed')
-        else:
-            _log.info('Installation up to date')
-    else:
-        _log.warning('Unable to check for updates')
-
-    return None
-
-
-def run_factors_update(filename=None):
-    """Perform factor update."""
+def run_standards_update():
+    """Perform standards update."""
     f = Factors()
-    f.update(filename)
-    _UPDATE_PROC['factors']['lock'].release()
-    _UPDATE_PROC['factors']['thread'] = None
+    f.update()
+    c = CategoryInfo()
+    c.update()
+    _UPDATE_PROC['standards']['lock'].release()
+    _UPDATE_PROC['standards']['thread'] = None
 
 
-def do_factors_update(window=None, filename=None):
-    """Trigger factors update with a completion callback."""
-    if not _UPDATE_PROC['factors']['lock'].acquire(False):
-        _log.info('Factor update already in progress')
+def do_standards_update(window=None):
+    """Trigger standards update."""
+    if not _UPDATE_PROC['standards']['lock'].acquire(False):
+        _log.info('Standards update already in progress')
         return None
-    tp = threading.Thread(target=run_factors_update,
-                          kwargs={
-                              'filename': filename,
-                          },
-                          daemon=True)
+    tp = threading.Thread(target=run_standards_update, daemon=True)
     tp.start()
-    _UPDATE_PROC['factors']['thread'] = tp
+    _UPDATE_PROC['standards']['thread'] = tp
     return tp
 
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.16a2'
+__version__ = '1.13.16a3'
 
 import sys
 import gi
@@ -31,7 +31,7 @@ from metarace.decoder.rru import rru, _CONFIG_SCHEMA as _RRU_SCHEMA
 from metarace.decoder.rrs import rrs, _CONFIG_SCHEMA as _RRS_SCHEMA
 from metarace.decoder.thbc import thbc, _CONFIG_SCHEMA as _THBC_SCHEMA
 from metarace.timy import timy, _TIMER_LOG_LEVEL, _CONFIG_SCHEMA as _TIMY_SCHEMA
-from metarace.factors import Factors, _CONFIG_SCHEMA as _FACTORS_SCHEMA
+from metarace.standards import Factors, _CONFIG_SCHEMA as _STANDARDS_SCHEMA
 from metarace import strops
 from metarace import report
 
@@ -2515,7 +2515,7 @@ def edit_defaults():
     metarace.sysconf.add_section('rrs', _RRS_SCHEMA)
     metarace.sysconf.add_section('timy', _TIMY_SCHEMA)
     metarace.sysconf.add_section('drelay', _DRELAY_SCHEMA)
-    metarace.sysconf.add_section('factors', _FACTORS_SCHEMA)
+    metarace.sysconf.add_section('standards', _STANDARDS_SCHEMA)
     cfgres = uiutil.options_dlg(title='Edit Default Configuration',
                                 sections={
                                     'roadmeet': {
@@ -2573,20 +2573,22 @@ def edit_defaults():
                                         'schema': _DRELAY_SCHEMA,
                                         'object': metarace.sysconf,
                                     },
-                                    'factors': {
-                                        'title': 'Time Factors',
-                                        'schema': _FACTORS_SCHEMA,
+                                    'standards': {
+                                        'title': 'Standards',
+                                        'schema': _STANDARDS_SCHEMA,
                                         'object': metarace.sysconf,
                                     },
                                 })
 
     # check for sysconf changes:
     syschange = False
-    dofactors = False
+    dostandards = False
     for sec in cfgres:
-        if sec == 'factors':
-            if cfgres[sec]['updateurl'][2]:
-                dofactors = True
+        if sec == 'standards':
+            if cfgres[sec]['factorupdateurl'][2]:
+                dostandards = True
+            elif cfgres[sec]['catupdateurl'][2]:
+                dostandards = True
         for key in cfgres[sec]:
             if cfgres[sec][key][0]:
                 syschange = True
@@ -2607,10 +2609,10 @@ def edit_defaults():
     else:
         _log.info('Edit default: No changes to save')
 
-    # if time factor url defined, re-load factors blocking
-    if dofactors:
+    # if standard urls defined, re-load
+    if dostandards:
         # TODO: progress dialog w/cancel
-        t = uiutil.do_factors_update()
+        t = uiutil.do_standards_update()
         t.join()
     return 0
 
