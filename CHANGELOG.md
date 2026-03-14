@@ -12,6 +12,12 @@
 
 ### Security
 
+## [1.13.16] - 2026-03-15
+
+### Changed
+
+  - switch from factors package to standards and add category info
+
 ## [1.13.15] - 2026-01-01
 
 ### Added
@@ -25,7 +31,7 @@
 
 ### Fixed
 
-   - dsplay class label on startlist/result
+   - display class label on startlist/result
 
 ## [1.13.14] - 2025-12-05
 

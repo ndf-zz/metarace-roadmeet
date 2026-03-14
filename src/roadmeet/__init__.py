@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.16a3'
+__version__ = '1.13.16'
 
 import sys
 import gi
@@ -625,8 +625,6 @@ class roadmeet:
                 _log.error('Print operation error: %s', printerr.message)
             else:
                 _log.error('Print operation cancelled')
-            self._print_report_thread = None
-            self._print_report_rep = None
         return False
 
     def finish_print(self, operation, context, rep):
