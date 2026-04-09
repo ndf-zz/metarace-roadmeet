@@ -133,7 +133,6 @@
                           <object class="GtkMenuItem" id="menu_event_reset">
                             <property name="visible">True</property>
                             <property name="label">Reset</property>
-                            <accelerator key="F5" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                             <signal name="activate" handler="menu_event_reset_cb"/>
                           </object>
                         </child>
@@ -175,7 +174,6 @@
                             <property name="label">_Callup</property>
                             <property name="visible">True</property>
                             <property name="use_underline">True</property>
-                            <accelerator key="F3" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                             <signal name="activate" handler="menu_reports_callup_activate_cb"/>
                           </object>
                         </child>
@@ -193,7 +191,6 @@
                             <property name="label">S_ignon</property>
                             <property name="visible">True</property>
                             <property name="use_underline">True</property>
-                            <accelerator key="F2" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                             <signal name="activate" handler="menu_reports_signon_activate_cb"/>
                           </object>
                         </child>
@@ -219,7 +216,6 @@
                             <property name="label">_Points Tally</property>
                             <property name="visible">True</property>
                             <property name="use_underline">True</property>
-                            <accelerator key="F11" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                             <signal name="activate" handler="event_results_points_activate_cb"/>
                           </object>
                         </child>

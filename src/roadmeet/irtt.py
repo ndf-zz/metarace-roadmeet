@@ -1429,7 +1429,7 @@ class irtt(rms):
                         if lpstr != pstr:
                             ## append an empty row
                             sec.lines.append(
-                                (None, None, None, None, None, None))
+                                [None, None, None, None, None, None])
                             lpstr = pstr
                 tstr = None
                 if not r[COL_COMMENT] and ft is not None:
@@ -1439,7 +1439,7 @@ class irtt(rms):
                         COL_COMMENT] and ct is not None and ft is not None and ct != ft:
                     dstr = '+' + (ft - ct).rawtime(1)
                 if placed:
-                    sec.lines.append((pstr, bstr, nstr, cls, tstr, dstr))
+                    sec.lines.append([pstr, bstr, nstr, cls, tstr, dstr])
                     if pilot is not None:
                         sec.lines.append(pilot)
 

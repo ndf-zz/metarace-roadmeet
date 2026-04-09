@@ -1702,7 +1702,18 @@ class rms:
             elif vcnt > 0:
                 sec.heading = 'Virtual Standing'
             else:
-                sec.heading = 'Race In Progress'
+                # check for a start time offset - suppress status until started
+                if self.start is not None:
+                    sof = self.start
+                    if cat and cat in self.catstarts:
+                        sof += self.catstarts[cat]
+                    nt = tod.now()
+                    if nt > sof:
+                        sec.heading = 'Race In Progress'
+                    else:
+                        sec.heading = 'Result'
+                else:
+                    sec.heading = 'Result'
         else:
             sec.heading = 'Provisional Result'
         if footer:

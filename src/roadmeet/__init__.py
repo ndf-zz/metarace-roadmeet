@@ -1143,6 +1143,9 @@ class roadmeet:
                     _log.info('Export in progress')
                     return False
 
+            # save current event and meet to disk
+            self.saveconfig()
+
             if self.lifexport:  # save current lif with export
                 lifdat = self.curevent.lifexport()
                 if len(lifdat) > 0:
@@ -1489,8 +1492,24 @@ class roadmeet:
                     return True
                 elif key == 'left':
                     self.notebook.prev_page()
+                    return True
                 elif key == 'right':
                     self.notebook.next_page()
+                    return True
+                elif key == 'f3':
+                    self.menu_reports_callup_activate_cb(None)
+                    return True
+                elif key == 'f2':
+                    self.menu_reports_signon_activate_cb(None)
+                    return True
+                elif key == 'f11':
+                    self.event_results_points_activate_cb(None)
+                    return True
+                elif key == 'f5':
+                    self.menu_event_reset_cb(None)
+                    return True
+            else:
+                pass
             if self.curevent is not None:
                 return self.curevent.key_event(widget, event)
         return False
@@ -2481,6 +2500,8 @@ class fakemeet(roadmeet):
         self.eventcode = ''
         self.shortname = ''
         self.mirrorfile = ''
+        self.minavg = 20.0
+        self.maxavg = 60.0
 
     def cmd_announce(self, command, msg):
         return False
