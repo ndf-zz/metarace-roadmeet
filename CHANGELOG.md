@@ -1,16 +1,10 @@
-## [Unreleased]
-
-### Added
-
-### Changed
-
-### Deprecated
-
-### Removed
+## [1.13.17] - 2026-05-01
 
 ### Fixed
 
-### Security
+  - show meet type warning dialog even when output is tty
+  - fix Ctrl+Fn keyboard shortcuts under Wayland/Plasma
+  - fix open empty meet issue from jsconconfig get_x error
 
 ## [1.13.16] - 2026-03-15
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.16'
+__version__ = '1.13.17'
 
 import sys
 import gi
@@ -1583,7 +1583,7 @@ class roadmeet:
         # Is this meet path an existing trackmeet?
         if cr.has_section('trackmeet'):
             _log.error('Meet folder contains track meet configuration')
-            if not os.isatty(sys.stdout.fileno()):
+            with suppress(Exception):
                 uiutil.messagedlg(
                     message='Invalid meet type.',
                     title='Roadmeet: Error',
