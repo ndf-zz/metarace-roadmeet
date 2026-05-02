@@ -10,6 +10,7 @@ import threading
 from importlib.resources import files
 from contextlib import suppress
 from subprocess import run
+from metarace.standards import Factors, CategoryInfo
 
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib

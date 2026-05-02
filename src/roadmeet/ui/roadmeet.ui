@@ -315,6 +315,13 @@
                           </object>
                         </child>
                         <child>
+                          <object class="GtkMenuItem" id="menu_data_standards">
+                            <property name="label">Update Standards</property>
+                            <property name="visible">True</property>
+                            <signal name="activate" handler="menu_data_update_standards_cb"/>
+                          </object>
+                        </child>
+                        <child>
                           <object class="GtkMenuItem" id="menu_data_export">
                             <property name="visible">True</property>
                             <property name="label">E_xport</property>

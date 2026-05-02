@@ -291,6 +291,7 @@ class rms:
         # update reserved sources list with any cat finish labels
         if len(self.cats) > 1:
             for cat in self.cats:
+                self.meet.loadcat(cat)
                 if cat:
                     srcid = cat.lower() + 'fin'
                     self.reserved_sources.append(srcid)

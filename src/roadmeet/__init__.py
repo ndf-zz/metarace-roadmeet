@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Timing and data handling application wrapper for road events."""
-__version__ = '1.13.17'
+__version__ = '1.13.18a1'
 
 import sys
 import gi
@@ -31,7 +31,7 @@ from metarace.decoder.rru import rru, _CONFIG_SCHEMA as _RRU_SCHEMA
 from metarace.decoder.rrs import rrs, _CONFIG_SCHEMA as _RRS_SCHEMA
 from metarace.decoder.thbc import thbc, _CONFIG_SCHEMA as _THBC_SCHEMA
 from metarace.timy import timy, _TIMER_LOG_LEVEL, _CONFIG_SCHEMA as _TIMY_SCHEMA
-from metarace.standards import Factors, _CONFIG_SCHEMA as _STANDARDS_SCHEMA
+from metarace.standards import Factors, CategoryInfo, _CONFIG_SCHEMA as _STANDARDS_SCHEMA
 from metarace import strops
 from metarace import report
 
@@ -376,6 +376,23 @@ def mkdevice(portstr=None, curdev=None):
 class roadmeet:
     """Road meet application class."""
 
+    def loadcat(self, cat):
+        """Ensure category has an entry in the current rider db."""
+        cat = cat.upper().strip()
+        if cat:
+            dbr = self.rdb.get_cat(cat)
+            if dbr is None:
+                _log.debug('Adding category %r to meet', cat)
+                dbr = riderdb.rider(no=cat, series='cat')
+                self.rdb.add_rider(dbr, overwrite=True)
+            if not dbr['title']:
+                catinfo = self.catinf.get_cat(cat)
+                if catinfo is not None:
+                    dbr['title'] = catinfo['Title']
+                else:
+                    ## but not for handicap
+                    _log.info('Non-standard category %r in meet', cat)
+
     ## Meet Menu Callbacks
     def menu_meet_save_cb(self, menuitem, data=None):
         """Save current all meet data to config."""
@@ -423,6 +440,7 @@ class roadmeet:
         metarace.sysconf.add_section('rru', _RRU_SCHEMA)
         metarace.sysconf.add_section('rrs', _RRS_SCHEMA)
         metarace.sysconf.add_section('timy', _TIMY_SCHEMA)
+        metarace.sysconf.add_section('standards', _STANDARDS_SCHEMA)
         cfgres = uiutil.options_dlg(window=self.window,
                                     title='Meet Properties',
                                     sections={
@@ -461,6 +479,11 @@ class roadmeet:
                                             'schema': _RRS_SCHEMA,
                                             'object': metarace.sysconf,
                                         },
+                                        'standards': {
+                                            'title': 'Standards',
+                                            'schema': _STANDARDS_SCHEMA,
+                                            'object': metarace.sysconf,
+                                        },
                                     })
 
         # check for sysconf changes:
@@ -468,7 +491,8 @@ class roadmeet:
         timychg = False
         timerchg = False
         tgchg = False
-        for sec in ('export', 'timy', 'rru', 'rrs', 'telegraph', 'thbc'):
+        for sec in ('export', 'timy', 'rru', 'rrs', 'telegraph', 'thbc',
+                    'standards'):
             for key in cfgres[sec]:
                 if cfgres[sec][key][0]:
                     syschange = True
@@ -908,6 +932,11 @@ class roadmeet:
             self.print_report(sections,
                               self.curevent.timerstat != 'finished',
                               filename='uciresult')
+
+    def menu_data_update_standards_cb(self, menuitem, data=None):
+        """Fetch and save current standards to meet folder."""
+        uiutil.do_standards_update()
+        return False
 
     def menu_data_replace_activate_cb(self, menuitem, data=None):
         """Replace rider db from disk."""
@@ -1610,6 +1639,9 @@ class roadmeet:
         _log.debug('meet load riders from riders.csv')
         self.rdb.load('riders.csv')
 
+        # Load standard categories
+        self.catinf.load()
+
         # Open the event
         self.open_event()
         self.set_title()
@@ -2256,6 +2288,7 @@ class roadmeet:
         self.indexlink = None
         self.nextlink = None
         self.prevlink = None
+        self.catinf = CategoryInfo()
 
         self.remoteenable = False
         self.lifexport = False
