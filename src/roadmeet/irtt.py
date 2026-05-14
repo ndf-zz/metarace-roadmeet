@@ -114,7 +114,7 @@ _CONFIG_SCHEMA = {
         'control': 'short',
         'places': 1,
         'type': 'tod',
-        'hint': 'Reject laps shorter than minimum lap time',
+        'hint': 'Default minimum lap time, ignore shorter lap passings',
         'attr': 'minlap',
         'default': STARTFUDGE,
     },
@@ -1857,6 +1857,9 @@ class irtt(rms):
         targetlaps = self.totlaps
         if cat in self.catlaps and self.catlaps[cat] is not None:
             targetlaps = self.catlaps[cat]
+        minlap = self.minlap
+        if cat in self.catminlap and self.catminlap[cat] is not None:
+            minlap = self.catminlap[cat]
         _log.debug('%r laps=%r(%r), cat=%r', bibstr, targetlaps, self.totlaps,
                    cat)
 
@@ -1864,7 +1867,7 @@ class irtt(rms):
             st = lr[COL_WALLSTART]
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]  # use tod if avail
-            if e > st + self.minlap:
+            if e > st + minlap:
                 i = lr.iter
                 if self.autoimpulse:
                     self.finish_match(i, lr[COL_TODSTART], e, bibstr)
@@ -1881,7 +1884,7 @@ class irtt(rms):
                 lt = lr[COL_TODSTART]
             if lr[COL_LASTSEEN] is not None and lr[COL_LASTSEEN] > lt:
                 lt = lr[COL_LASTSEEN]
-            if e > lt + self.minlap:
+            if e > lt + minlap:
                 lr[COL_PASS] += 1
                 nc = lr[COL_PASS]
                 if nc >= targetlaps:
@@ -1969,8 +1972,13 @@ class irtt(rms):
         st = lr[COL_WALLSTART]
         if lr[COL_TODSTART] is not None:
             st = lr[COL_TODSTART]
+        minlap = self.minlap
+        rcat = self.ridercat(riderdb.primary_cat(lr[COL_CAT]))
+        if rcat in self.catminlap and self.catminlap[rcat] is not None:
+            minlap = self.catminlap[rcat]
+
         # is e beyond the start threshold?
-        if st is not None and e > st and e - st > self.minlap:
+        if st is not None and e > st and e - st > minlap:
             okfin = True
 
         # switch on loop source mode
@@ -1999,11 +2007,12 @@ class irtt(rms):
                       e.rawtime(2), e.source)
             return False
 
+        # fall back to classic pre-finish id/impulse mode
         if self.fl.getstatus() != 'armfin':
             st = lr[COL_WALLSTART]
             if lr[COL_TODSTART] is not None:
                 st = lr[COL_TODSTART]
-            if st is not None and e > st and e - st > self.minlap:
+            if st is not None and e > st and e - st > minlap:
                 self.fl.setrider(lr[COL_BIB], lr[COL_SERIES])
                 self.armfinish()
                 _log.info('Arm finish: %s:%s@%s/%s', bibstr, e.chan,
@@ -2937,6 +2946,7 @@ class irtt(rms):
         self.curcat = ''
         self.catstarts = {}
         self.catplaces = {}
+        self.catminlap = {}
         self.catlaps = {}
         self.decisions = []
         self.places = ''

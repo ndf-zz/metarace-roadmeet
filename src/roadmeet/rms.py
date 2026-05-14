@@ -144,7 +144,7 @@ _CONFIG_SCHEMA = {
         'control': 'short',
         'places': 1,
         'type': 'tod',
-        'hint': 'Reject laps shorter than minimum lap time',
+        'hint': 'Default minimum lap time, ignore shorter lap passings',
         'attr': 'minlap',
         'default': MINPASSTIME,
     },
@@ -491,7 +491,7 @@ class rms:
         if self.gapthresh != GAPTHRESH:
             _log.warning('Set time gap threshold %s',
                          self.gapthresh.rawtime(2))
-        _log.debug('Minimum lap time: %s', self.minlap.rawtime(1))
+        _log.debug('Default minimum lap time: %s', self.minlap.rawtime(1))
 
         # restore stage inters, points and bonuses
         self.loadstageinters(cr, 'rms')
@@ -980,12 +980,14 @@ class rms:
     def load_cat_data(self):
         """Read category start and target data from riderdb."""
         self.catstarts = {}
+        self.catminlap = {}
         self.catlaps = {}
         onetarget = False
         onemissing = False
         for c in self.cats:
             cs = None  # default start offset is None
             ls = None
+            cm = None
             # fetch data on all but the uncat cat
             if c:
                 dbr = self.meet.rdb.get_rider(c, 'cat')
@@ -999,8 +1001,13 @@ class rms:
                         onetarget = True
                     else:
                         onemissing = True
+                    cm = tod.mktod(dbr['minimum laptime'])
+                    if cm:
+                        _log.debug('Minimum lap time for cat %r: %s', c,
+                                   cm.rawtime(1))
             self.catstarts[c] = cs
             self.catlaps[c] = ls
+            self.catminlap[c] = cm
         if onetarget:
             if onemissing:
                 # There's one or more cats without a target, issue warning
@@ -1125,6 +1132,7 @@ class rms:
                    self.maxfinish.rawtime(0))
         for r in self.riders:
             # add each rider, even when there is no info to display
+            minlap = self.minlap
             rdata = {}
             rdata['no'] = r[COL_BIB]
             rdata['name'] = ''
@@ -1145,9 +1153,12 @@ class rms:
                 if rdata['cat'] in self.catstarts:
                     if self.catstarts[rdata['cat']] is not None:
                         catstart = self.catstarts[rdata['cat']]
+                if rdata['cat'] in self.catminlap:
+                    if self.cartminlap[rdata['cat']] is not None:
+                        minlap = self.catminlap[rdata['cat']]
                 rdata['start'] = sec.start + catstart
                 rft = None
-                minet = rdata['start'] + self.minlap
+                minet = rdata['start'] + minlap
                 if r[COL_RFTIME] is not None:
                     rft = r[COL_RFTIME]
                 elif r[COL_RFSEEN] and r[COL_RFSEEN][-1] is not None:
@@ -1224,6 +1235,7 @@ class rms:
                 marker = ' '
                 es = ''
                 bs = ''
+                minlap = self.minlap
                 pset = False
                 placed = False
                 timed = False
@@ -1241,6 +1253,8 @@ class rms:
                 if ecat in self.catstarts and self.etype not in ('handicap'):
                     if self.catstarts[ecat] is not None:
                         catstart = self.catstarts[ecat]
+                if ecat in self.catminlap and self.catminlap[ecat] is not None:
+                    minlap = self.catminlap[ecat]
 
                 if catstart < mincatstart:
                     mincatstart = catstart
@@ -1251,7 +1265,7 @@ class rms:
                     rstart = self.start
                     if catstart is not None:
                         rstart += catstart
-                    notbefore = rstart + self.minlap
+                    notbefore = rstart + minlap
                 laplist = []
                 if notbefore is not None:
                     for lt in r[COL_RFSEEN]:
@@ -1493,6 +1507,7 @@ class rms:
                     # exclude properly categorised riders
                     incat = rcats[0] not in self.cats
             if incat:
+                minlap = self.minlap
                 if cat:
                     rcat = cat
                 else:
@@ -1503,6 +1518,8 @@ class rms:
                     sof = r[COL_STOFT]
                 elif rcat in self.catstarts:
                     sof = self.catstarts[rcat]
+                if rcat in self.catminlap and self.catminlap[rcat] is not None:
+                    minlap = self.catminlap[rcat]
                 bstr = r[COL_BIB]
                 nstr = r[COL_NAMESTR]
                 rlap = r[COL_LAPS]
@@ -1676,7 +1693,7 @@ class rms:
                                 continue  # passing before start of region
                             else:
                                 lt = p - ls
-                                if lt > self.minlap:
+                                if lt > minlap:
                                     lc += 1  # consider this a legit lap
                                     if flap is None or lt < flap:  # new fastest
                                         flap = lt
@@ -3095,8 +3112,11 @@ class rms:
             catstart = lr[COL_STOFT]
         elif rcat in self.catstarts and self.catstarts[rcat] is not None:
             catstart = self.catstarts[rcat]
+        minlap = self.minlap
+        if rcat in self.catminlap and self.catminlap[rcat] is not None:
+            minlap = self.catminlap[rcat]
         if self.start is not None:
-            st = self.start + catstart + self.minlap
+            st = self.start + catstart + minlap
         # ignore all passings from before first allowed time
         if e <= st:
             _log.info('Ignored early passing: %s:%s@%s/%s < %s', bib, e.chan,
@@ -3111,7 +3131,7 @@ class rms:
         else:  # always one to the 'left' of e
             # check previous passing for min lap time
             lastseen = lr[COL_RFSEEN][ipos - 1]
-            nthresh = lastseen + self.minlap
+            nthresh = lastseen + minlap
             if e <= nthresh:
                 _log.info('Ignored short lap: %s:%s@%s/%s < %s', bib, e.chan,
                           e.rawtime(2), e.source, nthresh.rawtime(2))
@@ -3120,7 +3140,7 @@ class rms:
             if len(lr[COL_RFSEEN]) > ipos:
                 npass = lr[COL_RFSEEN][ipos]
                 delta = npass - e
-                if delta <= self.minlap:
+                if delta <= minlap:
                     _log.info('Spurious passing: %s:%s@%s/%s < %s', bib,
                               e.chan, e.rawtime(2), e.source, npass.rawtime(2))
                     return False
@@ -3130,14 +3150,14 @@ class rms:
 
         # update event model if rider still in race
         if lr[COL_RFTIME] is None:
-            return self.riderlap(bib, lr, rcat, e)
+            return self.riderlap(bib, lr, rcat, e, minlap)
         else:
             _log.info('Ignored finished rider: %s:%s@%s/%s', bib, e.chan,
                       e.rawtime(2), e.source)
 
         return False
 
-    def eventlap(self, bib, lr, rcat, e):
+    def eventlap(self, bib, lr, rcat, e, minlap):
         """Update event lap counts based on rider passing"""
         onlap = False
         if self.lapfin is None:
@@ -3168,7 +3188,7 @@ class rms:
                         # rider is not on current event lap
                         pass
                 else:
-                    if e < curlapstart + self.minlap:
+                    if e < curlapstart + minlap:
                         # passing cannot be for a new lap yet
                         if self.etype == 'criterium':
                             # push them back to the current lap
@@ -3187,7 +3207,7 @@ class rms:
                         onlap = True
         return onlap
 
-    def riderlap(self, bib, lr, rcat, e):
+    def riderlap(self, bib, lr, rcat, e, minlap):
         """Process an accepted rider lap passing"""
         # check if lap mode is target-based
         lapfinish = False
@@ -3223,7 +3243,7 @@ class rms:
                             rcat]:
                         self.catonlap[rcat] = lr[COL_LAPS]
                         self.announcecatlap(rcat)
-            self.eventlap(bib, lr, rcat, e)
+            self.eventlap(bib, lr, rcat, e, minlap)
         # end finishing rider path
 
         # lapping rider path
@@ -3250,7 +3270,7 @@ class rms:
                             # rider is on the current event lap
                             onlap = True
 
-                self.eventlap(bib, lr, rcat, e)
+                self.eventlap(bib, lr, rcat, e, minlap)
         else:
             _log.debug('Ignored rider lap for timerstat=%s', self.timerstat)
 
@@ -5012,6 +5032,7 @@ class rms:
         self.catlaps = {}  # cache of cat lap counts
         self.catstarts = {}  # cache of cat start times
         self.catplaces = {}
+        self.catminlap = {}
         self.autocats = False
         self.autostartlist = None
         self.bonuses = {}
@@ -5033,7 +5054,7 @@ class rms:
         self.totlaps = None
         self.lapstart = None
         self.lapfin = None
-        self.minlap = MINPASSTIME  # minimum lap/elap time if relevant
+        self.minlap = MINPASSTIME  # default minimum lap/elap time if relevant
         self.cmap = meet.get_colourmap()
         self.cmapmod = len(self.cmap) - 1
 

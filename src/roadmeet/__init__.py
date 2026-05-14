@@ -1813,12 +1813,14 @@ class roadmeet:
                         lr[5] = r['distance']
                         lr[6] = r['start']
                         lr[8] = style
+                        lr[9] = r['minimum laptime']
                         found = True
                         break
                 else:
                     lr = [
                         rider[0], r['title'], r['subtitle'], r['footer'],
-                        r['target'], r['distance'], r['start'], rider, style
+                        r['target'], r['distance'], r['start'], rider, style,
+                        r['minimum laptime']
                     ]
                     self._clm.append(lr)
         else:
@@ -1850,7 +1852,8 @@ class roadmeet:
                 else:
                     rlr = [
                         r[0], dbr['title'], dbr['subtitle'], dbr['footer'],
-                        dbr['target'], dbr['distance'], dbr['start'], r, style
+                        dbr['target'], dbr['distance'], dbr['start'], r, style,
+                        dbr['minimum laptime']
                     ]
                     self._clm.append(rlr)
             _log.debug('Re-built refid tagmap: %d entries', len(self._tagmap))
@@ -1905,6 +1908,13 @@ class roadmeet:
                 c['start'] = nt.rawtime(0)
             else:
                 c['start'] = ''
+        elif col == 9:
+            # always re-write minlap
+            nt = tod.mktod(new_text)
+            if nt is not None:
+                c['minimum laptime'] = nt.rawtime(1)
+            else:
+                c['minimum laptime'] = ''
 
     def _editname_cb(self, cell, path, new_text, col):
         """Update a rdb by name entry"""
@@ -2438,6 +2448,7 @@ class roadmeet:
             str,  # Start Offset 6
             object,  # Rider ref 7
             int,  # Text style 8
+            str,  # Min laptime 9
         )
         t = Gtk.TreeView(self._clm)
         t.set_reorderable(True)
@@ -2477,6 +2488,12 @@ class roadmeet:
         uiutil.mkviewcoltxt(t,
                             'Start Offset',
                             6,
+                            width=50,
+                            calign=1.0,
+                            cb=self._catcol_cb)
+        uiutil.mkviewcoltxt(t,
+                            'Min Lap',
+                            9,
                             width=50,
                             calign=1.0,
                             cb=self._catcol_cb)
@@ -2535,6 +2552,7 @@ class fakemeet(roadmeet):
         self.mirrorfile = ''
         self.minavg = 20.0
         self.maxavg = 60.0
+        self.catinf = CategoryInfo()
 
     def cmd_announce(self, command, msg):
         return False
@@ -2552,6 +2570,9 @@ class fakemeet(roadmeet):
         cr.merge(metarace.sysconf, 'roadmeet')
         cr.load(CONFIGFILE)
         cr.export_section('roadmeet', self)
+
+        # Load standard categories
+        self.catinf.load()
 
 
 def edit_defaults():

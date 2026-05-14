@@ -19,7 +19,7 @@ from metarace import report
 from metarace import jsonconfig
 from . import uiutil
 
-from roadmeet.rms import rms, RESERVED_SOURCES, GAPTHRESH
+from roadmeet.rms import rms, RESERVED_SOURCES, GAPTHRESH, MINPASSTIME
 
 _log = logging.getLogger('trtt')
 _log.setLevel(logging.DEBUG)
@@ -51,9 +51,6 @@ COL_TEAM = 18  # team code
 # Nth wheel decides whose time is counted to the team
 NTH_WHEEL = 3
 
-# Minimum lap/elap time, should be at least the same as start gaps
-MINLAP = tod.tod('2:00')
-
 # Add a gap in the startlist when gap is larger than STARTGAP
 STARTGAP = tod.tod('4:00')
 
@@ -76,9 +73,9 @@ _CONFIG_SCHEMA = {
         'control': 'short',
         'places': 1,
         'type': 'tod',
-        'hint': 'Reject laps shorter than minimum lap time',
+        'hint': 'Default minimum lap time, ignore shorter lap passings',
         'attr': 'minlap',
-        'default': MINLAP,
+        'default': MINPASSTIME,
     },
     'totlaps': {
         'prompt': 'Laps:',
@@ -356,10 +353,12 @@ class trtt(rms):
 
     def load_cat_data(self):
         self.catlaps = {}
+        self.catminlap = {}
         onetarget = False
         onemissing = False
         for c in self.cats:
             ls = None
+            cm = None
             # fetch data on all but the uncat cat
             if c:
                 dbr = self.meet.rdb.get_rider(c, 'cat')
@@ -370,7 +369,12 @@ class trtt(rms):
                         onetarget = True
                     else:
                         onemissing = True
+                    cm = tod.mktod(dbr['minimum laptime'])
+                    if cm:
+                        _log.debug('Minimum lap time for cat %r: %s', c,
+                                   cm.rawtime(1))
             self.catlaps[c] = ls
+            self.catminlap[c] = cm
         if onetarget:
             self.autofinish = True
             if onemissing:
@@ -1221,7 +1225,7 @@ class trtt(rms):
             # send through to catch-all trigger handler
             self.starttrig(e)
 
-    def riderlap(self, bib, lr, rcat, e):
+    def riderlap(self, bib, lr, rcat, e, minlap):
         """Process an accepted rider lap passing"""
         # check if lap mode is target-based
         lapfinish = False
@@ -1548,7 +1552,7 @@ class trtt(rms):
         self.start = None
         self.calcset = False
         self.maxfinish = tod.ZERO
-        self.minlap = None
+        self.minlap = MINPASSTIME
         self.startgap = None
         self.winopen = True
         self.timerstat = 'idle'
@@ -1559,6 +1563,7 @@ class trtt(rms):
         self.passingsource = None  # loop id no for valid passing
         self.autofinish = False  # true if finish is det by target
         self.catplaces = {}
+        self.catminlap = {}
         self.catlaps = {}  # cache of cat lap counts
         self.defaultnth = NTH_WHEEL
         self.nthwheel = {}
